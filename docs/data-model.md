@@ -495,8 +495,9 @@ Option labels are dynamic values, not enum keys. They must undergo content/priva
 interface AppSettings extends AuditFields {
   id: 'app';
   tripTitle: string;
-  tripStartDate: string; // ISO local calendar date
-  tripEndDate: string;
+  tripStartDate: string; // '2026-07-31', ISO local calendar date
+  tripEndDate: string;   // '2026-08-02', ISO local calendar date
+  publicAccommodationArea: 'Žižkov, Prague 3';
   timezone: string;      // IANA name, e.g. Europe/Prague
   submissionsOpen: boolean;
   activeCompetitionId?: CompetitionId;
@@ -506,7 +507,7 @@ interface AppSettings extends AuditFields {
 
 interface ProtectedTripInfo extends AuditFields {
   id: 'trip';
-  exactAccommodationAddress?: string;
+  exactAccommodationAddress?: string; // future authenticated/restricted use only
   accessNotes?: string;
   emergencyGroupNote?: string;
 }
@@ -528,7 +529,7 @@ interface AuditEntry {
 }
 ```
 
-Public `AppSettings` contains only display-safe global state. `ProtectedTripInfo` is stored in an authenticated restricted branch, not compiled into Vite assets. Audit entries are append-only to clients, organizer-readable, and backend/admin-writable. They record metadata and safe summaries rather than duplicating private message bodies, prediction choices, protected codes, or reveal content.
+Public `AppSettings` fixes the trip range to 31 July–2 August 2026 and the public accommodation copy to `Žižkov, Prague 3`; it otherwise contains only display-safe global state. `ProtectedTripInfo` is reserved for a later authenticated feature and is never compiled into Vite assets, static data, or mock data. Audit entries are append-only to clients, organizer-readable, and backend/admin-writable. They record metadata and safe summaries rather than duplicating private message bodies, prediction choices, protected codes, exact addresses, or reveal content.
 
 ## 12. Recommended Realtime Database tree
 
@@ -540,7 +541,7 @@ Path names are neutral and access-oriented. `$uid`, `$competitionId`, and simila
     appSettings/app
     trip/
       itinerary/{itemId}
-      general
+      general                                  # public area only: Žižkov, Prague 3
     participants/{participantId}
     competitions/{competitionId}
     stages/{competitionId}/{stageId}
@@ -587,7 +588,7 @@ Path names are neutral and access-oriented. `$uid`, `$competitionId`, and simila
     byEntity/{entityType}/{entityId}/{pushId}
 ```
 
-“Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. The exact address remains under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch.
+“Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
 Competition drafts live under `organizer`; confirmed, sanitized competition configurations and results live under `public`. Organizer clients should invoke trusted operations to publish multi-path updates rather than copy partial trees themselves.
 

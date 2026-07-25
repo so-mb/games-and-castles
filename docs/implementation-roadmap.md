@@ -9,6 +9,7 @@ Cross-cutting rules:
 - Keep game names as user data and use only `round-robin-knockout`, `all-hands`, and `group-knockout` as format identifiers.
 - Treat GitHub Pages as static delivery and Firebase as the authenticated state/backend boundary.
 - Add no sensitive reveal content, protected codes, exact address, or secrets to repository files, build output, fixtures, screenshots, logs, or client paths.
+- Display the complete 31 July–2 August 2026 range and only `Žižkov, Prague 3` as public accommodation information.
 - Use separate development and production Firebase projects; develop against the Emulator Suite wherever practical.
 - Derive championship totals from score entries. Never introduce a manually incremented total.
 - Confirm and persist generated fixture/group draws once; never regenerate on render/reconnect.
@@ -39,7 +40,7 @@ Cross-cutting rules:
 
 **Inputs**
 
-- Approved product brief and Saturday itinerary.
+- Approved 31 July–2 August 2026 trip range, three-day roles, and Saturday itinerary.
 - Planned stack and GitHub Pages/Firebase constraints.
 - Known privacy requirement for reveal and accommodation data.
 
@@ -56,8 +57,8 @@ Cross-cutting rules:
 2. The three exact identifiers and friendly labels are consistent across documents.
 3. Table points and championship points are separate; individual round wins award configurable championship points.
 4. Prediction scoring is backend-controlled, deterministic, and idempotent.
-5. The Saturday itinerary, free-attraction labels, delay strategy, and priority order match the approved brief.
-6. No application source, scaffolding, credentials, exact address, or sensitive reveal detail exists.
+5. The full trip range, Friday/Saturday/Sunday roles, Saturday itinerary, free-attraction labels, delay strategy, and priority order match the approved brief.
+6. Public accommodation copy is `Žižkov, Prague 3`; no application source, scaffolding, credentials, exact address, or sensitive reveal detail exists.
 7. Each later phase includes measurable criteria, risks, and tests.
 
 **Main technical risks:** Ambiguous requirements becoming accidental implementation decisions; contradictory terminology; protected information leaking into examples.
@@ -77,7 +78,8 @@ Cross-cutting rules:
 **Outputs**
 
 - React/TypeScript/Vite/Tailwind shell with all one-page section anchors.
-- Complete Saturday itinerary and flexible Friday outline rendered from non-sensitive static data.
+- Complete 31 July–2 August 2026 overview: flexible Friday outline, full Saturday itinerary, and Sunday departure/onward-travel summary rendered from non-sensitive static data.
+- Public accommodation copy limited to `Žižkov, Prague 3`, with no exact address in source, mock data, or build output.
 - Neutral locked placeholders for Birthday Vault and special reveal.
 - Static representative championship cards/empty states using synthetic data.
 - GitHub Actions build/deploy workflow and GitHub Pages preview/production URL.
@@ -87,15 +89,15 @@ Cross-cutting rules:
 **Acceptance criteria**
 
 1. A clean checkout builds reproducibly and deploys under the repository base path with no broken asset or anchor URLs.
-2. 320 px through desktop layouts have no page-level horizontal overflow; Saturday details and priority behavior are exact.
-3. Friday communicates no fixed times; Saturday uses a scheduled vertical timeline.
-4. Locked sections are neutral and contain no sensitive clues or address.
+2. 320 px through desktop layouts have no page-level horizontal overflow; the complete date range and Saturday details/priority behavior are exact.
+3. Friday communicates no fixed times, Saturday uses a scheduled vertical timeline, and Sunday states only departure and onward travel.
+4. Public accommodation copy is exactly `Žižkov, Prague 3`; locked sections are neutral and contain no sensitive clues or exact address.
 5. Keyboard navigation, headings, focus, contrast, reduced-motion baseline, and 44 px targets pass an initial audit.
 6. No Firebase dependency, credential, application secret, or faux protected content is introduced.
 
 **Main technical risks:** GitHub Pages base-path/SPA refresh behavior; oversized imagery/font performance; visual shell implying unauthorized features are secure; mobile bracket mockup overflow.
 
-**Recommended tests:** Type-check/build; lint if configured without broad formatting; Pages smoke test on direct root and anchors; Lighthouse/mobile performance sample; axe; keyboard/screen-reader spot check; responsive screenshots with synthetic data; built-output forbidden-data scan.
+**Recommended tests:** Type-check/build; lint if configured without broad formatting; Pages smoke test on direct root and anchors; Lighthouse/mobile performance sample; axe; keyboard/screen-reader spot check; responsive screenshots with synthetic data; old-date-range and accommodation-copy searches; built-output forbidden-data scan.
 
 ---
 
@@ -427,7 +429,7 @@ Cross-cutting rules:
 3. Reduced motion removes nonessential movement; sound remains off by default; animations never block score entry/navigation and replay never mutates data.
 4. Offline/reconnect, stale admin revision, function retry, partial failure recovery, and backup/rollback are rehearsed.
 5. Initial load and realtime bandwidth meet agreed mobile budgets; listeners are scoped and cleaned up.
-6. Complete Friday, Saturday, all three competition formats, birthday publication, prediction lock/reveal, ledger correction, and presentation runbook succeeds with synthetic protected content.
+6. Complete Friday, Saturday, Sunday departure summary, all three competition formats, birthday publication, prediction lock/reveal, ledger correction, and presentation runbook succeeds with synthetic protected content.
 7. Production deploy uses reviewed commit/artifacts, green CI, enforced Rules/App Check plan, backup, and a documented rollback point.
 8. A final scan confirms no sensitive content, protected code, exact address, credentials, or unintended source maps/public data.
 
@@ -451,4 +453,3 @@ Production use is blocked until all of the following are true:
 - Protected configuration and any restricted trip data are provisioned only out of band.
 - A current database backup exists and restore/rollback instructions are available offline to organizers.
 - At least one complete multi-device rehearsal includes result correction, prediction lock, reveal retry, reduced motion, and temporary network loss.
-

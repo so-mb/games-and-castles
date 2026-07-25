@@ -12,7 +12,7 @@ The following must never be committed, compiled by Vite, placed in public Fireba
 
 - sensitive special-reveal content before publication;
 - a protected organizer code or equivalent server-side condition;
-- the exact accommodation address unless retrieved from authenticated restricted storage;
+- the exact accommodation address, which is excluded from static/public data and may be retrieved only by a later authenticated implementation from restricted storage;
 - service-account credentials and private API credentials.
 
 ## 2. Authentication and role assignment
@@ -64,7 +64,7 @@ flowchart TD
 | Capability | Guest | Organizer | Backend |
 |---|---:|---:|---:|
 | Read safe itinerary/general trip info | Yes | Yes | Yes |
-| Read exact restricted accommodation data | No by default | Yes | Yes |
+| Read exact restricted accommodation data | No | Only if a later authenticated feature authorizes it | Yes |
 | Read published competitions, results, standings, leaderboard | Yes | Yes | Yes |
 | Create own participant profile | Yes, validated | Yes | Yes |
 | Manage other participants | No | Yes | Yes |
@@ -231,9 +231,9 @@ Where one atomic Realtime Database update would exceed practical limits, store a
 
 ## 7. Exact accommodation-address privacy
 
-Recommended first-release policy: show only the Žižkov area publicly and omit the exact address from the app. If in-app access is required, store it under an authenticated restricted path such as `/organizer/protectedTripInfo/trip` or a separate attendee-allowlisted branch, and fetch it only after authorization.
+The confirmed public/static policy is to show only **Žižkov, Prague 3**. The exact address must be absent from repository files, public documentation examples, mock data, static assets, build artifacts, precache, source maps, notification content, analytics, screenshots used in CI, and error reports. A cosmetic “Reveal address” control provides no security when client-side data already contains the value and is prohibited.
 
-Before allowing all anonymous guests to read the address, organizers must decide how membership is established; possession of any anonymous token alone may be too broad if project access leaks. A safer option is organizer-only display or a callable function that verifies an allowlisted participant link. The address must be absent from repository files, build artifacts, precache, notification content, analytics, screenshots used in CI, and error reports.
+A later authenticated implementation may store the exact address under a restricted Firebase path such as `/organizer/protectedTripInfo/trip` or a separately authorized attendee branch. That future feature must define meaningful membership authorization before returning the value; possession of any anonymous token alone is insufficient. Until that feature is explicitly designed and reviewed, no exact address is stored or served by the application.
 
 ## 8. App Check, abuse controls, and rate limiting
 

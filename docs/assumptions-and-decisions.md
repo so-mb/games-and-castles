@@ -25,12 +25,13 @@ This document records decisions without describing, naming, or inferring protect
 | CR-10 | Result correction triggers full affected recalculation. | Standings, qualification, bracket dependencies, score entries, leaderboard, and read caches must reflect the authoritative corrected result. Adding manual compensation alone would leave invalid derived state. |
 | CR-11 | Sensitive reveal content is backend-only before publication. | Anything in React, Vite variables, public database paths, CSS, source maps, logs, examples, names, or repository history can be inspected. Cloud Functions must authorize, verify protected conditions, publish, and resolve. |
 | CR-12 | Prediction scoring is backend-controlled and idempotent. | Clients cannot know/decide the protected outcome authoritatively. The key `prediction:{eventId}:{participantId}` ensures retries never award twice. |
-| CR-13 | Exact accommodation data is restricted. | A hidden frontend button is not security. The first release either omits the exact address or retrieves it after meaningful authenticated authorization from a restricted path. Public content names only Žižkov. |
+| CR-13 | Public accommodation information is limited to `Žižkov, Prague 3`; the exact address is excluded from the static application and repository. | A hidden frontend button is not security. The exact address must not appear in client data, mock data, public examples, or commits. A later authenticated implementation may retrieve it from restricted Firebase data after separate authorization review. |
 | CR-14 | Private birthday submissions are not downloaded to other guests. | Security must be path/rule/function based, not client filtering. Publication creates a separate approved snapshot; count is a trusted aggregate. |
 | CR-15 | The first implementation vertical slice prioritizes `round-robin-knockout`. | It exercises the shared hard parts early: generation, persistence, series, standings, tiebreaks, brackets, round scoring, corrections, audit, and live synchronization. Later formats reuse those primitives. |
 | CR-16 | Animation is controlled and secondary to usability. | Important moments benefit from motion, but score entry/itinerary access must stay fast. Reduced motion is respected; sound is off by default; no constant distracting animation. |
 | CR-17 | Development and production use separate Firebase projects. | This prevents test identities, claims, synthetic reveals, permissive experimentation, and data migrations from affecting the live weekend. |
 | CR-18 | Saturday, 1 August 2026 follows the approved itinerary and priorities. | The document must preserve the planned timeline, mark all tourist attractions free, shorten/skip the museum first if delayed, skip Kampa before reducing Charles Bridge, and protect fixed dinner/cinema bookings. |
+| CR-19 | The displayed trip range is 31 July–2 August 2026. | Friday, 31 July is flexible Game Night in Germany with no fixed times; Saturday, 1 August is the scheduled Prague Quest; Sunday, 2 August is departure and onward travel only, with no invented itinerary. |
 
 ## 3. Required terminology
 
@@ -60,7 +61,6 @@ Do not create aliases for the format identifiers in persisted data. Friendly lab
 | RD-09 | Team award policy is `each-member` | Organizer before session | Clear and celebratory; displayed award explains per-member points |
 | RD-10 | Overall equal totals share rank (`1, 1, 3`) | Fixed unless product spec changes | No hidden weekend tiebreak was approved |
 | RD-11 | Locked prediction aggregate remains hidden until reveal | Organizer/event policy | Preserves surprise and avoids social influence |
-| RD-12 | Exact accommodation address is omitted from the first public app | Organizer may approve a restricted authenticated flow | Lowest privacy risk and no member-verification ambiguity |
 | RD-13 | Birthday publication is a snapshot; replay is client-only | Fixed implementation behavior | Moderation remains stable and animation cannot duplicate writes |
 | RD-14 | Cryptographic Fisher–Yates shuffle plus circle method | Fixed technical behavior | Unbiased initial order and proven complete pairings |
 | RD-15 | Persist voided score entries instead of silently deleting them | Technical implementation unless retention policy requires removal | Supports audit and correction explanation while totals filter to active entries |
@@ -74,7 +74,6 @@ These items require confirmation; recommendations indicate the least-risk starti
 
 | ID | Decision required | Recommendation | Needed before |
 |---|---|---|---|
-| OD-01 | Confirm the full displayed weekend date range. Saturday is fixed as 1 August 2026; the preceding Friday would be 31 July 2026. | Display “31 July–1 August 2026” only after organizer confirmation. | Phase 1 copy freeze |
 | OD-02 | Choose organizer persistent sign-in provider and initial admin provisioning owner. | Passwordless email-link or trusted federated provider; at least two individually identified organizers; no shared PIN/account where avoidable. | Phase 2 |
 | OD-03 | Decide how an anonymous UID claims an existing participant and how lost sessions are recovered. | Organizer-issued short-lived claim/invite or organizer-assisted relink; never choose a display name as proof. | Phase 2 |
 | OD-04 | Decide whether safe itinerary is readable before anonymous auth completes. | Keep protected-by-default; render bundled safe itinerary shell while auth initializes, with Firebase public reads requiring auth. | Phase 2 |
@@ -90,14 +89,13 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-14 | Decide whether organizers may view individual predictions before reveal and whether aggregate distribution publishes afterward. | Do not surface individual choices unless operationally necessary; hide aggregate until reveal; publish aggregate only if approved. | Phase 9 |
 | OD-15 | Supply safe dynamic option labels and determine exactly when they become guest-readable. | Content-review them before entering any client-readable path; keep stored values neutral. | Phase 9 content freeze |
 | OD-16 | Choose the protected reveal condition/code lifecycle, attempt limit, and authorized function operators. | Secret Manager value, callable verification, low attempt limit/alert, rotation after use; never share through repository/chat logs. | Phase 9 |
-| OD-17 | Decide exact address access: omit, organizer-only, or participant-allowlisted. | Omit from first release; if needed, require an organizer/allowlisted participant link rather than any anonymous token. | Before protected trip data is entered |
 | OD-18 | Set production App Check enforcement date and supported devices/browsers. | Monitor during staging/rehearsal, then enforce before production with an organizer recovery path. | Phase 10 |
 | OD-19 | Approve data retention, export, privacy deletion, backup, and audit-log periods. | Minimize private content after the event; retain only safe audit metadata required for recovery/explanation. | Phase 10 |
 | OD-20 | Confirm performance budgets and whether remote webfonts/photography are acceptable. | Self-host/subset at most two fonts where licensing allows; mobile-first optimized imagery; define budgets during Phase 1. | Phase 1/11 |
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-Production is blocked by OD-02, OD-03, OD-13, OD-15, OD-16, OD-17, OD-18, and OD-19. Other decisions block the named feature/phase but need not prevent unrelated work.
+Production is blocked by OD-02, OD-03, OD-13, OD-15, OD-16, OD-18, and OD-19. Other decisions block the named feature/phase but need not prevent unrelated work.
 
 ## 6. Technical architecture decisions
 
@@ -192,4 +190,3 @@ Any change to scoring, qualification, reveal privacy, address access, roles, pub
 5. an audited administrative operation if live data changes.
 
 Visual copy and minor layout changes do not require an architecture decision unless they expose protected information, change accessible meaning, imply a new state transition, or contradict the approved itinerary/rules.
-

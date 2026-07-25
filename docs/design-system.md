@@ -182,11 +182,11 @@ Avoid ambiguous dots with no text in primary status displays.
 
 ### 5.1 Hero
 
-Use one strong Prague travel image/illustration with a protective gradient for text. The title and dates lead; Germany-to-Prague context and playful tagline follow. Birthday acknowledgement is a small warm line, not the dominant headline. When scoring starts, a compact leader card shows avatar, name, crown, points, tie wording when needed, and a “Why these points?” link.
+Use one strong Prague travel image/illustration with a protective gradient for text. The title and complete **31 July–2 August 2026** range lead; Germany-to-Prague context and playful tagline follow. Birthday acknowledgement is a small warm line, not the dominant headline. When scoring starts, a compact leader card shows avatar, name, crown, points, tie wording when needed, and a “Why these points?” link.
 
 ### 5.2 Weekend overview
 
-Friday's card uses an unordered tile cloud/list and an “Any order” chip; no times or vertical connector. Saturday's card uses a mini route/timeline and next fixed booking. This structural contrast communicates flexibility without relying on color.
+Friday's card uses an unordered tile cloud/list and an “Any order” chip; no times or vertical connector. Saturday's card uses a mini route/timeline and next fixed booking. Sunday's compact card states only “Departure and onward travel” and contains no invented timeline or activity list. The structural contrast communicates flexibility and scheduling without relying on color.
 
 ### 5.3 Timeline
 
@@ -325,4 +325,3 @@ Do not fire confetti or reveal animations merely because historical published da
 - 200% zoom and 320 px reflow have no lost content or page-level horizontal scroll.
 - Live-region announcements are concise and do not announce every leaderboard rerender.
 - Reduced-motion behavior and sound-off default verified in automated/manual tests.
-

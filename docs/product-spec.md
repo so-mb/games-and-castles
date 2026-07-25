@@ -2,7 +2,7 @@
 
 ## 1. Product vision
 
-Games & Castles is a private, mobile-first, one-page web experience that keeps a group weekend understandable, competitive, and celebratory. It combines the calm editorial feel of a premium European travel journal with the energy of an arcade tournament. Connected devices share live competition results, standings, participant changes, predictions, and published reveals while organizers retain control over consequential actions.
+Games & Castles is a private, mobile-first, one-page web experience for 31 July–2 August 2026 that keeps a group weekend understandable, competitive, and celebratory. Friday is a flexible game night in Germany, Saturday is the scheduled Prague Quest, and Sunday is departure and onward travel. It combines the calm editorial feel of a premium European travel journal with the energy of an arcade tournament. Connected devices share live competition results, standings, participant changes, predictions, and published reveals while organizers retain control over consequential actions.
 
 The application is a static React frontend hosted on GitHub Pages. Firebase provides authentication, authorized writes, realtime data, protected operations, and server-side scoring. This boundary is fundamental: GitHub Pages distributes public client assets; it is not a trusted backend.
 
@@ -40,7 +40,7 @@ Anonymous guests are not inherently anonymous to the application: each session h
 ### Guest
 
 1. Open the page on a phone, sign in anonymously, and create or claim a participant profile as permitted.
-2. Check the flexible Friday outline or scheduled Saturday itinerary.
+2. Check the flexible Friday outline, scheduled Saturday itinerary, or Sunday departure summary.
 3. Follow active matches, group/session progress, standings, and the overall leaderboard in realtime.
 4. Inspect a point breakdown that explains every championship point.
 5. Submit a Birthday Vault message without downloading anyone else's private submission.
@@ -65,7 +65,7 @@ The site is one vertically scrollable application with a sticky, compact navigat
 ### 4.1 Hero
 
 - Product title: **Games & Castles**.
-- Trip dates, including Saturday, 1 August 2026, and the Germany-to-Prague context.
+- Complete trip range: **31 July–2 August 2026**, with the Germany-to-Prague context.
 - A short playful tagline and subtle birthday acknowledgement.
 - Prague/travel artwork or photography using the treatment defined in [design-system.md](design-system.md).
 - Before play: a welcoming weekend summary. After scoring begins: current leader, tied-leader state where applicable, total points, and a link to the full breakdown.
@@ -73,11 +73,13 @@ The site is one vertically scrollable application with a sticky, compact navigat
 
 ### 4.2 Weekend overview
 
-Two visually distinct day cards summarize the rhythm of the weekend.
+Three day cards summarize the rhythm of the complete trip. Friday and Saturday are the two major activity cards; Sunday is a concise departure card and must not imply an itinerary that has not been planned.
 
-**Friday — Game Night** has no fixed times. It is an unordered activity pool that may contain console, board and card games, food and drinks, a birthday moment, free play, and championship events. The UI uses labels such as “Any order” or “Pick as we go” and must not imply a schedule.
+**Friday, 31 July 2026 — Game Night in Germany** has no fixed times. It is an unordered activity pool that may contain console, board and card games, food and drinks, a birthday moment, free play, and championship events. The UI uses labels such as “Any order” or “Pick as we go” and must not imply a schedule.
 
-**Saturday — Prague Quest** links to the chronological timeline in section 5. It shows the arrival estimate, the next/high-priority item, the dinner reservation, and the cinema booking.
+**Saturday, 1 August 2026 — Prague Quest** links to the chronological timeline in section 5. It shows the arrival estimate, the next/high-priority item, the dinner reservation, and the cinema booking.
+
+**Sunday, 2 August 2026 — Departure and onward travel** contains only that concise status. No Sunday times, destinations, bookings, or activities are specified.
 
 ### 4.3 Live Championship
 
@@ -150,17 +152,17 @@ No client asset, documentation example, path, component name, environment variab
 
 ### 4.7 Trip information
 
-- General accommodation area: Žižkov.
+- Public accommodation area: **Žižkov, Prague 3**.
 - Dinner: 18:00 at U Tří Prasátek (Three Piglets).
 - Cinema: 20:00 at Cinema City Flora, original-language Spider-Man screening with Czech subtitles.
 - Important transport, arrival, return, and group notes.
-- The exact accommodation address is omitted from the public bundle. If provided in-app later, it must come from an authenticated, restricted Firebase path and must not be written to logs, analytics, or source maps.
+- The static application, mock data, and public documentation examples show only **Žižkov, Prague 3**. The exact accommodation address is not committed or bundled. A later authenticated implementation may retrieve it from restricted Firebase data, but it must never be backed by client-side data behind a cosmetic “Reveal address” control or written to logs, analytics, or source maps.
 
 ## 5. Approved Saturday itinerary
 
 **Date:** Saturday, 1 August 2026  
 **Expected arrival:** approximately 12:30 at Praha hlavní nádraží  
-**Accommodation area:** Žižkov
+**Accommodation area:** Žižkov, Prague 3
 
 All planned tourist attractions below are free. Dinner, cinema, and transport are bookings/journeys rather than free tourist attractions and must not be given a misleading free badge.
 
@@ -212,6 +214,7 @@ Delay behavior must be explicit in the UI: shorten or skip the museum first; ski
 | FR-14 | Keep sensitive reveal content and exact accommodation details outside public assets and public database paths. |
 | FR-15 | Provide organizer confirmations for destructive or irreversible actions and append audit entries. |
 | FR-16 | Provide presentation modes that hide administrative controls and can replay animations without mutating state. |
+| FR-17 | Display 31 July–2 August 2026 and the confirmed Friday/Saturday/Sunday roles without inventing a Sunday itinerary. |
 
 ## 7. Non-functional requirements
 
@@ -278,13 +281,14 @@ Delay behavior must be explicit in the UI: shorten or skip the museum first; ski
 - Rich achievement automation, sound-on-by-default, or uncontrolled effects.
 - Guest self-service account recovery across devices; anonymous account linking is an open implementation decision.
 - Automated adjudication of organizer-defined playoff/final tiebreak decisions.
+- A detailed Sunday itinerary beyond “Departure and onward travel.”
 
 ## 12. Release acceptance criteria
 
 The first release is accepted when:
 
-1. The seven sections and exact approved Saturday itinerary work on primary mobile browsers.
-2. Friday is clearly flexible and Saturday clearly scheduled, with delay priorities and fixed bookings preserved.
+1. The seven sections show the complete 31 July–2 August 2026 trip range and exact approved Saturday itinerary on primary mobile browsers.
+2. Friday is clearly flexible, Saturday is clearly scheduled with delay priorities and fixed bookings preserved, and Sunday is limited to departure and onward travel.
 3. Guests and organizers authenticate and can perform only the actions allowed in [security-model.md](security-model.md).
 4. All three generic formats can be configured without hard-coded game names; their identifiers match [game-rules.md](game-rules.md).
 5. Confirmed draws are persisted, duplicate pairings are prevented, and regeneration is explicit and destructive.
@@ -293,5 +297,5 @@ The first release is accepted when:
 8. Private birthday messages and individual predictions are not downloaded to unauthorized guest devices.
 9. Publication and special reveal flows update connected clients in realtime and are replayable visually without duplicate writes.
 10. Repeated prediction resolution produces exactly one deterministic score entry per correct participant.
-11. Sensitive content and the exact accommodation address are absent from repository history, build output, public paths, logs, examples, and source maps.
+11. Public accommodation copy is exactly “Žižkov, Prague 3”; sensitive content and the exact accommodation address are absent from repository history, mock data, build output, public paths, logs, examples, and source maps.
 12. Accessibility, reduced-motion, offline indicators, stale-write handling, and multi-device scenarios pass the tests defined in [implementation-roadmap.md](implementation-roadmap.md).
