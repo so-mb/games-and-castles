@@ -147,6 +147,14 @@ Production is blocked by OD-02, OD-03, OD-13, OD-15, OD-16, OD-18, and OD-19. Ot
 
 **Consequences:** Conflicts require explicit UI; backend transactions and audit records are mandatory for consequential changes.
 
+### AD-07 — Phase 1 is a typed, anchor-based static shell
+
+**Decision:** Use a single React/Vite page with native anchors, Intersection Observer active-section tracking, Tailwind-backed CSS tokens, typed static content modules, Lucide icons, CSS decoration, and preview-labelled mock championship data. Configure Vite with the fixed `/games-and-castles/` GitHub Pages base path.
+
+**Reason:** The product has one documented page flow and does not need a routing dependency or server rewrite. Typed data can later be replaced by Firebase-backed adapters without embedding trip content in large JSX components. CSS and icon-based artwork keeps the Phase 1 bundle lightweight and avoids remote image, font, licensing, and privacy risks.
+
+**Consequences:** Phase 1 contains no persistence or trusted behavior. Birthday, prediction, result, leaderboard, and reveal controls remain disabled or explicitly presentation-only. A future change to the repository name or hosting path requires updating the Vite base configuration and deployment test.
+
 ## 7. Assumptions currently used by the specification
 
 These are bounded assumptions, not newly confirmed requirements:
