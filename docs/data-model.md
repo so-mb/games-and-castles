@@ -79,6 +79,38 @@ interface Participant extends AuditFields {
 
 `ownerUid` is a convenience association, not an admin role. Organizer status is read only from the verified custom claim. Guest profile creation must atomically prevent two participant records from claiming one UID and prevent a UID from overwriting another participant.
 
+### Phase 2 implemented participant slice
+
+Phase 2 deliberately implements a smaller versioned slice before competition models begin:
+
+```ts
+interface Phase2UserProfile {
+  uid: string;
+  participantId: string | null;
+  createdAt: UnixMs;
+  updatedAt: UnixMs;
+  schemaVersion: 1;
+}
+
+interface Phase2Participant {
+  id: ParticipantId;
+  ownerUid: UserId | null;
+  displayName: string; // normalized, 2–24 characters
+  avatar: {
+    icon: 'castle' | 'dice' | 'trophy' | 'controller' | 'crown' | 'sparkles';
+    tone: 'cyan' | 'gold' | 'red' | 'neutral';
+  };
+  status: 'active' | 'inactive';
+  createdAt: UnixMs;
+  createdByUid: UserId;
+  updatedAt: UnixMs;
+  updatedByUid: UserId;
+  schemaVersion: 1;
+}
+```
+
+The implemented paths are `/userProfiles/{uid}` and `/participants/{participantId}`. Guest-created participant IDs equal their anonymous UID and have that UID as `ownerUid`. Organizer-created IDs are Firebase push IDs and have conceptual `ownerUid: null`; because Realtime Database treats written `null` as deletion, that field is absent on the wire and decoded to `null` by the client adapter. Only active participants are returned by the authenticated guest roster query. Inactive records are retained for organizer management rather than deleted.
+
 ## 4. Competition configuration
 
 ```ts

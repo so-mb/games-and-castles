@@ -32,6 +32,9 @@ This document records decisions without describing, naming, or inferring protect
 | CR-17 | Development and production use separate Firebase projects. | This prevents test identities, claims, synthetic reveals, permissive experimentation, and data migrations from affecting the live weekend. |
 | CR-18 | Saturday, 1 August 2026 follows the approved itinerary and priorities. | The document must preserve the planned timeline, mark all tourist attractions free, shorten/skip the museum first if delayed, skip Kampa before reducing Charles Bridge, and protect fixed dinner/cinema bookings. |
 | CR-19 | The displayed trip range is 31 July–2 August 2026. | Friday, 31 July is flexible Game Night in Germany with no fixed times; Saturday, 1 August is the scheduled Prague Quest; Sunday, 2 August is departure and onward travel only, with no invented itinerary. |
+| CR-20 | Phase 2 organizer sign-in uses Firebase Email/Password Authentication with no public sign-up or password-reset flow. | Authorization still comes only from `auth.token.admin === true`; an authenticated email alone grants nothing. Initial users and claims are provisioned out of band. |
+| CR-21 | Phase 2 guest identity is browser-local and has no recovery or cross-device claim flow. | Anonymous Auth persistence keeps continuity in the same browser. Clearing storage or changing browser/device may create a new UID; display names are never accepted as ownership proof. |
+| CR-22 | Safe static itinerary content renders independently of Firebase authentication and configuration. | Live participant reads require Authentication, while missing/broken configuration is isolated to the live feature area. |
 
 ## 3. Required terminology
 
@@ -74,9 +77,6 @@ These items require confirmation; recommendations indicate the least-risk starti
 
 | ID | Decision required | Recommendation | Needed before |
 |---|---|---|---|
-| OD-02 | Choose organizer persistent sign-in provider and initial admin provisioning owner. | Passwordless email-link or trusted federated provider; at least two individually identified organizers; no shared PIN/account where avoidable. | Phase 2 |
-| OD-03 | Decide how an anonymous UID claims an existing participant and how lost sessions are recovered. | Organizer-issued short-lived claim/invite or organizer-assisted relink; never choose a display name as proof. | Phase 2 |
-| OD-04 | Decide whether safe itinerary is readable before anonymous auth completes. | Keep protected-by-default; render bundled safe itinerary shell while auth initializes, with Firebase public reads requiring auth. | Phase 2 |
 | OD-05 | Set maximum active participants, competitions, message lengths/counts, sessions, groups, and custom fields. | Use conservative UI/rules/function limits based on the private group size and load-test at twice expected volume. | Phases 2–3 |
 | OD-06 | Decide whether match draws are needed and their maximum-round rule. | Off by default; enable only per competition with explicit draw condition and 1 table point default. | Phase 3 |
 | OD-07 | Confirm multi-person head-to-head tie behavior. | Use a tied-set mini-table; if unresolved, continue global published tiebreak order and finally organizer decision. | Phase 4 |
@@ -95,7 +95,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-Production is blocked by OD-02, OD-03, OD-13, OD-15, OD-16, OD-18, and OD-19. Other decisions block the named feature/phase but need not prevent unrelated work.
+Production is blocked by initial organizer-account ownership/provisioning plus OD-13, OD-15, OD-16, OD-18, and OD-19. Other decisions block the named feature/phase but need not prevent unrelated work.
 
 ## 6. Technical architecture decisions
 
@@ -154,6 +154,14 @@ Production is blocked by OD-02, OD-03, OD-13, OD-15, OD-16, OD-18, and OD-19. Ot
 **Reason:** The product has one documented page flow and does not need a routing dependency or server rewrite. Typed data can later be replaced by Firebase-backed adapters without embedding trip content in large JSX components. CSS and icon-based artwork keeps the Phase 1 bundle lightweight and avoids remote image, font, licensing, and privacy risks.
 
 **Consequences:** Phase 1 contains no persistence or trusted behavior. Birthday, prediction, result, leaderboard, and reveal controls remain disabled or explicitly presentation-only. A future change to the repository name or hosting path requires updating the Vite base configuration and deployment test.
+
+### AD-08 — Isolated guest and organizer Firebase clients
+
+**Decision:** Use the default Firebase app for anonymous guest Auth/RTDB and a named Firebase app for persistent organizer Email/Password Auth/RTDB.
+
+**Reason:** Firebase Auth supports one current user per Auth instance. A shared instance would replace and potentially lose the browser's anonymous guest session when an organizer signs in on the same device.
+
+**Consequences:** Both clients use the same public project configuration and Rules, but their Auth persistence and database requests carry independent ID tokens. Organizer sign-out returns the organizer surface to signed-out state without changing the guest UID.
 
 ## 7. Assumptions currently used by the specification
 

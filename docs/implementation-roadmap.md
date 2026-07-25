@@ -103,6 +103,8 @@ Cross-cutting rules:
 
 ### Phase 2 — Firebase foundation, Authentication, participants, and realtime state
 
+**Implementation status:** Complete in the Phase 2 repository implementation. Remote project creation, console provider enablement, public configuration, initial organizer provisioning, and Rules deployment remain operator setup steps.
+
 **Goal:** Establish secure identity, role authorization, environment separation, realtime subscriptions, and data/rules foundations before competition features.
 
 **Inputs**
@@ -116,24 +118,24 @@ Cross-cutting rules:
 - Custom-claim authorization provisioning procedure and `auth.token.admin === true` checks.
 - Participant create/link/manage flows.
 - Realtime connection/offline/reconnect state UI and scoped subscription utilities.
-- Default-deny Security Rules, emulator tests, callable-operation conventions, audit/request ID foundation.
-- Sanitized seed data for public itinerary/settings if moved from static data.
+- Default-deny Security Rules and an emulator-tested permission matrix for the Phase 2 participant/profile paths.
+- A static-safe unconfigured/error boundary; no trip content was moved into Firebase.
 
-**Dependencies:** Phase 1; development/production project ownership; organizer identity provider choice.
+**Dependencies:** Phase 1. Email/Password was selected for persistent organizer sign-in; development/production project ownership and initial console provisioning remain deployment prerequisites.
 
 **Acceptance criteria**
 
-1. Fresh guest receives an anonymous UID and can create/link only an allowed own participant; duplicate ownership attempts fail.
-2. Non-admin users cannot access organizer or audit branches/actions; a verified custom-claim admin can.
+1. Fresh guest receives an anonymous UID and can explicitly create only the participant owned by that UID; lost sessions are intentionally not recovered in this phase.
+2. Non-admin users cannot access organizer participant actions; a verified custom-claim admin can manage active/inactive participant records.
 3. Unauthenticated access and all unspecified root reads/writes are denied.
-4. Two connected devices receive permitted participant/public-state updates without a refresh.
+4. Connected clients receive scoped active-participant updates without a refresh.
 5. Offline and reconnect banners match the specification and never report unacknowledged admin writes as saved.
 6. Development and production config/data are isolated; no service account/private secret enters the bundle.
 7. Rules emulator permission matrix passes in CI.
 
 **Main technical risks:** Anonymous session loss/duplicate participants; custom-claim token refresh confusion; overly broad rules; root listeners and bandwidth; emulator/production behavior drift.
 
-**Recommended tests:** Auth emulator tests; Rules unit matrix; multi-tab/device realtime test; offline/reconnect/stale token tests; claim false/true/revoked tests; participant-link concurrency transaction; public build scan; subscription cleanup tests.
+**Implemented tests/review:** Rules unit matrix; frontend configuration/error/helper/form tests; same-browser anonymous persistence architecture; claim false/true UI paths; static build and forbidden-content scans. Multi-device production-project rehearsal remains an operator check before the weekend.
 
 ---
 

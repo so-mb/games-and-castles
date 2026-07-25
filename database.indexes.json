@@ -1,0 +1,6 @@
+{
+  "indexes": {
+    "/participants": ["status", "ownerUid"]
+  },
+  "note": "Review manifest only. Realtime Database indexes are deployed from database.rules.json."
+}

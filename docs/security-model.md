@@ -26,7 +26,7 @@ The following must never be committed, compiled by Vite, placed in public Fireba
 
 ### Organizers
 
-- Use a persistent Firebase-supported sign-in method selected before Phase 2 (for example, email-link or a federated provider).
+- Use Firebase Email/Password Authentication in Phase 2, with no public sign-up or password-reset surface.
 - Receive an `admin: true` Firebase custom claim through a separately controlled provisioning process using the Admin SDK.
 - Every organizer authorization check is:
 
@@ -36,6 +36,13 @@ auth != null && auth.token.admin === true
 
 - The UI refreshes the ID token after claim provisioning/revocation, but backend/rules verification is authoritative.
 - No database field such as `isAdmin`, email comparison in client code, URL parameter, or local-storage flag can grant access.
+- Guest and organizer sessions use separate Firebase Auth instances so organizer sign-in/out cannot replace the same browser's anonymous UID.
+
+### Phase 2 implemented boundary
+
+Phase 2 permits narrowly scoped direct Realtime Database writes only for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Rules reject deletes, unknown fields, guest status changes, immutable-field changes, unfiltered guest roster reads, and every unspecified path. Competition, score, message, prediction, reveal, audit, and protected-trip paths remain absent and denied.
+
+Organizer accounts and custom claims are provisioned out of band with the Admin SDK utility documented in [Firebase setup](firebase-setup.md). That utility preserves unrelated custom claims, supports grant/revoke by email or UID, requires an explicit non-demo project ID, and never exposes credentials to Vite.
 
 ### User-role and permission flow
 

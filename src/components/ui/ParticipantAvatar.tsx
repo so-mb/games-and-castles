@@ -1,4 +1,6 @@
 import { cn } from "../../lib/cn";
+import type { ContentIcon as ContentIconName } from "../../types/content";
+import { ContentIcon } from "./ContentIcon";
 
 interface ParticipantAvatarProps {
   initials: string;
@@ -6,6 +8,7 @@ interface ParticipantAvatarProps {
   accent?: "cyan" | "gold" | "red" | "neutral";
   size?: "sm" | "md" | "lg";
   className?: string;
+  icon?: ContentIconName;
 }
 
 const accents = {
@@ -27,6 +30,7 @@ export function ParticipantAvatar({
   accent = "neutral",
   size = "md",
   className,
+  icon,
 }: ParticipantAvatarProps) {
   return (
     <span
@@ -39,7 +43,11 @@ export function ParticipantAvatar({
       )}
       role="img"
     >
-      {initials}
+      {icon ? (
+        <ContentIcon name={icon} size={size === "lg" ? 24 : 18} />
+      ) : (
+        initials
+      )}
     </span>
   );
 }

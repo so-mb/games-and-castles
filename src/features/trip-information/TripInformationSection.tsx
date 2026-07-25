@@ -6,6 +6,7 @@ import { IconButton } from "../../components/ui/IconButton";
 import { SectionHeading } from "../../components/ui/SectionHeading";
 import { Surface } from "../../components/ui/Surface";
 import { publicTripInformation, tripMetadata } from "../../data/trip";
+import { OrganizerAccess } from "../organizer/OrganizerAccess";
 
 export function TripInformationSection() {
   return (
@@ -54,6 +55,7 @@ export function TripInformationSection() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <OrganizerAccess />
           <span className="text-sm font-semibold text-[var(--color-ink-600)]">
             Back to the beginning
           </span>

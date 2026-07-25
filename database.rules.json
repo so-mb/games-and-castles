@@ -1,0 +1,82 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "participants": {
+      ".indexOn": ["status", "ownerUid"],
+      ".read": "auth != null && (auth.token.admin === true || (query.orderByChild == 'status' && query.equalTo == 'active'))",
+      "$participantId": {
+        ".read": "auth != null && (auth.token.admin === true || data.child('ownerUid').val() == auth.uid || data.child('status').val() == 'active')",
+        ".write": "auth != null && newData.exists() && ((auth.token.admin === true && ((!data.exists() && !newData.child('ownerUid').exists()) || (data.exists() && newData.child('ownerUid').val() == data.child('ownerUid').val() && newData.child('id').val() == data.child('id').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdByUid').val() == data.child('createdByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val()))) || ($participantId == auth.uid && ((!data.exists() && newData.child('ownerUid').val() == auth.uid && newData.child('status').val() == 'active') || (data.exists() && data.child('ownerUid').val() == auth.uid && newData.child('ownerUid').val() == auth.uid && newData.child('id').val() == data.child('id').val() && newData.child('status').val() == data.child('status').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdByUid').val() == data.child('createdByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val()))))",
+        ".validate": "newData.hasChildren(['id', 'displayName', 'avatar', 'status', 'createdAt', 'createdByUid', 'updatedAt', 'updatedByUid', 'schemaVersion']) && newData.child('id').val() == $participantId",
+        "id": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+        },
+        "ownerUid": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+        },
+        "displayName": {
+          ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 24"
+        },
+        "avatar": {
+          ".validate": "newData.hasChildren(['icon', 'tone'])",
+          "icon": {
+            ".validate": "newData.isString() && newData.val().matches(/^(castle|dice|trophy|controller|crown|sparkles)$/)"
+          },
+          "tone": {
+            ".validate": "newData.isString() && newData.val().matches(/^(cyan|gold|red|neutral)$/)"
+          },
+          "$other": {
+            ".validate": false
+          }
+        },
+        "status": {
+          ".validate": "newData.val() == 'active' || newData.val() == 'inactive'"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+        },
+        "createdByUid": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128 && ((!data.exists() && newData.val() == auth.uid) || (data.exists() && newData.val() == data.val()))"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "updatedByUid": {
+          ".validate": "newData.val() == auth.uid"
+        },
+        "schemaVersion": {
+          ".validate": "newData.val() == 1"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    },
+    "userProfiles": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || auth.token.admin === true)",
+        ".write": "auth != null && auth.uid == $uid && newData.exists() && ((!data.exists() && newData.child('uid').val() == auth.uid && newData.child('participantId').val() == auth.uid) || (data.exists() && newData.child('uid').val() == data.child('uid').val() && newData.child('participantId').val() == data.child('participantId').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val()))",
+        ".validate": "newData.hasChildren(['uid', 'participantId', 'createdAt', 'updatedAt', 'schemaVersion'])",
+        "uid": {
+          ".validate": "newData.isString() && newData.val() == $uid"
+        },
+        "participantId": {
+          ".validate": "newData.isString() && newData.val() == $uid"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "schemaVersion": {
+          ".validate": "newData.val() == 1"
+        },
+        "$other": {
+          ".validate": false
+        }
+      }
+    }
+  }
+}

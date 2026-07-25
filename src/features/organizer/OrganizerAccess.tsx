@@ -1,0 +1,289 @@
+import { useState } from "react";
+import { LogOut, Settings2, ShieldCheck, UserPlus } from "lucide-react";
+import { Button } from "../../components/ui/Button";
+import { Modal } from "../../components/ui/Modal";
+import { ParticipantAvatar } from "../../components/ui/ParticipantAvatar";
+import { StatusBadge } from "../../components/ui/StatusBadge";
+import { useAuth } from "../auth/AuthProvider";
+import { useFirebase } from "../live/FirebaseProvider";
+import { ParticipantForm } from "../participants/ParticipantForm";
+import { useParticipants } from "../participants/ParticipantsProvider";
+import type { Participant } from "../participants/types";
+
+function initials(name: string) {
+  return name
+    .split(/\s+/)
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+export function OrganizerAccess() {
+  const firebase = useFirebase();
+  const auth = useAuth();
+  const participants = useParticipants();
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [editor, setEditor] = useState<"add" | Participant | null>(null);
+  const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  if (firebase.status !== "ready") return null;
+
+  async function handleSignIn(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    setLoginError(null);
+    try {
+      await auth.signInOrganizer(email, password);
+      setPassword("");
+    } catch (error) {
+      setLoginError(
+        error instanceof Error ? error.message : "Organizer sign-in failed.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const authorized = auth.organizer.status === "authorized";
+
+  return (
+    <>
+      <Button onClick={() => setOpen(true)} variant="secondary">
+        <Settings2 aria-hidden="true" size={17} />
+        Organizer
+      </Button>
+      <Modal
+        description="Organizer tools use a separate sign-in and never replace the anonymous guest identity stored in this browser."
+        onClose={() => {
+          setOpen(false);
+          setEditor(null);
+          setPendingStatusId(null);
+        }}
+        open={open}
+        title={authorized ? "Participant control" : "Organizer access"}
+      >
+        {!authorized ? (
+          <form className="space-y-5" onSubmit={handleSignIn}>
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm leading-6 text-white/60">
+              <p className="flex items-center gap-2 font-bold text-white">
+                <ShieldCheck aria-hidden="true" size={18} />
+                Approved organizers only
+              </p>
+              <p className="mt-1">
+                Email and password sign-in is available only for accounts with
+                the server-issued admin claim. There is no public sign-up or
+                password reset here.
+              </p>
+            </div>
+            <label className="block text-sm font-bold">
+              Email
+              <input
+                autoComplete="username"
+                className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/7 px-4 text-base outline-none focus:border-[var(--color-electric-cyan-400)] focus:ring-3 focus:ring-[var(--color-electric-cyan-400)]/18"
+                disabled={submitting}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+                type="email"
+                value={email}
+              />
+            </label>
+            <label className="block text-sm font-bold">
+              Password
+              <input
+                autoComplete="current-password"
+                className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/7 px-4 text-base outline-none focus:border-[var(--color-electric-cyan-400)] focus:ring-3 focus:ring-[var(--color-electric-cyan-400)]/18"
+                disabled={submitting}
+                onChange={(event) => setPassword(event.target.value)}
+                required
+                type="password"
+                value={password}
+              />
+            </label>
+            {loginError || auth.organizer.status === "error" ? (
+              <p
+                className="rounded-xl border border-[#ff9ca1]/30 bg-[#ff9ca1]/8 px-4 py-3 text-sm text-[#ffc3c6]"
+                role="alert"
+              >
+                {loginError ?? auth.organizer.message}
+              </p>
+            ) : null}
+            <Button
+              className="w-full"
+              disabled={submitting || auth.organizer.status === "checking"}
+              type="submit"
+              variant="dark"
+            >
+              {submitting || auth.organizer.status === "checking"
+                ? "Verifying access…"
+                : "Sign in as organizer"}
+            </Button>
+          </form>
+        ) : editor ? (
+          <ParticipantForm
+            disabled={!participants.canMutate}
+            excludedParticipantId={editor === "add" ? undefined : editor.id}
+            initialValue={
+              editor === "add"
+                ? undefined
+                : { displayName: editor.displayName, avatar: editor.avatar }
+            }
+            onCancel={() => setEditor(null)}
+            onSubmit={async (input) => {
+              if (editor === "add") await participants.organizerCreate(input);
+              else await participants.organizerUpdate(editor.id, input);
+              setEditor(null);
+            }}
+            participants={participants.organizerParticipants}
+            submitLabel={
+              editor === "add" ? "Add participant" : "Save participant"
+            }
+          />
+        ) : (
+          <div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <StatusBadge tone="live">Organizer verified</StatusBadge>
+                <p className="mt-2 text-sm text-white/50">
+                  {participants.organizerParticipants.length} participant
+                  records
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  disabled={!participants.canMutate}
+                  onClick={() => setEditor("add")}
+                  variant="dark"
+                >
+                  <UserPlus aria-hidden="true" size={17} />
+                  Add
+                </Button>
+                <Button
+                  onClick={() => void auth.signOutOrganizer()}
+                  variant="quiet"
+                >
+                  <LogOut aria-hidden="true" size={17} />
+                  Sign out
+                </Button>
+              </div>
+            </div>
+
+            {actionError ? (
+              <p
+                className="mt-4 rounded-xl border border-[#ff9ca1]/30 bg-[#ff9ca1]/8 px-4 py-3 text-sm text-[#ffc3c6]"
+                role="alert"
+              >
+                {actionError}
+              </p>
+            ) : null}
+
+            {participants.organizerState === "loading" ? (
+              <p
+                className="py-10 text-center text-sm text-white/55"
+                role="status"
+              >
+                Loading participant records…
+              </p>
+            ) : participants.organizerParticipants.length === 0 ? (
+              <p className="mt-5 rounded-2xl border border-dashed border-white/15 p-6 text-center text-sm text-white/55">
+                No participant records yet.
+              </p>
+            ) : (
+              <ul className="mt-5 space-y-3">
+                {participants.organizerParticipants.map((participant) => {
+                  const changingStatus = pendingStatusId === participant.id;
+                  const nextStatus =
+                    participant.status === "active" ? "inactive" : "active";
+                  return (
+                    <li
+                      className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
+                      key={participant.id}
+                    >
+                      <div className="flex flex-wrap items-center gap-3">
+                        <ParticipantAvatar
+                          accent={participant.avatar.tone}
+                          icon={participant.avatar.icon}
+                          initials={initials(participant.displayName)}
+                          name={participant.displayName}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold">
+                            {participant.displayName}
+                          </p>
+                          <p className="text-xs text-white/42">
+                            {participant.ownerUid
+                              ? "Guest-owned"
+                              : "Organizer-added"}{" "}
+                            · {participant.status}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => setEditor(participant)}
+                          variant="quiet"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          disabled={!participants.canMutate}
+                          onClick={() =>
+                            setPendingStatusId(
+                              changingStatus ? null : participant.id,
+                            )
+                          }
+                          variant="quiet"
+                        >
+                          {participant.status === "active"
+                            ? "Deactivate"
+                            : "Reactivate"}
+                        </Button>
+                      </div>
+                      {changingStatus ? (
+                        <div className="mt-3 flex flex-wrap items-center justify-end gap-3 border-t border-white/8 pt-3">
+                          <p className="mr-auto text-xs text-white/52">
+                            {nextStatus === "inactive"
+                              ? "Remove this person from the public active roster?"
+                              : "Return this person to the public active roster?"}
+                          </p>
+                          <Button
+                            onClick={() => setPendingStatusId(null)}
+                            variant="quiet"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              setActionError(null);
+                              void participants
+                                .organizerSetStatus(participant.id, nextStatus)
+                                .then(() => setPendingStatusId(null))
+                                .catch((error: unknown) =>
+                                  setActionError(
+                                    error instanceof Error
+                                      ? error.message
+                                      : "The participant status could not be changed.",
+                                  ),
+                                );
+                            }}
+                            variant="dark"
+                          >
+                            Confirm
+                          </Button>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+        )}
+      </Modal>
+    </>
+  );
+}

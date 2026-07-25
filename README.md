@@ -2,14 +2,16 @@
 
 Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and Sunday departure and onward travel. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
 
-> **Status:** Phase 1 — static visual shell implemented. Firebase and live functionality have not started.
+> **Status:** Phase 2 — Firebase authentication, participant roster, organizer participant controls, realtime connection state, and default-deny database rules implemented. Competition behavior remains a static preview.
 
 ## Technology
 
 - React, strict TypeScript, Vite, Tailwind CSS, Framer Motion, and Lucide icons
 - Vitest, React Testing Library, ESLint, and Prettier
 - GitHub Pages for the static frontend and GitHub Actions for CI/deployment
-- Firebase Realtime Database, Authentication, Cloud Functions, Security Rules, and App Check beginning in later phases
+- Firebase modular Web SDK for Authentication and Realtime Database
+- Firebase Emulator Suite, default-deny Realtime Database Security Rules, and Rules unit testing
+- Cloud Functions and App Check remain later-phase work
 
 ## Feature areas
 
@@ -24,6 +26,7 @@ Games & Castles is a private, mobile-first companion for 31 July–2 August 2026
 
 - Node.js 20.19 or newer (Node.js 24 is used in CI)
 - npm 11 or a compatible npm version
+- Java 21 or newer for the local Firebase Emulator Suite
 
 ## Installation
 
@@ -31,7 +34,7 @@ Games & Castles is a private, mobile-first companion for 31 July–2 August 2026
 npm install
 ```
 
-No environment variables or credentials are needed in Phase 1.
+Copy `.env.example` to `.env.local` and add the public Firebase web-app configuration to enable live features. The app still builds and serves the complete static trip page when configuration is absent. See [Firebase setup](docs/firebase-setup.md) for console, emulator, repository-variable, and organizer-provisioning guidance.
 
 ## Development
 
@@ -50,6 +53,8 @@ npm run format:check
 npm run typecheck
 npm run test
 npm run test:run
+npm run test:rules
+npm run emulators
 ```
 
 ## Production build
@@ -63,9 +68,9 @@ Generated `dist/` output is ignored and must not be committed.
 
 ## GitHub Pages deployment
 
-The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. In the GitHub repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Production assets use Vite's `/games-and-castles/` base path and the app uses anchor navigation rather than server-side routes.
+The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. In the GitHub repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Add the six `VITE_FIREBASE_*` public values as repository **Actions variables**, not secrets; the workflow maps them only into the build. Production assets use Vite's `/games-and-castles/` base path and the app uses anchor navigation rather than server-side routes.
 
-Phase 1 is entirely static. Authentication, Firebase initialization, shared state, real tournament behavior, message submission, prediction processing, and protected reveal operations begin in Phase 2 or later according to the [implementation roadmap](docs/implementation-roadmap.md).
+Phase 2 adds identity and the shared participant roster only. Tournament creation/scoring, message submission, predictions, protected reveal operations, Cloud Functions, and App Check remain Phase 3 or later according to the [implementation roadmap](docs/implementation-roadmap.md).
 
 ## Documentation
 
@@ -73,6 +78,7 @@ Phase 1 is entirely static. Authentication, Firebase initialization, shared stat
 - [Competition and scoring rules](docs/game-rules.md)
 - [Domain and Firebase data model](docs/data-model.md)
 - [Authentication and security model](docs/security-model.md)
+- [Firebase setup and operations](docs/firebase-setup.md)
 - [Design system](docs/design-system.md)
 - [Implementation roadmap](docs/implementation-roadmap.md)
 - [Assumptions and decisions](docs/assumptions-and-decisions.md)
@@ -80,7 +86,7 @@ Phase 1 is entirely static. Authentication, Firebase initialization, shared stat
 ## Development phases
 
 - **Phase 0:** frozen product and architecture documentation.
-- **Phases 1–2:** static visual shell, GitHub Pages delivery, and secure Firebase foundation.
+- **Phases 1–2:** complete — static visual shell, GitHub Pages delivery, and secure Firebase participant foundation.
 - **Phases 3–7:** generic competition engines and ledger-derived overall championship.
 - **Phases 8–9:** Birthday Vault, prediction event, and protected reveal flow.
 - **Phases 10–11:** security hardening, accessibility, animation, multi-device rehearsal, and production deployment.

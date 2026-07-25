@@ -19,7 +19,6 @@ export const specialRevealState: LockedDisplayState = {
   description:
     "Predictions and the presentation will appear here only when the protected experience is ready.",
   status: "Reveal locked",
-  phaseNote:
-    "This Phase 1 view is presentation-only and contains no reveal data.",
+  phaseNote: "This preview is presentation-only and contains no reveal data.",
   icon: "sparkles",
 };

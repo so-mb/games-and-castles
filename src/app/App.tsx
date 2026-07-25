@@ -6,10 +6,12 @@ import { ItinerarySection } from "../features/itinerary/ItinerarySection";
 import { SpecialRevealSection } from "../features/special-reveal/SpecialRevealSection";
 import { TripInformationSection } from "../features/trip-information/TripInformationSection";
 import { WeekendOverviewSection } from "../features/weekend-overview/WeekendOverviewSection";
+import { ConnectionStatus } from "../features/live/ConnectionStatus";
+import { LiveProviders } from "../features/live/LiveProviders";
 
 export function App() {
   return (
-    <>
+    <LiveProviders>
       <a className="skip-link" href="#main-content">
         Skip to main content
       </a>
@@ -23,6 +25,7 @@ export function App() {
         <SpecialRevealSection />
         <TripInformationSection />
       </main>
-    </>
+      <ConnectionStatus />
+    </LiveProviders>
   );
 }

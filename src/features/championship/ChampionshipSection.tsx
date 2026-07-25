@@ -16,6 +16,7 @@ import {
   mockLeaderboard,
   mockRecentPoints,
 } from "../../data/mockChampionship";
+import { ParticipantLivePanel } from "../participants/ParticipantLivePanel";
 
 export function ChampionshipSection() {
   return (
@@ -29,8 +30,8 @@ export function ChampionshipSection() {
       <div className="relative z-10">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <SectionHeading
-            description="A static look at the tournament language to come: clear scores, kind competition and every point explained."
-            eyebrow="Live championship · visual preview"
+            description="The participant roster is now shared live. Competition scores remain a clearly labelled visual preview for a later phase."
+            eyebrow="Live roster · championship preview"
             id="championship-title"
             title="The table is almost open"
             tone="dark"
@@ -41,11 +42,15 @@ export function ChampionshipSection() {
         </div>
 
         <p className="mt-5 max-w-2xl rounded-xl border border-white/8 bg-white/[0.035] px-4 py-3 text-sm leading-6 text-white/58">
-          Everything in this section is labelled sample data. There are no live
-          scores, result controls or shared updates in Phase 1.
+          Participant names below are live when Firebase is configured. Every
+          score, match and competition card remains sample-only in Phase 2.
         </p>
 
-        <div className="mt-9 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
+        <div className="mt-7">
+          <ParticipantLivePanel />
+        </div>
+
+        <div className="mt-12 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
           <Reveal>
             <Surface className="h-full p-5 sm:p-6" variant="celebration">
               <div className="flex items-center justify-between gap-3">
