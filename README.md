@@ -63,7 +63,7 @@ Generated `dist/` output is ignored and must not be committed.
 
 ## GitHub Pages deployment
 
-The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `main` and through manual workflow dispatch. In the GitHub repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Production assets use Vite's `/games-and-castles/` base path and the app uses anchor navigation rather than server-side routes.
+The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. In the GitHub repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Production assets use Vite's `/games-and-castles/` base path and the app uses anchor navigation rather than server-side routes.
 
 Phase 1 is entirely static. Authentication, Firebase initialization, shared state, real tournament behavior, message submission, prediction processing, and protected reveal operations begin in Phase 2 or later according to the [implementation roadmap](docs/implementation-roadmap.md).
 
