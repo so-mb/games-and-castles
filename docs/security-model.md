@@ -38,9 +38,11 @@ auth != null && auth.token.admin === true
 - No database field such as `isAdmin`, email comparison in client code, URL parameter, or local-storage flag can grant access.
 - Guest and organizer sessions use separate Firebase Auth instances so organizer sign-in/out cannot replace the same browser's anonymous UID.
 
-### Phase 2 implemented boundary
+### Phase 2–3 implemented boundary
 
-Phase 2 permits narrowly scoped direct Realtime Database writes only for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Rules reject deletes, unknown fields, guest status changes, immutable-field changes, unfiltered guest roster reads, and every unspecified path. Competition, score, message, prediction, reveal, audit, and protected-trip paths remain absent and denied.
+Phase 2 permits narrowly scoped direct Realtime Database writes for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Phase 3 additionally permits claim-authorized organizer writes to `/competitionDrafts`, `/competitions`, and append-only `/audit`, while authenticated guests receive read-only access to the public-safe `/competitions` collection. The guest UI selects only `scheduled` records; archived records contain no private payload and are omitted from the live view.
+
+Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication metadata, legal `draft`/`scheduled`/`archived` transitions, and a one-step revision increment. Publication uses one atomic multi-location update to create a scheduled record, remove its draft, and append safe audit metadata. Runtime parsers reject malformed records and duplicate participant references before they reach presentation. Direct client writes do not extend to generated fixtures, groups, sessions, results, standings, score ledgers, private messages, predictions, reveals, or protected trip data; all unspecified paths remain denied.
 
 Organizer accounts and custom claims are provisioned out of band with the Admin SDK utility documented in [Firebase setup](firebase-setup.md). That utility preserves unrelated custom claims, supports grant/revoke by email or UID, requires an explicit non-demo project ID, and never exposes credentials to Vite.
 
@@ -75,7 +77,8 @@ flowchart TD
 | Read published competitions, results, standings, leaderboard | Yes | Yes | Yes |
 | Create own participant profile | Yes, validated | Yes | Yes |
 | Manage other participants | No | Yes | Yes |
-| Create/configure competitions and fixtures | No | Yes | Yes |
+| Create/configure competition drafts and scheduled records | No | Yes, Phase 3 Rules validated | Yes |
+| Generate/confirm fixtures, groups, or sessions | No | Later trusted operation | Yes |
 | Enter, correct, lock results | No | Yes | Yes |
 | Write or modify score ledger | No | No direct client write | Yes |
 | Submit birthday message | Yes, own validated submission | Yes | Yes |
@@ -302,6 +305,8 @@ Rules are version-controlled and tested in the Firebase Emulator Suite before de
 | Exact address through public paths/build test fixture | Absent |
 
 Tests also cover deletes, partial updates, unknown child fields, null transitions, query indexes, archived records, token claim absence/false/true, claim revocation after token refresh, and concurrent emulator transactions.
+
+The implemented Phase 3 matrix specifically covers unauthenticated/guest/admin competition access, draft create/update/delete, stale revisions, atomic publish, scheduled edits, archive/restore, multi-record reorder, audit append-only behavior, malformed enums/references/scoring/schemas/unknown fields, and default denial of future fixture, match, group, session, result, ledger, birthday-message, prediction, and reveal paths. Production Rules deployment remains a separately authorized operator action and is never performed by the Pages workflow.
 
 ## 13. Hardening checklist
 

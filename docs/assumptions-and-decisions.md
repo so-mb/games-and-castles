@@ -36,6 +36,8 @@ This document records decisions without describing, naming, or inferring protect
 | CR-21 | Phase 2 guest identity is browser-local and has no recovery or cross-device claim flow. | Anonymous Auth persistence keeps continuity in the same browser. Clearing storage or changing browser/device may create a new UID; display names are never accepted as ownership proof. |
 | CR-22 | Safe static itinerary content renders independently of Firebase authentication and configuration. | Live participant reads require Authentication, while missing/broken configuration is isolated to the live feature area. |
 | CR-23 | Production Pages builds receive the six public Firebase web-configuration values through GitHub Actions repository variables, with emulator mode disabled. | Public Firebase client configuration is expected to be browser-visible and is not a secret. Repository variables keep environment configuration out of source control; service credentials remain prohibited. The Phase 2 production deployment is configured and successfully connected to Firebase. |
+| CR-24 | Phase 3 competition configuration uses conservative hard bounds. | Title/game fields are at most 60 characters, descriptions 280, metric labels 40, participant IDs 128, participant selections and placement rows 32, First to N 10, planned sessions 50, groups 8, and integer point fields 0–100. Required publish fields use a two-character minimum. Client validation, runtime parsing, and Rules enforce the bounds each layer can express. |
+| CR-25 | Phase 3 uses only `draft`, `scheduled`, and `archived` competition states. | `scheduled` means a guest-readable configuration with fixtures pending, not an active competition. The execution lifecycle remains reserved for Phase 4 onward. Archive/restore is reversible; unused drafts may be deleted after confirmation. |
 
 ## 3. Required terminology
 
@@ -78,8 +80,8 @@ These items require confirmation; recommendations indicate the least-risk starti
 
 | ID | Decision required | Recommendation | Needed before |
 |---|---|---|---|
-| OD-05 | Set maximum active participants, competitions, message lengths/counts, sessions, groups, and custom fields. | Use conservative UI/rules/function limits based on the private group size and load-test at twice expected volume. | Phases 2–3 |
-| OD-06 | Decide whether match draws are needed and their maximum-round rule. | Off by default; enable only per competition with explicit draw condition and 1 table point default. | Phase 3 |
+| OD-05 | Set remaining maximum active-participant/competition record counts, message lengths/counts, and later custom-field counts. Phase 3 per-record configuration bounds are confirmed in CR-24. | Use conservative UI/rules/function limits based on the private group size and load-test at twice expected volume. | Feature-owning later phase |
+| OD-06 | Decide the execution-time maximum-round and terminal-result rule when match draws are enabled. Phase 3 stores the toggle and table-points default only. | Off by default; enable only per competition with an explicit Phase 4 draw condition and 1 table point default. | Phase 4 |
 | OD-07 | Confirm multi-person head-to-head tie behavior. | Use a tied-set mini-table; if unresolved, continue global published tiebreak order and finally organizer decision. | Phase 4 |
 | OD-08 | Define valid nonstandard even knockout qualifier counts and bracket-bye seeding. | Offer top 2/4/8 by default; allow other counts only after a preview shows all byes/seeds and tests cover them. | Phase 4 |
 | OD-09 | Decide whether organizer-decided final tiebreak awards any additional championship point. | No additional points unless a separate configured `qualification`/`competition-win` rule exists. | Phase 4 |
@@ -96,7 +98,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-The Phase 2 production baseline, including initial organizer-account ownership and provisioning, is complete. OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness; they do not block the completed Phase 2 participant foundation. Other decisions block only the named feature or phase.
+The Phase 2 production baseline, including initial organizer-account ownership and provisioning, is complete. The Phase 3 repository implementation is also complete; its production Rules deployment remains an explicit operator action. OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness. Other decisions block only the named feature or phase.
 
 ## 6. Technical architecture decisions
 
@@ -146,7 +148,7 @@ The Phase 2 production baseline, including initial organizer-account ownership a
 
 **Reason:** Last-write-wins can erase another organizer's result or lock state.
 
-**Consequences:** Conflicts require explicit UI; backend transactions and audit records are mandatory for consequential changes.
+**Consequences:** Conflicts require explicit UI. Phase 3 configuration writes use Rules-enforced revision increments, atomic multi-path updates, and audit records; later result/scoring operations add backend transactions and idempotent request handling.
 
 ### AD-07 — Phase 1 is a typed, anchor-based static shell
 
@@ -163,6 +165,14 @@ The Phase 2 production baseline, including initial organizer-account ownership a
 **Reason:** Firebase Auth supports one current user per Auth instance. A shared instance would replace and potentially lose the browser's anonymous guest session when an organizer signs in on the same device.
 
 **Consequences:** Both clients use the same public project configuration and Rules, but their Auth persistence and database requests carry independent ID tokens. Organizer sign-out returns the organizer surface to signed-out state without changing the guest UID.
+
+### AD-09 — Phase 3 flat configuration paths and direct claim-authorized writes
+
+**Decision:** Implement the current competition slice at `/competitionDrafts/{competitionId}`, `/competitions/{competitionId}`, and `/audit/{auditId}`. Drafts and audit history are organizer-readable; authenticated guests may read published competition records. Only `auth.token.admin === true` may mutate these branches. Phase 3 configuration operations use atomic Realtime Database multi-location writes and revision preconditions directly from the organizer client.
+
+**Reason:** These paths extend the flat Phase 2 participant/profile schema without prematurely creating the later full `/public`, `/organizer`, and `/backend` hierarchy. Competition configuration is public-safe after publication and has no trusted scoring, generated state, private submission, or protected reveal payload. A Cloud Function would add no authority beyond the Rules for this bounded slice.
+
+**Consequences:** Publishing atomically creates the scheduled record, removes its draft, and appends safe audit metadata. Reordering is part of versioned competition state, so each affected record advances its revision. Runtime readers reject malformed/unsupported records, guest UI filters archived records, privileged writes are disabled offline, and every Phase 4 execution/result/ledger path remains default-denied. Later trusted operations may migrate or fan out the tree with an explicit compatibility plan; this Phase 3 decision does not authorize client-side scoring or protected publication.
 
 ## 7. Assumptions currently used by the specification
 

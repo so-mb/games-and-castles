@@ -30,6 +30,12 @@ describe("Games & Castles static shell", () => {
       expect(link).toHaveAttribute("href", `#${item.id}`);
       expect(document.getElementById(item.id)).toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("heading", { name: "Scheduled games" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Championship preview · sample future presentation/),
+    ).toBeInTheDocument();
   });
 
   it("shows all three weekend days while keeping Friday unscheduled", () => {

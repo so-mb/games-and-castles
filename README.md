@@ -2,7 +2,7 @@
 
 Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and Sunday departure and onward travel. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
 
-> **Status:** Phase 2 complete and deployed — Firebase authentication, participant roster, organizer participant controls, realtime connection state, and default-deny database rules are implemented. The production GitHub Pages site is connected to Firebase. Phase 3 has not started, so competition behavior remains a static preview.
+> **Status:** Phase 3 repository implementation complete — the organizer Competition Studio, validated versioned drafts, atomic publication, scheduled guest cards, audit metadata, and default-deny competition Rules are implemented. Phase 2 remains deployed and connected to production Firebase. The Phase 3 Rules must be deployed separately before the live studio can write production competition data; no remote Firebase changes are made by repository setup or Pages deployment.
 
 ## Technology
 
@@ -16,7 +16,7 @@ Games & Castles is a private, mobile-first companion for 31 July–2 August 2026
 ## Feature areas
 
 - Three-day weekend overview and detailed Saturday itinerary
-- Generic live competition engines and overall championship
+- Generic competition configuration and scheduled guest cards; live engines and scoring begin in Phase 4
 - Birthday Vault guestbook and presentation
 - Prediction event and protected special reveal
 - Organizer controls, realtime synchronization, and audit history
@@ -70,7 +70,7 @@ Generated `dist/` output is ignored and must not be committed.
 
 The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. The production repository uses **GitHub Actions** as its Pages source and has all six `VITE_FIREBASE_*` public values configured as repository **Actions variables**, not secrets; the workflow maps them only into the build. Production assets use Vite's `/games-and-castles/` base path, the app uses anchor navigation rather than server-side routes, and the deployed site is successfully connected to Firebase.
 
-Phase 2 delivered identity and the shared participant roster only. Tournament creation/scoring, message submission, predictions, protected reveal operations, Cloud Functions, and App Check remain Phase 3 or later according to the [implementation roadmap](docs/implementation-roadmap.md).
+Phase 3 adds configuration only: organizers can create, validate, publish, reorder, archive, restore, and duplicate generic competition records, while authenticated guests receive scheduled cards in realtime. It does not generate fixtures/groups/sessions, accept results, award points, or create a score ledger. Those execution features, message submission, predictions, protected reveal operations, Cloud Functions, and App Check remain later phases according to the [implementation roadmap](docs/implementation-roadmap.md).
 
 ## Documentation
 
@@ -86,8 +86,8 @@ Phase 2 delivered identity and the shared participant roster only. Tournament cr
 ## Development phases
 
 - **Phase 0:** frozen product and architecture documentation.
-- **Phases 1–2:** complete — static visual shell, GitHub Pages delivery, and secure Firebase participant foundation.
-- **Phases 3–7:** generic competition engines and ledger-derived overall championship.
+- **Phases 1–3:** repository implementation complete — static shell, Firebase participant foundation, and generic competition configuration studio.
+- **Phases 4–7:** competition execution engines and ledger-derived overall championship.
 - **Phases 8–9:** Birthday Vault, prediction event, and protected reveal flow.
 - **Phases 10–11:** security hardening, accessibility, animation, multi-device rehearsal, and production deployment.
 

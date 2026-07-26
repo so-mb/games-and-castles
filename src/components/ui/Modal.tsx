@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { cn } from "../../lib/cn";
 import { IconButton } from "./IconButton";
 
 interface ModalProps {
@@ -9,6 +10,7 @@ interface ModalProps {
   description?: string;
   children: ReactNode;
   onClose: () => void;
+  size?: "default" | "wide";
 }
 
 const focusableSelector =
@@ -20,6 +22,7 @@ export function Modal({
   description,
   children,
   onClose,
+  size = "default",
 }: ModalProps) {
   const titleId = useId();
   const descriptionId = useId();
@@ -37,6 +40,12 @@ export function Modal({
     document.body.style.overflow = "hidden";
 
     function handleKeyDown(event: KeyboardEvent) {
+      const dialogs = Array.from(
+        document.querySelectorAll<HTMLElement>(
+          '[role="dialog"][aria-modal="true"]',
+        ),
+      );
+      if (dialogs.at(-1) !== dialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
         onClose();
@@ -79,7 +88,10 @@ export function Modal({
         aria-describedby={description ? descriptionId : undefined}
         aria-labelledby={titleId}
         aria-modal="true"
-        className="max-h-[92dvh] w-full max-w-2xl overflow-y-auto rounded-t-[var(--radius-xl)] border border-white/10 bg-[var(--color-night-900)] p-5 text-white shadow-2xl sm:rounded-[var(--radius-xl)] sm:p-7"
+        className={cn(
+          "max-h-[92dvh] w-full overflow-y-auto rounded-t-[var(--radius-xl)] border border-white/10 bg-[var(--color-night-900)] p-5 text-white shadow-2xl sm:rounded-[var(--radius-xl)] sm:p-7",
+          size === "wide" ? "max-w-6xl" : "max-w-2xl",
+        )}
         ref={dialogRef}
         role="dialog"
       >

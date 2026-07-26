@@ -141,6 +141,8 @@ Cross-cutting rules:
 
 ### Phase 3 — Generic competition creator
 
+**Implementation status:** Complete in the repository. The organizer Competition Studio, five-step wizard, typed configuration domain, realtime scheduled guest cards, revision conflicts, atomic multi-location mutations, safe audit records, default-deny Rules, and emulator/frontend tests are implemented. Production Phase 3 use requires the separately authorized Rules deployment described in [Firebase setup](firebase-setup.md); this implementation did not modify remote Firebase resources.
+
 **Goal:** Let organizers create a validated, versioned competition configuration independent of game name and format-specific execution UI.
 
 **Inputs**
@@ -149,21 +151,25 @@ Cross-cutting rules:
 
 **Outputs**
 
-- Organizer-only create/edit wizard covering name, participant snapshot, exact format identifier, format config, series, and scoring.
+- Organizer-only create/edit wizard covering name, participant-ID selection, exact format identifier, format config, series, and scoring.
 - Friendly labels mapped at the presentation boundary.
 - Draft validation, summary/review, status transitions, revision conflicts, and audit entries.
-- Read-only guest competition list cards for published/ready states.
+- Read-only guest competition cards for published `scheduled` configurations.
 
-**Dependencies:** Phase 2 complete; default/open decisions for organizer sign-in and numeric bounds confirmed.
+**Dependencies:** Satisfied for Phase 3. Phase 2 is complete, organizer authorization is claim-backed, and the Phase 3 configuration bounds/defaults are recorded in the decision register.
 
 **Acceptance criteria**
 
-1. Organizer can save/reopen a valid draft for each exact format; guests cannot create or edit one.
+1. Organizer can save/reopen drafts for each exact format and publish only a valid one; guests cannot create or edit drafts.
 2. User-entered names have no effect on engine selection and are validated/sanitized as display data.
 3. Invalid participant duplication/count, series, qualifier/group count, scoring, and discriminated config combinations are rejected with field errors.
-4. Starting/confirming snapshots participant IDs and configuration; later profile display changes do not alter membership.
+4. Publishing preserves selected participant IDs; later display-name changes update presentation, while deactivation or missing profiles do not silently alter membership.
 5. Concurrent edits against the same revision result in one accepted update and one actionable conflict.
 6. Every create/edit/status action has a safe audit record.
+
+**Implemented tests/review:** Pure domain tests cover format unions, series presets, round-robin/knockout/group estimates, validation warnings/errors, participant-reference handling, transforms, sorting, runtime parsing, automatic-group persistence, and stale revisions. Component tests cover explicit draft saving, format-reset confirmation, format-specific forms, duplicate display names, active/inactive participant selection, offline mutation blocking, remote-revision conflicts, publish validation/confirmation, unconfigured Firebase presentation, and scheduled guest-card rendering. The 44-case Rules emulator matrix covers guest/admin access, drafts, atomic publication, revision conflicts, archive/restore, reorder, audit append-only behavior, malformed schemas/references/scoring, and default denial of Phase 4 paths.
+
+**Phase boundary:** `scheduled` means a public configuration with fixtures pending. Phase 3 does not create draws, groups, fixtures, sessions, results, standings, ledger entries, or live scoring controls.
 
 **Main technical risks:** One oversized conditional form; invalid combinations crossing client/server validation; changing config after play; display labels leaking into domain logic.
 

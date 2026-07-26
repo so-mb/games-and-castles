@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { LogOut, Settings2, ShieldCheck, UserPlus } from "lucide-react";
+import {
+  LogOut,
+  Settings2,
+  ShieldCheck,
+  Trophy,
+  UserPlus,
+  UsersRound,
+} from "lucide-react";
 import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { ParticipantAvatar } from "../../components/ui/ParticipantAvatar";
@@ -9,6 +16,7 @@ import { useFirebase } from "../live/FirebaseProvider";
 import { ParticipantForm } from "../participants/ParticipantForm";
 import { useParticipants } from "../participants/ParticipantsProvider";
 import type { Participant } from "../participants/types";
+import { CompetitionStudio } from "../competitions/organizer/CompetitionStudio";
 
 function initials(name: string) {
   return name
@@ -31,6 +39,9 @@ export function OrganizerAccess() {
   const [editor, setEditor] = useState<"add" | Participant | null>(null);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<"participants" | "competitions">(
+    "competitions",
+  );
 
   if (firebase.status !== "ready") return null;
 
@@ -67,7 +78,8 @@ export function OrganizerAccess() {
           setPendingStatusId(null);
         }}
         open={open}
-        title={authorized ? "Participant control" : "Organizer access"}
+        size={authorized ? "wide" : "default"}
+        title={authorized ? "Organizer console" : "Organizer access"}
       >
         {!authorized ? (
           <form className="space-y-5" onSubmit={handleSignIn}>
@@ -125,161 +137,197 @@ export function OrganizerAccess() {
                 : "Sign in as organizer"}
             </Button>
           </form>
-        ) : editor ? (
-          <ParticipantForm
-            disabled={!participants.canMutate}
-            excludedParticipantId={editor === "add" ? undefined : editor.id}
-            initialValue={
-              editor === "add"
-                ? undefined
-                : { displayName: editor.displayName, avatar: editor.avatar }
-            }
-            onCancel={() => setEditor(null)}
-            onSubmit={async (input) => {
-              if (editor === "add") await participants.organizerCreate(input);
-              else await participants.organizerUpdate(editor.id, input);
-              setEditor(null);
-            }}
-            participants={participants.organizerParticipants}
-            submitLabel={
-              editor === "add" ? "Add participant" : "Save participant"
-            }
-          />
         ) : (
           <div>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <StatusBadge tone="live">Organizer verified</StatusBadge>
-                <p className="mt-2 text-sm text-white/50">
-                  {participants.organizerParticipants.length} participant
-                  records
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  disabled={!participants.canMutate}
-                  onClick={() => setEditor("add")}
-                  variant="dark"
+            <div className="mb-7 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
+              <div className="flex flex-wrap gap-2" role="tablist">
+                <button
+                  aria-selected={activeTool === "competitions"}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "competitions" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
+                  onClick={() => {
+                    setEditor(null);
+                    setActiveTool("competitions");
+                  }}
+                  role="tab"
+                  type="button"
                 >
-                  <UserPlus aria-hidden="true" size={17} />
-                  Add
-                </Button>
-                <Button
-                  onClick={() => void auth.signOutOrganizer()}
-                  variant="quiet"
+                  <Trophy aria-hidden="true" size={17} />
+                  Competitions
+                </button>
+                <button
+                  aria-selected={activeTool === "participants"}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "participants" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
+                  onClick={() => setActiveTool("participants")}
+                  role="tab"
+                  type="button"
                 >
-                  <LogOut aria-hidden="true" size={17} />
-                  Sign out
-                </Button>
+                  <UsersRound aria-hidden="true" size={17} />
+                  Participants
+                </button>
               </div>
+              <Button
+                onClick={() => void auth.signOutOrganizer()}
+                variant="quiet"
+              >
+                <LogOut aria-hidden="true" size={17} />
+                Sign out
+              </Button>
             </div>
 
-            {actionError ? (
-              <p
-                className="mt-4 rounded-xl border border-[#ff9ca1]/30 bg-[#ff9ca1]/8 px-4 py-3 text-sm text-[#ffc3c6]"
-                role="alert"
-              >
-                {actionError}
-              </p>
-            ) : null}
-
-            {participants.organizerState === "loading" ? (
-              <p
-                className="py-10 text-center text-sm text-white/55"
-                role="status"
-              >
-                Loading participant records…
-              </p>
-            ) : participants.organizerParticipants.length === 0 ? (
-              <p className="mt-5 rounded-2xl border border-dashed border-white/15 p-6 text-center text-sm text-white/55">
-                No participant records yet.
-              </p>
+            {activeTool === "competitions" ? (
+              <CompetitionStudio />
+            ) : editor ? (
+              <ParticipantForm
+                disabled={!participants.canMutate}
+                excludedParticipantId={editor === "add" ? undefined : editor.id}
+                initialValue={
+                  editor === "add"
+                    ? undefined
+                    : { displayName: editor.displayName, avatar: editor.avatar }
+                }
+                onCancel={() => setEditor(null)}
+                onSubmit={async (input) => {
+                  if (editor === "add")
+                    await participants.organizerCreate(input);
+                  else await participants.organizerUpdate(editor.id, input);
+                  setEditor(null);
+                }}
+                participants={participants.organizerParticipants}
+                submitLabel={
+                  editor === "add" ? "Add participant" : "Save participant"
+                }
+              />
             ) : (
-              <ul className="mt-5 space-y-3">
-                {participants.organizerParticipants.map((participant) => {
-                  const changingStatus = pendingStatusId === participant.id;
-                  const nextStatus =
-                    participant.status === "active" ? "inactive" : "active";
-                  return (
-                    <li
-                      className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
-                      key={participant.id}
-                    >
-                      <div className="flex flex-wrap items-center gap-3">
-                        <ParticipantAvatar
-                          accent={participant.avatar.tone}
-                          icon={participant.avatar.icon}
-                          initials={initials(participant.displayName)}
-                          name={participant.displayName}
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-bold">
-                            {participant.displayName}
-                          </p>
-                          <p className="text-xs text-white/42">
-                            {participant.ownerUid
-                              ? "Guest-owned"
-                              : "Organizer-added"}{" "}
-                            · {participant.status}
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => setEditor(participant)}
-                          variant="quiet"
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <StatusBadge tone="live">Organizer verified</StatusBadge>
+                    <p className="mt-2 text-sm text-white/50">
+                      {participants.organizerParticipants.length} participant
+                      records
+                    </p>
+                  </div>
+                  <Button
+                    disabled={!participants.canMutate}
+                    onClick={() => setEditor("add")}
+                    variant="dark"
+                  >
+                    <UserPlus aria-hidden="true" size={17} />
+                    Add participant
+                  </Button>
+                </div>
+
+                {actionError ? (
+                  <p
+                    className="mt-4 rounded-xl border border-[#ff9ca1]/30 bg-[#ff9ca1]/8 px-4 py-3 text-sm text-[#ffc3c6]"
+                    role="alert"
+                  >
+                    {actionError}
+                  </p>
+                ) : null}
+
+                {participants.organizerState === "loading" ? (
+                  <p
+                    className="py-10 text-center text-sm text-white/55"
+                    role="status"
+                  >
+                    Loading participant records…
+                  </p>
+                ) : participants.organizerParticipants.length === 0 ? (
+                  <p className="mt-5 rounded-2xl border border-dashed border-white/15 p-6 text-center text-sm text-white/55">
+                    No participant records yet.
+                  </p>
+                ) : (
+                  <ul className="mt-5 space-y-3">
+                    {participants.organizerParticipants.map((participant) => {
+                      const changingStatus = pendingStatusId === participant.id;
+                      const nextStatus =
+                        participant.status === "active" ? "inactive" : "active";
+                      return (
+                        <li
+                          className="rounded-2xl border border-white/10 bg-white/[0.035] p-4"
+                          key={participant.id}
                         >
-                          Edit
-                        </Button>
-                        <Button
-                          disabled={!participants.canMutate}
-                          onClick={() =>
-                            setPendingStatusId(
-                              changingStatus ? null : participant.id,
-                            )
-                          }
-                          variant="quiet"
-                        >
-                          {participant.status === "active"
-                            ? "Deactivate"
-                            : "Reactivate"}
-                        </Button>
-                      </div>
-                      {changingStatus ? (
-                        <div className="mt-3 flex flex-wrap items-center justify-end gap-3 border-t border-white/8 pt-3">
-                          <p className="mr-auto text-xs text-white/52">
-                            {nextStatus === "inactive"
-                              ? "Remove this person from the public active roster?"
-                              : "Return this person to the public active roster?"}
-                          </p>
-                          <Button
-                            onClick={() => setPendingStatusId(null)}
-                            variant="quiet"
-                          >
-                            Cancel
-                          </Button>
-                          <Button
-                            onClick={() => {
-                              setActionError(null);
-                              void participants
-                                .organizerSetStatus(participant.id, nextStatus)
-                                .then(() => setPendingStatusId(null))
-                                .catch((error: unknown) =>
-                                  setActionError(
-                                    error instanceof Error
-                                      ? error.message
-                                      : "The participant status could not be changed.",
-                                  ),
-                                );
-                            }}
-                            variant="dark"
-                          >
-                            Confirm
-                          </Button>
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
-              </ul>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <ParticipantAvatar
+                              accent={participant.avatar.tone}
+                              icon={participant.avatar.icon}
+                              initials={initials(participant.displayName)}
+                              name={participant.displayName}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-bold">
+                                {participant.displayName}
+                              </p>
+                              <p className="text-xs text-white/42">
+                                {participant.ownerUid
+                                  ? "Guest-owned"
+                                  : "Organizer-added"}{" "}
+                                · {participant.status}
+                              </p>
+                            </div>
+                            <Button
+                              onClick={() => setEditor(participant)}
+                              variant="quiet"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              disabled={!participants.canMutate}
+                              onClick={() =>
+                                setPendingStatusId(
+                                  changingStatus ? null : participant.id,
+                                )
+                              }
+                              variant="quiet"
+                            >
+                              {participant.status === "active"
+                                ? "Deactivate"
+                                : "Reactivate"}
+                            </Button>
+                          </div>
+                          {changingStatus ? (
+                            <div className="mt-3 flex flex-wrap items-center justify-end gap-3 border-t border-white/8 pt-3">
+                              <p className="mr-auto text-xs text-white/52">
+                                {nextStatus === "inactive"
+                                  ? "Remove this person from the public active roster?"
+                                  : "Return this person to the public active roster?"}
+                              </p>
+                              <Button
+                                onClick={() => setPendingStatusId(null)}
+                                variant="quiet"
+                              >
+                                Cancel
+                              </Button>
+                              <Button
+                                onClick={() => {
+                                  setActionError(null);
+                                  void participants
+                                    .organizerSetStatus(
+                                      participant.id,
+                                      nextStatus,
+                                    )
+                                    .then(() => setPendingStatusId(null))
+                                    .catch((error: unknown) =>
+                                      setActionError(
+                                        error instanceof Error
+                                          ? error.message
+                                          : "The participant status could not be changed.",
+                                      ),
+                                    );
+                                }}
+                                variant="dark"
+                              >
+                                Confirm
+                              </Button>
+                            </div>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
         )}

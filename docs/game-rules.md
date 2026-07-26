@@ -18,6 +18,10 @@ All numeric scoring rules are frozen in the competition's `scoringConfig` when p
 
 The following competition lifecycle applies to all three formats.
 
+### Phase 3 configuration-only lifecycle
+
+Phase 3 persists only `draft`, `scheduled`, and `archived`. Publishing changes a valid private draft into a guest-readable `scheduled` configuration; it does not confirm a draw, snapshot generated entities, or start play. A scheduled configuration may be edited with a revision precondition, archived, or restored. The fuller lifecycle below begins when Phase 4 adds generated and result-bearing state. Until then, guest cards explicitly say that fixtures are pending.
+
 ```mermaid
 stateDiagram-v2
     [*] --> Draft

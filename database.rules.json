@@ -34,7 +34,7 @@
           ".validate": "newData.val() == 'active' || newData.val() == 'inactive'"
         },
         "createdAt": {
-          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
         },
         "createdByUid": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128 && ((!data.exists() && newData.val() == auth.uid) || (data.exists() && newData.val() == data.val()))"
@@ -65,7 +65,7 @@
           ".validate": "newData.isString() && newData.val() == $uid"
         },
         "createdAt": {
-          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
         },
         "updatedAt": {
           ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000 && (!data.exists() || newData.val() >= data.val())"
@@ -76,6 +76,372 @@
         "$other": {
           ".validate": false
         }
+      }
+    },
+    "competitionDrafts": {
+      ".read": "auth != null && auth.token.admin === true",
+      "$competitionId": {
+        ".write": "auth != null && auth.token.admin === true && ((!data.exists() && newData.exists() && newData.child('revision').val() == 1 && newData.child('createdByUid').val() == auth.uid) || (data.exists() && newData.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('id').val() == data.child('id').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdByUid').val() == data.child('createdByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val()) || (data.exists() && !newData.exists()))",
+        ".validate": "newData.hasChildren(['id', 'title', 'gameName', 'iconKey', 'format', 'formatConfig', 'scoringConfig', 'displayOrder', 'createdAt', 'updatedAt', 'createdByUid', 'updatedByUid', 'revision', 'schemaVersion', 'status']) && newData.child('id').val() == $competitionId && newData.child('status').val() == 'draft' && newData.child('formatConfig').child('kind').val() == newData.child('format').val() && ((newData.child('format').val() == 'all-hands' && newData.child('scoringConfig').child('kind').val() == 'all-hands') || ((newData.child('format').val() == 'round-robin-knockout' || newData.child('format').val() == 'group-knockout') && newData.child('scoringConfig').child('kind').val() == 'head-to-head'))",
+        "id": {
+          ".validate": "newData.isString() && newData.val() == $competitionId && newData.val().length > 0 && newData.val().length <= 128"
+        },
+        "title": {
+          ".validate": "newData.isString() && (newData.val().length == 0 || newData.val().length >= 2) && newData.val().length <= 60"
+        },
+        "gameName": {
+          ".validate": "newData.isString() && (newData.val().length == 0 || newData.val().length >= 2) && newData.val().length <= 60"
+        },
+        "description": {
+          ".validate": "newData.isString() && newData.val().length <= 280"
+        },
+        "iconKey": {
+          ".validate": "newData.isString() && newData.val().matches(/^(trophy|route|users|dice|controller|crown)$/)"
+        },
+        "format": {
+          ".validate": "newData.isString() && newData.val().matches(/^(round-robin-knockout|all-hands|group-knockout)$/)"
+        },
+        "participantIds": {
+          ".validate": "!newData.child('32').exists()",
+          "$index": {
+            ".validate": "$index.matches(/^(0|[1-9]|[12][0-9]|3[01])$/) && newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+          }
+        },
+        "formatConfig": {
+          ".validate": "(newData.child('kind').val() == 'round-robin-knockout' && newData.hasChildren(['kind', 'series', 'allowDraws', 'qualificationCount', 'includeThirdPlace'])) || (newData.child('kind').val() == 'all-hands' && newData.hasChildren(['kind', 'resultMode', 'sessionPlan', 'allowTeams', 'tieHandling'])) || (newData.child('kind').val() == 'group-knockout' && newData.hasChildren(['kind', 'groupCountMode', 'groupCount', 'qualifiersPerGroup', 'roundRobinLegs', 'series', 'allowDraws', 'includeThirdPlace']))",
+          "kind": {
+            ".validate": "newData.val() == 'round-robin-knockout' || newData.val() == 'all-hands' || newData.val() == 'group-knockout'"
+          },
+          "series": {
+            ".validate": "newData.hasChildren(['kind', 'winsRequired', 'maximumRounds']) && ((newData.child('kind').val() == 'single' && newData.child('winsRequired').val() == 1 && newData.child('maximumRounds').val() == 1) || (newData.child('kind').val() == 'best-of' && ((newData.child('maximumRounds').val() == 3 && newData.child('winsRequired').val() == 2) || (newData.child('maximumRounds').val() == 5 && newData.child('winsRequired').val() == 3) || (newData.child('maximumRounds').val() == 7 && newData.child('winsRequired').val() == 4))) || (newData.child('kind').val() == 'first-to' && newData.child('winsRequired').isNumber() && newData.child('winsRequired').val() >= 1 && newData.child('winsRequired').val() <= 10 && newData.child('maximumRounds').val() == newData.child('winsRequired').val() * 2 - 1))",
+            "kind": { ".validate": "newData.isString()" },
+            "winsRequired": { ".validate": "newData.isNumber()" },
+            "maximumRounds": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          },
+          "allowDraws": { ".validate": "newData.isBoolean()" },
+          "qualificationCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 32 && newData.val() % 1 == 0"
+          },
+          "includeThirdPlace": { ".validate": "newData.isBoolean()" },
+          "resultMode": {
+            ".validate": "newData.isString() && newData.val().matches(/^(winner-only|placement|highest-score|lowest-score|custom)$/)"
+          },
+          "sessionPlan": {
+            ".validate": "(newData.child('kind').val() == 'open-ended' && !newData.child('sessionCount').exists()) || (newData.child('kind').val() == 'planned' && newData.hasChildren(['kind', 'sessionCount']) && newData.child('sessionCount').isNumber() && newData.child('sessionCount').val() >= 1 && newData.child('sessionCount').val() <= 50 && newData.child('sessionCount').val() % 1 == 0)",
+            "kind": {
+              ".validate": "newData.val() == 'open-ended' || newData.val() == 'planned'"
+            },
+            "sessionCount": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          },
+          "allowTeams": { ".validate": "newData.isBoolean()" },
+          "primaryMetricLabel": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 40"
+          },
+          "secondaryMetricLabel": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 40"
+          },
+          "tieHandling": { ".validate": "newData.val() == 'shared'" },
+          "groupCountMode": {
+            ".validate": "newData.val() == 'automatic' || newData.val() == 'manual'"
+          },
+          "groupCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 8 && newData.val() % 1 == 0"
+          },
+          "qualifiersPerGroup": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 32 && newData.val() % 1 == 0"
+          },
+          "roundRobinLegs": {
+            ".validate": "newData.val() == 1 || newData.val() == 2"
+          },
+          "$other": { ".validate": false }
+        },
+        "scoringConfig": {
+          ".validate": "(newData.child('kind').val() == 'head-to-head' && newData.hasChildren(['kind', 'table', 'overall'])) || (newData.child('kind').val() == 'all-hands' && newData.hasChildren(['kind', 'winnerBonus', 'participationPoints']))",
+          "kind": {
+            ".validate": "newData.val() == 'head-to-head' || newData.val() == 'all-hands'"
+          },
+          "table": {
+            ".validate": "newData.hasChildren(['pointsForMatchWin', 'pointsForDraw', 'pointsForMatchLoss'])",
+            "pointsForMatchWin": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "pointsForDraw": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "pointsForMatchLoss": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "$other": { ".validate": false }
+          },
+          "overall": {
+            ".validate": "newData.hasChildren(['matchWinBonus', 'pointsPerRoundWon', 'participationPoints', 'qualificationBonus', 'competitionWinnerBonus', 'runnerUpBonus', 'thirdPlaceBonus'])",
+            "matchWinBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "pointsPerRoundWon": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "participationPoints": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "qualificationBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "competitionWinnerBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "runnerUpBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "thirdPlaceBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "$other": { ".validate": false }
+          },
+          "winnerBonus": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+          },
+          "participationPoints": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+          },
+          "placementPoints": {
+            ".validate": "!newData.child('32').exists()",
+            "$index": {
+              ".validate": "$index.matches(/^(0|[1-9]|[12][0-9]|3[01])$/) && newData.hasChildren(['place', 'points'])",
+              "place": {
+                ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 32 && newData.val() % 1 == 0"
+              },
+              "points": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+              },
+              "$other": { ".validate": false }
+            }
+          },
+          "$other": { ".validate": false }
+        },
+        "displayOrder": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000 && newData.val() % 1 == 0"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "createdByUid": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+        },
+        "updatedByUid": { ".validate": "newData.val() == auth.uid" },
+        "revision": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+        },
+        "schemaVersion": { ".validate": "newData.val() == 1" },
+        "status": { ".validate": "newData.val() == 'draft'" },
+        "$other": { ".validate": false }
+      }
+    },
+    "competitions": {
+      ".read": "auth != null",
+      "$competitionId": {
+        ".write": "auth != null && auth.token.admin === true && newData.exists() && ((!data.exists() && root.child('competitionDrafts').child($competitionId).exists() && newData.child('status').val() == 'scheduled' && newData.child('revision').val() == root.child('competitionDrafts').child($competitionId).child('revision').val() + 1 && newData.child('id').val() == root.child('competitionDrafts').child($competitionId).child('id').val() && newData.child('title').val() == root.child('competitionDrafts').child($competitionId).child('title').val() && newData.child('gameName').val() == root.child('competitionDrafts').child($competitionId).child('gameName').val() && newData.child('iconKey').val() == root.child('competitionDrafts').child($competitionId).child('iconKey').val() && newData.child('format').val() == root.child('competitionDrafts').child($competitionId).child('format').val() && newData.child('createdAt').val() == root.child('competitionDrafts').child($competitionId).child('createdAt').val() && newData.child('createdByUid').val() == root.child('competitionDrafts').child($competitionId).child('createdByUid').val()) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('id').val() == data.child('id').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdByUid').val() == data.child('createdByUid').val() && newData.child('publishedAt').val() == data.child('publishedAt').val() && newData.child('publishedByUid').val() == data.child('publishedByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val() && ((data.child('status').val() == 'scheduled' && (newData.child('status').val() == 'scheduled' || newData.child('status').val() == 'archived')) || (data.child('status').val() == 'archived' && newData.child('status').val() == 'scheduled'))))",
+        ".validate": "newData.hasChildren(['id', 'title', 'gameName', 'iconKey', 'format', 'participantIds', 'formatConfig', 'scoringConfig', 'displayOrder', 'createdAt', 'updatedAt', 'createdByUid', 'updatedByUid', 'revision', 'schemaVersion', 'status', 'publishedAt', 'publishedByUid']) && newData.child('id').val() == $competitionId && newData.child('title').val().length >= 2 && newData.child('gameName').val().length >= 2 && newData.child('participantIds').hasChildren(['0', '1']) && (newData.child('format').val() != 'group-knockout' || newData.child('participantIds').hasChildren(['0', '1', '2', '3'])) && newData.child('formatConfig').child('kind').val() == newData.child('format').val() && ((newData.child('format').val() == 'all-hands' && newData.child('scoringConfig').child('kind').val() == 'all-hands') || ((newData.child('format').val() == 'round-robin-knockout' || newData.child('format').val() == 'group-knockout') && newData.child('scoringConfig').child('kind').val() == 'head-to-head')) && ((newData.child('format').val() != 'round-robin-knockout') || (newData.child('formatConfig').child('qualificationCount').val() >= 2 && newData.child('formatConfig').child('qualificationCount').val() <= 32 && newData.child('formatConfig').child('qualificationCount').val() % 2 == 0)) && ((newData.child('format').val() != 'group-knockout') || (newData.child('formatConfig').child('groupCount').val() * newData.child('formatConfig').child('qualifiersPerGroup').val() >= 2 && newData.child('formatConfig').child('groupCount').val() * newData.child('formatConfig').child('qualifiersPerGroup').val() % 2 == 0))",
+        "id": {
+          ".validate": "newData.isString() && newData.val() == $competitionId && newData.val().length > 0 && newData.val().length <= 128"
+        },
+        "title": {
+          ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+        },
+        "gameName": {
+          ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+        },
+        "description": {
+          ".validate": "newData.isString() && newData.val().length <= 280"
+        },
+        "iconKey": {
+          ".validate": "newData.isString() && newData.val().matches(/^(trophy|route|users|dice|controller|crown)$/)"
+        },
+        "format": {
+          ".validate": "newData.isString() && newData.val().matches(/^(round-robin-knockout|all-hands|group-knockout)$/)"
+        },
+        "participantIds": {
+          ".validate": "newData.hasChildren(['0', '1']) && !newData.child('32').exists()",
+          "$index": {
+            ".validate": "$index.matches(/^(0|[1-9]|[12][0-9]|3[01])$/) && newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+          }
+        },
+        "formatConfig": {
+          ".validate": "(newData.child('kind').val() == 'round-robin-knockout' && newData.hasChildren(['kind', 'series', 'allowDraws', 'qualificationCount', 'includeThirdPlace'])) || (newData.child('kind').val() == 'all-hands' && newData.hasChildren(['kind', 'resultMode', 'sessionPlan', 'allowTeams', 'tieHandling'])) || (newData.child('kind').val() == 'group-knockout' && newData.hasChildren(['kind', 'groupCountMode', 'groupCount', 'qualifiersPerGroup', 'roundRobinLegs', 'series', 'allowDraws', 'includeThirdPlace']))",
+          "kind": {
+            ".validate": "newData.val() == 'round-robin-knockout' || newData.val() == 'all-hands' || newData.val() == 'group-knockout'"
+          },
+          "series": {
+            ".validate": "newData.hasChildren(['kind', 'winsRequired', 'maximumRounds']) && ((newData.child('kind').val() == 'single' && newData.child('winsRequired').val() == 1 && newData.child('maximumRounds').val() == 1) || (newData.child('kind').val() == 'best-of' && ((newData.child('maximumRounds').val() == 3 && newData.child('winsRequired').val() == 2) || (newData.child('maximumRounds').val() == 5 && newData.child('winsRequired').val() == 3) || (newData.child('maximumRounds').val() == 7 && newData.child('winsRequired').val() == 4))) || (newData.child('kind').val() == 'first-to' && newData.child('winsRequired').isNumber() && newData.child('winsRequired').val() >= 1 && newData.child('winsRequired').val() <= 10 && newData.child('maximumRounds').val() == newData.child('winsRequired').val() * 2 - 1))",
+            "kind": { ".validate": "newData.isString()" },
+            "winsRequired": { ".validate": "newData.isNumber()" },
+            "maximumRounds": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          },
+          "allowDraws": { ".validate": "newData.isBoolean()" },
+          "qualificationCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() <= 32 && newData.val() % 1 == 0"
+          },
+          "includeThirdPlace": { ".validate": "newData.isBoolean()" },
+          "resultMode": {
+            ".validate": "newData.isString() && newData.val().matches(/^(winner-only|placement|highest-score|lowest-score|custom)$/)"
+          },
+          "sessionPlan": {
+            ".validate": "(newData.child('kind').val() == 'open-ended' && !newData.child('sessionCount').exists()) || (newData.child('kind').val() == 'planned' && newData.hasChildren(['kind', 'sessionCount']) && newData.child('sessionCount').isNumber() && newData.child('sessionCount').val() >= 1 && newData.child('sessionCount').val() <= 50 && newData.child('sessionCount').val() % 1 == 0)",
+            "kind": {
+              ".validate": "newData.val() == 'open-ended' || newData.val() == 'planned'"
+            },
+            "sessionCount": { ".validate": "newData.isNumber()" },
+            "$other": { ".validate": false }
+          },
+          "allowTeams": { ".validate": "newData.isBoolean()" },
+          "primaryMetricLabel": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 40"
+          },
+          "secondaryMetricLabel": {
+            ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 40"
+          },
+          "tieHandling": { ".validate": "newData.val() == 'shared'" },
+          "groupCountMode": {
+            ".validate": "newData.val() == 'automatic' || newData.val() == 'manual'"
+          },
+          "groupCount": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 8 && newData.val() % 1 == 0"
+          },
+          "qualifiersPerGroup": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 32 && newData.val() % 1 == 0"
+          },
+          "roundRobinLegs": {
+            ".validate": "newData.val() == 1 || newData.val() == 2"
+          },
+          "$other": { ".validate": false }
+        },
+        "scoringConfig": {
+          ".validate": "(newData.child('kind').val() == 'all-hands' && newData.hasChildren(['kind', 'winnerBonus', 'participationPoints'])) || (newData.child('kind').val() == 'head-to-head' && newData.hasChildren(['kind', 'table', 'overall']))",
+          "kind": {
+            ".validate": "newData.val() == 'head-to-head' || newData.val() == 'all-hands'"
+          },
+          "table": {
+            ".validate": "newData.hasChildren(['pointsForMatchWin', 'pointsForDraw', 'pointsForMatchLoss'])",
+            "pointsForMatchWin": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "pointsForDraw": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "pointsForMatchLoss": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "$other": { ".validate": false }
+          },
+          "overall": {
+            ".validate": "newData.hasChildren(['matchWinBonus', 'pointsPerRoundWon', 'participationPoints', 'qualificationBonus', 'competitionWinnerBonus', 'runnerUpBonus', 'thirdPlaceBonus'])",
+            "matchWinBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "pointsPerRoundWon": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "participationPoints": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "qualificationBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "competitionWinnerBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "runnerUpBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "thirdPlaceBonus": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+            },
+            "$other": { ".validate": false }
+          },
+          "winnerBonus": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+          },
+          "participationPoints": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+          },
+          "placementPoints": {
+            ".validate": "!newData.child('32').exists()",
+            "$index": {
+              ".validate": "$index.matches(/^(0|[1-9]|[12][0-9]|3[01])$/) && newData.hasChildren(['place', 'points'])",
+              "place": {
+                ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 32 && newData.val() % 1 == 0"
+              },
+              "points": {
+                ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 100 && newData.val() % 1 == 0"
+              },
+              "$other": { ".validate": false }
+            }
+          },
+          "$other": { ".validate": false }
+        },
+        "displayOrder": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 1000000 && newData.val() % 1 == 0"
+        },
+        "createdAt": { ".validate": "newData.isNumber()" },
+        "updatedAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000 && (!data.exists() || newData.val() >= data.val())"
+        },
+        "createdByUid": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+        },
+        "updatedByUid": { ".validate": "newData.val() == auth.uid" },
+        "revision": {
+          ".validate": "newData.isNumber() && newData.val() >= 2 && newData.val() % 1 == 0"
+        },
+        "schemaVersion": { ".validate": "newData.val() == 1" },
+        "status": {
+          ".validate": "newData.val() == 'scheduled' || newData.val() == 'archived'"
+        },
+        "publishedAt": {
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
+        },
+        "publishedByUid": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+        },
+        "$other": { ".validate": false }
+      }
+    },
+    "audit": {
+      ".read": "auth != null && auth.token.admin === true",
+      "$auditId": {
+        ".write": "auth != null && auth.token.admin === true && !data.exists() && newData.exists()",
+        ".validate": "newData.hasChildren(['id', 'action', 'entityType', 'entityId', 'actorUid', 'occurredAt', 'summary', 'schemaVersion']) && newData.child('id').val() == $auditId",
+        "id": {
+          ".validate": "newData.isString() && newData.val() == $auditId"
+        },
+        "action": {
+          ".validate": "newData.isString() && newData.val().matches(/^(draft-created|draft-updated|draft-deleted|draft-duplicated|competition-published|competition-updated|competition-archived|competition-restored|competition-reordered)$/)"
+        },
+        "entityType": { ".validate": "newData.val() == 'competition'" },
+        "entityId": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+        },
+        "actorUid": { ".validate": "newData.val() == auth.uid" },
+        "beforeRevision": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+        },
+        "afterRevision": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+        },
+        "occurredAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+        },
+        "summary": {
+          ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 160"
+        },
+        "schemaVersion": { ".validate": "newData.val() == 1" },
+        "$other": { ".validate": false }
       }
     }
   }

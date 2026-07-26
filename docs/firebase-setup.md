@@ -1,12 +1,12 @@
 # Firebase setup and operations
 
-## 1. Phase 2 scope
+## 1. Phase 2–3 scope
 
-Firebase powers anonymous guest identity, the shared active-participant roster, organizer email/password authentication, and organizer participant management. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
+Firebase powers anonymous guest identity, the shared active-participant roster, organizer email/password authentication, organizer participant management, and Phase 3 competition configuration. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
 
-Phase 2 does not include competition state, scores, messages, predictions, protected reveal data, the exact accommodation address, Cloud Functions, App Check, analytics, or service-worker behavior.
+Phase 3 stores private drafts, public-safe scheduled/archived competition configurations, ordering, revisions, and compact audit metadata. It does not create fixtures, groups, sessions, results, standings, scores, messages, predictions, protected reveal data, the exact accommodation address, Cloud Functions, App Check, analytics, or service-worker behavior.
 
-> **Production status (26 July 2026):** Phase 2 setup is complete. The production Firebase project and organizer access are provisioned, the version-controlled Rules are deployed, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase.
+> **Production status (26 July 2026):** Phase 2 setup is complete. The production Firebase project and organizer access are provisioned, the Phase 2 Rules are deployed, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. The Phase 3 repository implementation and emulator-tested Rules are complete, but this implementation did not deploy them or change remote Firebase data.
 
 ## 2. Create the Firebase projects
 
@@ -94,10 +94,19 @@ Rules are default-deny and indexes are declared in `database.rules.json`. `datab
 After tests pass and only with explicit authorization to modify the chosen remote project:
 
 ```sh
-npm run deploy:rules -- YOUR_PROJECT_ID
+npm run deploy:rules -- YOUR_DEVELOPMENT_PROJECT_ID
+npm run deploy:rules -- YOUR_PRODUCTION_PROJECT_ID
 ```
 
-Before deployment, confirm the CLI target printed by Firebase, confirm the project is development or production as intended, and inspect `git diff -- database.rules.json`. Do not deploy from the Pages workflow.
+Run only the line for the intended environment. Before deployment, confirm the CLI target printed by Firebase, confirm the project is development or production as intended, and inspect `git diff -- database.rules.json`. Do not deploy from the Pages workflow.
+
+Phase 3 adds these flat paths to the existing Phase 2 schema:
+
+- `/competitionDrafts/{competitionId}` — organizer read/write; unused drafts may be deleted.
+- `/competitions/{competitionId}` — authenticated read; organizer create/update/archive/restore/reorder; no client delete.
+- `/audit/{auditId}` — organizer read and create-only append; no update/delete.
+
+After the revised Rules are deliberately deployed, publish the frontend through the normal Pages workflow. A scheduled card can then be used as a smoke test: create a synthetic draft, publish it, confirm another authenticated browser receives it, archive it, and confirm the guest list removes it. Do not use production to test destructive or Phase 4 behavior.
 
 ## 7. GitHub Pages variables
 

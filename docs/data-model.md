@@ -40,6 +40,7 @@ interface AuditFields {
 }
 
 type RecordStatus = 'active' | 'archived';
+// Full execution lifecycle targeted from Phase 4 onward.
 type CompetitionStatus =
   | 'draft'
   | 'preview'
@@ -228,6 +229,52 @@ interface Competition extends AuditFields {
 ```
 
 Validation enforces that the `format`, `formatConfig.kind`, permitted scoring fields, and active entity types agree. Configuration objects are copied into a competition rather than referencing a mutable global default.
+
+### Phase 3 implemented competition slice
+
+Phase 3 implements the configuration subset separately from the future execution model above. The exact persisted statuses are `draft`, `scheduled`, and `archived`; `scheduled` is a published configuration with fixtures pending. No stage, group, fixture, match, session, result, standing, or ledger record is created.
+
+```ts
+type Phase3CompetitionStatus = 'draft' | 'scheduled' | 'archived';
+
+type Phase3SeriesConfig =
+  | { kind: 'single'; winsRequired: 1; maximumRounds: 1 }
+  | { kind: 'best-of'; maximumRounds: 3 | 5 | 7; winsRequired: 2 | 3 | 4 }
+  | { kind: 'first-to'; winsRequired: number; maximumRounds: number };
+
+interface Phase3CompetitionBase {
+  id: CompetitionId;
+  title: string;
+  gameName: string;
+  description: string;
+  iconKey: 'trophy' | 'route' | 'users' | 'dice' | 'controller' | 'crown';
+  format: CompetitionFormat;
+  participantIds: ParticipantId[];
+  formatConfig: Phase3FormatConfig;   // discriminant must equal format
+  scoringConfig: Phase3ScoringConfig; // configuration only; awards nothing yet
+  displayOrder: number;
+  createdAt: UnixMs;
+  updatedAt: UnixMs;
+  createdByUid: UserId;
+  updatedByUid: UserId;
+  revision: number;
+  schemaVersion: 1;
+}
+
+interface Phase3CompetitionDraft extends Phase3CompetitionBase {
+  status: 'draft';
+}
+
+interface Phase3PublishedCompetition extends Phase3CompetitionBase {
+  status: 'scheduled' | 'archived';
+  publishedAt: UnixMs;
+  publishedByUid: UserId;
+}
+```
+
+`Phase3FormatConfig` is the implemented discriminated union for Merry-Go-Round settings (`series`, draws toggle, qualifier count, third-place toggle), All Hands settings (result mode, planned/open-ended sessions, teams toggle, optional metric labels, shared ties), and Group Format settings (automatic/manual group count, qualifiers per group, one/two legs, series, draws, third place). `Phase3ScoringConfig` separates head-to-head table points from championship-preview awards, or stores All Hands placement/winner/participation awards. These values are validated and explained in Phase 3, but are not processed into results or points.
+
+The implemented paths are `/competitionDrafts/{competitionId}`, `/competitions/{competitionId}`, and `/audit/{auditId}`. Publishing is one multi-location write: create the `scheduled` record at the same ID, remove the draft, and append compact audit metadata. Published edits, archive/restore, and reorders increment revisions; reordering increments every changed record because `displayOrder` is versioned state. Optional null metric labels are omitted by Realtime Database and normalized back to `null` by the runtime adapter. Participant membership stores IDs only, so display profile changes can render without rewriting the selected membership.
 
 ## 5. Head-to-head stages and matches
 
@@ -567,6 +614,8 @@ Public `AppSettings` fixes the trip range to 31 July–2 August 2026 and the pub
 
 Path names are neutral and access-oriented. `$uid`, `$competitionId`, and similar segments are opaque generated IDs.
 
+The tree below remains the target for later execution, private-content, and backend-derived features. The implemented Phase 2–3 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
+
 ```text
 /
   public/                                      # authenticated guest read; admin/backend write
@@ -622,7 +671,7 @@ Path names are neutral and access-oriented. `$uid`, `$competitionId`, and simila
 
 “Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
-Competition drafts live under `organizer`; confirmed, sanitized competition configurations and results live under `public`. Organizer clients should invoke trusted operations to publish multi-path updates rather than copy partial trees themselves.
+In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. Phase 3 instead uses the flat paths documented above and Rules-authorized atomic client publication because it contains public-safe configuration only. Generated/result/scoring publication still requires the later trusted-operation design and is not authorized by this exception.
 
 ## 13. Source of truth, derivation, and denormalization
 
