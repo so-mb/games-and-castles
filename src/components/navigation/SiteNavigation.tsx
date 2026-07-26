@@ -1,6 +1,7 @@
 import { Castle } from "lucide-react";
 import { useMemo } from "react";
 import { navigationItems } from "../../data/trip";
+import { OrganizerAccess } from "../../features/organizer/OrganizerAccess";
 import { cn } from "../../lib/cn";
 import { useActiveSection } from "../../hooks/useActiveSection";
 import { Container } from "../layout/Container";
@@ -60,6 +61,8 @@ export function SiteNavigation() {
             })}
           </ul>
         </nav>
+
+        <OrganizerAccess />
       </Container>
     </header>
   );
