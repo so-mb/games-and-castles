@@ -1,12 +1,12 @@
 # Firebase setup and operations
 
-## 1. Phase 2–3 scope
+## 1. Phase 2–4 scope
 
-Firebase powers anonymous guest identity, the shared active-participant roster, organizer email/password authentication, organizer participant management, and Phase 3 competition configuration. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
+Firebase powers anonymous guest identity, the shared active-participant roster, organizer email/password authentication, organizer participant management, Phase 3 competition configuration, and the Phase 4 Merry-Go-Round runtime. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
 
-Phase 3 stores private drafts, public-safe scheduled/archived competition configurations, ordering, revisions, and compact audit metadata. It does not create fixtures, groups, sessions, results, standings, scores, messages, predictions, protected reveal data, the exact accommodation address, Cloud Functions, App Check, analytics, or service-worker behavior.
+Phase 4 stores public-safe active/completed competition records and `/competitionRuns/{competitionId}` snapshots, draws, fixtures, round-winner result sequences, tie decisions, knockout dependencies, placements, revisions, and compact audit metadata. Standings and projected competition points are derived rather than persisted. It does not implement All Hands/Group execution, a global score ledger, messages, predictions, protected reveal data, the exact accommodation address, Cloud Functions, App Check, analytics, or service-worker behavior.
 
-> **Production status (26 July 2026):** Phase 2 setup is complete. The production Firebase project and organizer access are provisioned, the Phase 2 Rules are deployed, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. The Phase 3 repository implementation and emulator-tested Rules are complete, but this implementation did not deploy them or change remote Firebase data.
+> **Production status (26 July 2026):** Phases 2–3 are deployed and production-verified. The production Firebase project and organizer access are provisioned, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. The Phase 4 repository implementation and emulator-tested runtime Rules are complete, but this implementation did not deploy them or change remote Firebase data.
 
 ## 2. Create the Firebase projects
 
@@ -100,13 +100,14 @@ npm run deploy:rules -- YOUR_PRODUCTION_PROJECT_ID
 
 Run only the line for the intended environment. Before deployment, confirm the CLI target printed by Firebase, confirm the project is development or production as intended, and inspect `git diff -- database.rules.json`. Do not deploy from the Pages workflow.
 
-Phase 3 adds these flat paths to the existing Phase 2 schema:
+Phases 3–4 add these flat paths to the existing Phase 2 schema:
 
 - `/competitionDrafts/{competitionId}` — organizer read/write; unused drafts may be deleted.
-- `/competitions/{competitionId}` — authenticated read; organizer create/update/archive/restore/reorder; no client delete.
-- `/audit/{auditId}` — organizer read and create-only append; no update/delete.
+- `/competitions/{competitionId}` — authenticated read; organizer configuration lifecycle plus atomic Merry-Go-Round activate/complete/reopen/reset status transitions; no client delete.
+- `/competitionRuns/{competitionId}` — authenticated read; admin-claim create/update, or pre-result deletion only as part of reset. The runtime is restricted to the exact Merry-Go-Round engine and one-step revisions.
+- `/audit/{auditId}` — organizer read and create-only append; no update/delete. Phase 4 records activation/draw, match state/results/corrections, tie/bracket dependency events, completion/reopen, and reset without sensitive payloads.
 
-After the revised Rules are deliberately deployed, publish the frontend through the normal Pages workflow. A scheduled card can then be used as a smoke test: create a synthetic draft, publish it, confirm another authenticated browser receives it, archive it, and confirm the guest list removes it. Do not use production to test destructive or Phase 4 behavior.
+After the revised Rules are deliberately deployed, publish the frontend through the normal Pages workflow. Validate Phase 4 first against the development project with synthetic data: activate, verify a second authenticated browser receives the same persisted draw, enter/correct a result, generate a bracket, complete/reopen, and confirm guest writes fail. A production smoke check should remain non-destructive; do not create or reset a real run merely to test deployment.
 
 ## 7. GitHub Pages variables
 

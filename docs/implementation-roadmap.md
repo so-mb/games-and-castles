@@ -141,7 +141,7 @@ Cross-cutting rules:
 
 ### Phase 3 — Generic competition creator
 
-**Implementation status:** Complete in the repository. The organizer Competition Studio, five-step wizard, typed configuration domain, realtime scheduled guest cards, revision conflicts, atomic multi-location mutations, safe audit records, default-deny Rules, and emulator/frontend tests are implemented. Production Phase 3 use requires the separately authorized Rules deployment described in [Firebase setup](firebase-setup.md); this implementation did not modify remote Firebase resources.
+**Implementation status:** Complete, deployed, and production-verified. The organizer Competition Studio, five-step wizard, typed configuration domain, realtime scheduled guest cards, revision conflicts, atomic multi-location mutations, safe audit records, default-deny Rules, and emulator/frontend tests are implemented. Phase 3 Rules were deployed through the separately authorized operator process described in [Firebase setup](firebase-setup.md).
 
 **Goal:** Let organizers create a validated, versioned competition configuration independent of game name and format-specific execution UI.
 
@@ -179,11 +179,13 @@ Cross-cutting rules:
 
 ### Phase 4 — `round-robin-knockout` engine
 
+**Implementation status:** Complete in the repository. The Merry-Go-Round runtime, organizer Control Room, authenticated realtime guest experience, pure derivations, append-only audit activity, runtime validation, default-deny Rules, domain/frontend tests, and expanded emulator matrix are implemented. Production use requires the separately authorized Phase 4 Rules deployment described in [Firebase setup](firebase-setup.md); this implementation did not deploy Rules or modify remote Firebase data.
+
 **Goal:** Deliver the first complete live competition vertical slice, including series results, standings, knockout progression, and round-based weekend points.
 
 **Inputs**
 
-- Phase 3 creator and frozen Merry-Go-Round rules; participant/config snapshots; transaction/callable foundation.
+- Phase 3 creator and frozen Merry-Go-Round rules; participant/config snapshots; Rules-enforced revision and atomic-write foundation.
 
 **Outputs**
 
@@ -192,25 +194,29 @@ Cross-cutting rules:
 - Active match queue, single/best-of/first-to result entry and correction.
 - Round-robin standings with explainable tiebreak status.
 - Configurable qualifier count, seeded knockout, final, optional third place, and dependency invalidation.
-- Minimal production ledger foundation for `match-win`, `round-win`, and configured participation/qualification/competition-win entries. Phase 7 generalizes its queries and presentation across all formats/sources.
+- Pure, itemized projected competition-point derivation for `match-win`, `round-win`, and configured participation/qualification/placement awards. No global or persisted score ledger is created before Phase 7.
 
-**Dependencies:** Phase 3; backend mutation/idempotency approach; final accepted multi-way head-to-head behavior.
+**Dependencies:** Satisfied for Phase 4. Phase 3 is complete; runtime writes use Rules-enforced compare-and-set revisions and atomic multi-location updates; head-to-head applies only to exact two-person ties, while unresolved cohorts require an explicit audited organizer order.
 
 **Acceptance criteria**
 
 1. For every tested participant count, generated matches equal `n(n-1)/2`, every pair occurs once, odd BYEs produce no match, and generation is deterministic from persisted shuffled order.
 2. Preview creates no official public fixtures; confirmation creates one shared order; reload/reconnect does not regenerate.
-3. Reset explicitly lists and clears/archives affected results, bracket data, standings caches, and ledger entries after confirmation.
+3. Pre-result reset explicitly deletes the generated run and returns the competition to scheduled after confirmation; after any result, casual whole-run reset is unavailable and correction workflows handle dependencies.
 4. Series validation accepts only legitimate terminal results and records round winners.
-5. Table standings use table points only; championship entries award the configured match and individual round points.
+5. Table standings use table points only; projected competition breakdowns derive the configured match and individual-round points without persisting a Phase 7 ledger.
 6. The 2–1 default example yields 4 championship points to the winner and 1 to the loser.
-7. Correcting a result produces exactly the same active standings/ledger as clean entry of the corrected result.
+7. Correcting a result produces exactly the same standings and projected point breakdown as clean entry of the corrected result.
 8. Six-player top-four flow seeds 1v4 and 2v3 and supports final/optional third place.
 9. Upstream knockout correction cannot leave silently inconsistent downstream results.
 
 **Main technical risks:** Pairing/scheduling bugs; conflating rounds and matches; multi-way tiebreak ambiguity; correction fan-out; non-power-of-two brackets; two-admin score entry race.
 
 **Recommended tests:** Generator property tests over even/odd and randomized sizes; golden six-player fixture; scheduling invariant tests; series boundary table; standings/tiebreak fixtures; backend idempotency/rebuild tests; downstream invalidation tests; two-device live play rehearsal; Rules/admin tests.
+
+**Implemented tests/review:** Pure tests cover secure-random injection, participant counts 2/3/4/5/6/7/8/10/16, circle-method invariants, rest-aware ordering, single/best-of/first-to results, standings and unresolved ties, 2/4/6/8-seed brackets, byes, correction cascades, revisions, points, completion, reopen, and Realtime Database serialization normalization. Frontend tests cover activation gating, Control Room access, round-by-round entry, read-only live presentation, odd-field byes, offline/unconfigured/malformed states, and strong reopen confirmation. The 58-case Rules matrix covers runtime read/write roles, activation formats/states, snapshot and match validation, revisions, immutable fixtures, results/corrections, tie/bracket/completion/reopen/reset operations, append-only audit, and denial of deferred paths. Full cross-device rehearsal remains a Phase 11 hardening task.
+
+**Phase boundary:** Only `round-robin-knockout` executes. All Hands, Group Format, the global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
 
 ---
 
@@ -220,7 +226,7 @@ Cross-cutting rules:
 
 **Inputs**
 
-- Phase 3 creator; shared result/ledger primitives from Phase 4; All Hands model and rules.
+- Phase 3 creator; shared result, revision, audit, and point-derivation primitives from Phase 4; All Hands model and rules.
 
 **Outputs**
 
@@ -229,7 +235,7 @@ Cross-cutting rules:
 - Placement/winner/participation awards, numeric tiebreaks, custom fields, teams and award-distribution policy.
 - Correction/recalculation and format-appropriate standings/session presentation.
 
-**Dependencies:** Phases 3–4 shared revision, ledger derivation, audit, and score-entry presentation foundations.
+**Dependencies:** Phases 3–4 shared revision, point derivation, audit, and score-entry presentation foundations. Phase 5 must not create the cross-competition ledger reserved for Phase 7.
 
 **Acceptance criteria**
 
@@ -261,7 +267,7 @@ Cross-cutting rules:
 - Single/double group round robins, group standings/tiebreaks, qualification mapping, cross-group bracket.
 - Explicit destructive reset and downstream invalidation/reseeding flow.
 
-**Dependencies:** Phase 4 pairing, standings, bracket, revision, reset, and ledger foundations.
+**Dependencies:** Phase 4 pairing, standings, bracket, revision, reset, and point-derivation foundations. The persisted global ledger remains Phase 7 work.
 
 **Acceptance criteria**
 
@@ -280,7 +286,7 @@ Cross-cutting rules:
 
 ### Phase 7 — Overall championship ledger and leaderboard
 
-**Goal:** Generalize the minimal Phase 4 ledger into the single weekend-wide, explainable scoring system for all competitions and prediction events.
+**Goal:** Turn the Phase 4 per-run point projection into the first persisted, weekend-wide, explainable scoring ledger for all competitions and prediction events.
 
 **Inputs**
 
@@ -294,7 +300,7 @@ Cross-cutting rules:
 - Admin bonus/correction workflow with mandatory reason and audit.
 - Presentation-safe score reasons and empty/loading/offline states.
 
-**Dependencies:** At least Phase 4 ledger foundation; Phases 5–6 result adapters for complete coverage.
+**Dependencies:** Phase 4 result and point-derivation foundation; Phases 5–6 result adapters for complete coverage.
 
 **Acceptance criteria**
 
@@ -447,7 +453,7 @@ Cross-cutting rules:
 
 ## 4. Recommended first vertical slice
 
-After the Firebase foundation and generic creator, prioritize `round-robin-knockout`. It exercises almost every difficult shared concern early: secure/persisted generation, head-to-head series, live result entry, standings, tiebreaks, bracket progression, round-level scoring, ledger idempotency, corrections, audit, and multi-device updates. All Hands can then reuse result/ledger infrastructure, while Group Format can reuse pairing, standings, and bracket primitives.
+After the Firebase foundation and generic creator, prioritize `round-robin-knockout`. It exercises almost every difficult shared concern early: secure/persisted generation, head-to-head series, live result entry, standings, tiebreaks, bracket progression, point derivation, corrections, audit, and multi-device updates. All Hands can then reuse result/point-derivation infrastructure, while Group Format can reuse pairing, standings, and bracket primitives. The cross-competition ledger and its idempotency model remain Phase 7 work.
 
 This order is an architecture decision, not permission to hard-code the engine to any named game.
 

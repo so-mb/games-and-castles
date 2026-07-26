@@ -31,7 +31,7 @@ describe("Games & Castles static shell", () => {
       expect(document.getElementById(item.id)).toBeInTheDocument();
     });
     expect(
-      screen.getByRole("heading", { name: "Scheduled games" }),
+      screen.getByRole("heading", { name: "Live and scheduled games" }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/Championship preview · sample future presentation/),

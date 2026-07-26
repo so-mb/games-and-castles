@@ -31,8 +31,8 @@ export function ChampionshipSection() {
       <div className="relative z-10">
         <div className="flex flex-wrap items-end justify-between gap-6">
           <SectionHeading
-            description="The participant roster and scheduled competition configurations are shared live. Scores and matches remain a clearly labelled future preview."
-            eyebrow="Live roster · scheduled games · championship preview"
+            description="The roster and Merry-Go-Round competition run are shared live. The weekend-wide leaderboard remains a clearly labelled later-phase preview."
+            eyebrow="Live roster · Merry-Go-Round · championship preview"
             id="championship-title"
             title="The table is almost open"
             tone="dark"
@@ -43,9 +43,10 @@ export function ChampionshipSection() {
         </div>
 
         <p className="mt-5 max-w-2xl rounded-xl border border-white/8 bg-white/[0.035] px-4 py-3 text-sm leading-6 text-white/58">
-          Participant names and the Scheduled games area are live when Firebase
-          is configured. Every score, match, podium and bracket below remains
-          sample-only.
+          Participant names, Merry-Go-Round fixtures, standings, projected
+          competition points and brackets are live when Firebase is configured.
+          The separate podium and recent-points presentation below remains
+          sample-only until the Phase 7 weekend ledger.
         </p>
 
         <div className="mt-7">

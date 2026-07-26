@@ -10,6 +10,7 @@ import {
 import { useAuth } from "../auth/AuthProvider";
 import { useConnection } from "../live/ConnectionProvider";
 import { useFirebase } from "../live/FirebaseProvider";
+import { useParticipants } from "../participants/ParticipantsProvider";
 import {
   archiveCompetition,
   createDraft,
@@ -21,12 +22,28 @@ import {
   restoreCompetition,
   subscribeCompetitionDrafts,
   subscribeOrganizerCompetitions,
-  subscribeScheduledCompetitions,
+  subscribePublicCompetitions,
   updateDraft,
   updateScheduledCompetition,
 } from "./repositories/competitions";
+import {
+  activateCompetition,
+  completeRunCompetition,
+  createRunKnockout,
+  reopenRunCompetition,
+  resetCompetitionRun,
+  returnRunMatchToPending,
+  saveRunMatchResult,
+  saveTieResolution,
+  startRunMatch,
+  subscribeCompetitionRuns,
+  subscribePhaseFourAudit,
+} from "./repositories/runs";
+import type { CompetitionRun } from "./engine/types";
+import type { RecordResultOptions } from "./engine/lifecycle";
 import type {
   CompetitionDraft,
+  CompetitionAuditEntry,
   CompetitionFormValues,
   CompetitionRecord,
   PublishedCompetition,
@@ -36,12 +53,17 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 
 interface CompetitionsContextValue {
   scheduled: PublishedCompetition[];
+  active: PublishedCompetition[];
+  completed: PublishedCompetition[];
   archived: PublishedCompetition[];
   drafts: CompetitionDraft[];
+  runs: CompetitionRun[];
+  auditEntries: CompetitionAuditEntry[];
   publicState: LoadState;
   organizerState: LoadState;
   publicMalformedCount: number;
   organizerMalformedCount: number;
+  runtimeMalformedCount: number;
   errorMessage: string | null;
   canMutate: boolean;
   saveDraft: (
@@ -64,6 +86,41 @@ interface CompetitionsContextValue {
     competitionId: string,
     direction: "earlier" | "later",
   ) => Promise<void>;
+  activate: (competition: PublishedCompetition) => Promise<void>;
+  startMatch: (
+    run: CompetitionRun,
+    matchId: string,
+    expectedMatchRevision: number,
+  ) => Promise<void>;
+  returnMatchToPending: (
+    run: CompetitionRun,
+    matchId: string,
+    expectedMatchRevision: number,
+  ) => Promise<void>;
+  recordResult: (
+    run: CompetitionRun,
+    matchId: string,
+    options: Omit<RecordResultOptions, "organizerUid" | "now">,
+  ) => Promise<void>;
+  resolveTie: (
+    run: CompetitionRun,
+    participantIds: string[],
+    orderedParticipantIds: string[],
+    reason: string,
+  ) => Promise<void>;
+  generateKnockout: (run: CompetitionRun) => Promise<void>;
+  complete: (
+    competition: PublishedCompetition,
+    run: CompetitionRun,
+  ) => Promise<void>;
+  reopen: (
+    competition: PublishedCompetition,
+    run: CompetitionRun,
+  ) => Promise<void>;
+  resetRun: (
+    competition: PublishedCompetition,
+    run: CompetitionRun,
+  ) => Promise<void>;
 }
 
 const CompetitionsContext = createContext<CompetitionsContextValue | null>(
@@ -74,22 +131,36 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
   const firebase = useFirebase();
   const auth = useAuth();
   const connection = useConnection();
+  const participants = useParticipants();
   const [scheduled, setScheduled] = useState<PublishedCompetition[]>([]);
+  const [active, setActive] = useState<PublishedCompetition[]>([]);
+  const [completed, setCompleted] = useState<PublishedCompetition[]>([]);
   const [archived, setArchived] = useState<PublishedCompetition[]>([]);
   const [drafts, setDrafts] = useState<CompetitionDraft[]>([]);
+  const [runs, setRuns] = useState<CompetitionRun[]>([]);
+  const [auditEntries, setAuditEntries] = useState<CompetitionAuditEntry[]>([]);
   const [publicState, setPublicState] = useState<LoadState>("loading");
   const [organizerState, setOrganizerState] = useState<LoadState>("idle");
   const [publicMalformedCount, setPublicMalformedCount] = useState(0);
   const [draftMalformedCount, setDraftMalformedCount] = useState(0);
   const [publishedMalformedCount, setPublishedMalformedCount] = useState(0);
+  const [runtimeMalformedCount, setRuntimeMalformedCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (firebase.status !== "ready" || auth.guest.status !== "ready") return;
-    return subscribeScheduledCompetitions(
+    const stopCompetitions = subscribePublicCompetitions(
       firebase.clients.guestDatabase,
       (result) => {
-        setScheduled(result.records);
+        setScheduled(
+          result.records.filter((record) => record.status === "scheduled"),
+        );
+        setActive(
+          result.records.filter((record) => record.status === "active"),
+        );
+        setCompleted(
+          result.records.filter((record) => record.status === "completed"),
+        );
         setPublicMalformedCount(result.invalidIds.length);
         setPublicState("ready");
       },
@@ -98,6 +169,20 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
         setErrorMessage("Scheduled competitions could not be loaded.");
       },
     );
+    const stopRuns = subscribeCompetitionRuns(
+      firebase.clients.guestDatabase,
+      (result) => {
+        setRuns(result.runs);
+        setRuntimeMalformedCount(result.invalidIds.length);
+      },
+      () => {
+        setErrorMessage("Live competition runtime data could not be loaded.");
+      },
+    );
+    return () => {
+      stopCompetitions();
+      stopRuns();
+    };
   }, [auth.guest, firebase]);
 
   useEffect(() => {
@@ -141,9 +226,15 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
         setErrorMessage("Organizer competition data could not be loaded.");
       },
     );
+    const stopAudit = subscribePhaseFourAudit(
+      firebase.clients.organizerDatabase,
+      setAuditEntries,
+      () => setErrorMessage("Competition audit activity could not be loaded."),
+    );
     return () => {
       stopDrafts();
       stopCompetitions();
+      stopAudit();
     };
   }, [auth.organizer, firebase]);
 
@@ -191,15 +282,22 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
   );
 
   const existingTitles = useMemo(
-    () => [...drafts, ...scheduled, ...archived].map((record) => record.title),
-    [archived, drafts, scheduled],
+    () =>
+      [...drafts, ...scheduled, ...active, ...completed, ...archived].map(
+        (record) => record.title,
+      ),
+    [active, archived, completed, drafts, scheduled],
   );
 
   const value = useMemo<CompetitionsContextValue>(
     () => ({
       scheduled,
+      active,
+      completed,
       archived,
       drafts,
+      runs,
+      auditEntries,
       publicState:
         firebase.status !== "ready"
           ? "idle"
@@ -212,6 +310,7 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
           ? "loading"
           : organizerState,
       organizerMalformedCount: draftMalformedCount + publishedMalformedCount,
+      runtimeMalformedCount,
       errorMessage,
       canMutate:
         connection === "online" && auth.organizer.status === "authorized",
@@ -247,24 +346,89 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
           direction,
         );
       },
+      activate: async (competition) => {
+        const { database, uid } = requireOrganizer();
+        await activateCompetition(
+          database,
+          uid,
+          competition,
+          participants.organizerParticipants,
+        );
+      },
+      startMatch: async (run, matchId, expectedMatchRevision) => {
+        const { database, uid } = requireOrganizer();
+        await startRunMatch(database, uid, run, matchId, expectedMatchRevision);
+      },
+      returnMatchToPending: async (run, matchId, expectedMatchRevision) => {
+        const { database, uid } = requireOrganizer();
+        await returnRunMatchToPending(
+          database,
+          uid,
+          run,
+          matchId,
+          expectedMatchRevision,
+        );
+      },
+      recordResult: async (run, matchId, options) => {
+        const { database, uid } = requireOrganizer();
+        await saveRunMatchResult(database, uid, run, matchId, options);
+      },
+      resolveTie: async (
+        run,
+        participantIds,
+        orderedParticipantIds,
+        reason,
+      ) => {
+        const { database, uid } = requireOrganizer();
+        await saveTieResolution(
+          database,
+          uid,
+          run,
+          participantIds,
+          orderedParticipantIds,
+          reason,
+        );
+      },
+      generateKnockout: async (run) => {
+        const { database, uid } = requireOrganizer();
+        await createRunKnockout(database, uid, run);
+      },
+      complete: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await completeRunCompetition(database, uid, competition, run);
+      },
+      reopen: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await reopenRunCompetition(database, uid, competition, run);
+      },
+      resetRun: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await resetCompetitionRun(database, uid, competition, run);
+      },
     }),
     [
+      active,
+      auditEntries,
       archived,
       auth.guest.status,
       auth.organizer.status,
       connection,
+      completed,
       drafts,
       errorMessage,
       existingTitles,
       firebase.status,
       draftMalformedCount,
       organizerState,
+      participants.organizerParticipants,
       publicMalformedCount,
       publishedMalformedCount,
       publicState,
       publishAction,
       requireOrganizer,
       saveDraftAction,
+      runs,
+      runtimeMalformedCount,
       scheduled,
     ],
   );

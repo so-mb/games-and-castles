@@ -3,7 +3,8 @@ import type { ContentIcon } from "../../../types/content";
 export type CompetitionFormat =
   "round-robin-knockout" | "all-hands" | "group-knockout";
 
-export type CompetitionStatus = "draft" | "scheduled" | "archived";
+export type CompetitionStatus =
+  "draft" | "scheduled" | "active" | "completed" | "archived";
 
 export type CompetitionIconKey = Extract<
   ContentIcon,
@@ -124,7 +125,7 @@ export interface CompetitionDraft extends CompetitionBase {
 }
 
 export interface PublishedCompetition extends CompetitionBase {
-  status: "scheduled" | "archived";
+  status: "scheduled" | "active" | "completed" | "archived";
   publishedAt: number;
   publishedByUid: string;
 }
@@ -142,7 +143,21 @@ export interface CompetitionAuditEntry {
     | "competition-updated"
     | "competition-archived"
     | "competition-restored"
-    | "competition-reordered";
+    | "competition-reordered"
+    | "competition-activated"
+    | "draw-fixtures-generated"
+    | "competition-run-reset"
+    | "match-started"
+    | "match-returned-to-pending"
+    | "match-result-recorded"
+    | "match-result-corrected"
+    | "tie-resolved"
+    | "tie-resolution-invalidated"
+    | "knockout-generated"
+    | "knockout-reset"
+    | "downstream-results-cascaded"
+    | "competition-completed"
+    | "competition-reopened";
   entityType: "competition";
   entityId: string;
   actorUid: string;

@@ -239,7 +239,9 @@ export function parseCompetitionRecord(
   value: unknown,
 ): CompetitionRecord | null {
   if (!isRecord(value)) return null;
-  const published = value.status === "scheduled" || value.status === "archived";
+  const published = ["scheduled", "active", "completed", "archived"].includes(
+    String(value.status),
+  );
   const required = [
     "id",
     "title",
@@ -295,7 +297,9 @@ export function parseCompetitionRecord(
     !value.updatedByUid ||
     !isInteger(value.revision, 1, Number.MAX_SAFE_INTEGER) ||
     value.schemaVersion !== 1 ||
-    !["draft", "scheduled", "archived"].includes(String(value.status))
+    !["draft", "scheduled", "active", "completed", "archived"].includes(
+      String(value.status),
+    )
   ) {
     return null;
   }

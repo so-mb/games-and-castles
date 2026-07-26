@@ -276,6 +276,60 @@ interface Phase3PublishedCompetition extends Phase3CompetitionBase {
 
 The implemented paths are `/competitionDrafts/{competitionId}`, `/competitions/{competitionId}`, and `/audit/{auditId}`. Publishing is one multi-location write: create the `scheduled` record at the same ID, remove the draft, and append compact audit metadata. Published edits, archive/restore, and reorders increment revisions; reordering increments every changed record because `displayOrder` is versioned state. Optional null metric labels are omitted by Realtime Database and normalized back to `null` by the runtime adapter. Participant membership stores IDs only, so display profile changes can render without rewriting the selected membership.
 
+### 4.1 Phase 4 Merry-Go-Round runtime
+
+Phase 4 extends published Merry-Go-Round records to `scheduled | active | completed | archived` and adds one runtime at `/competitionRuns/{competitionId}`. Activation atomically creates the run, changes the source competition from `scheduled` to `active`, and appends activation/draw audit entries. Completion and reopening likewise update the competition, runtime, and audit in one multi-location mutation. A pre-result reset is the only whole-run deletion: it removes the run and returns the unchanged configuration to `scheduled`; started runs use result correction instead.
+
+```ts
+interface CompetitionRun {
+  competitionId: CompetitionId;
+  format: 'round-robin-knockout';
+  stage: 'round-robin' | 'qualification-review' | 'knockout' | 'completed';
+  competitionRevision: number;
+  participantIds: ParticipantId[];
+  participantIndex: Record<ParticipantId, true>;
+  randomizedParticipantIds: ParticipantId[];
+  randomizedPositions: Record<ParticipantId, number>;
+  configSnapshot: {
+    format: 'round-robin-knockout';
+    series: MatchSeries;
+    allowDraws: false;
+    qualificationCount: number;
+    includeThirdPlace: boolean;
+    tableScoring: HeadToHeadTableScoring;
+    overallScoring: HeadToHeadOverallScoring;
+  };
+  roundRobin: {
+    fixtureRoundCount: number;
+    expectedMatchCount: number;
+    rounds: Array<{
+      number: number;
+      matchIds: MatchId[];
+      byeParticipantId: ParticipantId | null;
+    }>;
+  };
+  matches: Record<MatchId, CompetitionMatch>;
+  tieResolutions: Record<EntityId, TieResolution>;
+  knockout: KnockoutRuntime | null;
+  placements: PlacementSnapshot | null;
+  currentMatchId: MatchId | null;
+  resultCount: number;
+  generationVersion: 1;
+  activatedAt: UnixMs;
+  activatedByUid: UserId;
+  completedAt: UnixMs | null;
+  completedByUid: UserId | null;
+  revision: number;
+  schemaVersion: 1;
+}
+```
+
+The immutable snapshot contains participant IDs, configuration revision, format, series, qualification/third-place settings, table and overall scoring, the secure shuffled order, generation version, and activation identity. Display names and avatars continue resolving by participant ID, so profile presentation may change without changing historical membership.
+
+Persisted sources of truth are the snapshot, randomized order, generated fixture identities/order, round-winner sequences, explicit tie decisions with result fingerprints, knockout dependency graph/seeds, completion placements, revisions, and audit events. Standings, match/round totals, current leader, next recommended match, progress, and itemized projected competition points are pure derivations. Phase 4 creates no `/scoreLedger`; the cross-competition ledger remains Phase 7.
+
+Realtime Database omits `null` properties and empty maps. The Phase 4 runtime adapter restores optional match slots, bracket fields, BYEs, empty tie maps, absent knockout/placement/completion state, and null placement ranks before validating the complete record. Any malformed collection item is quarantined rather than partially rendered.
+
 ## 5. Head-to-head stages and matches
 
 ```ts
@@ -671,7 +725,7 @@ The tree below remains the target for later execution, private-content, and back
 
 “Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
-In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. Phase 3 instead uses the flat paths documented above and Rules-authorized atomic client publication because it contains public-safe configuration only. Generated/result/scoring publication still requires the later trusted-operation design and is not authorized by this exception.
+In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. Phase 3 instead uses the flat paths documented above and Rules-authorized atomic client publication because it contains public-safe configuration only. Phase 4 adds the bounded, admin-claim-authorized `/competitionRuns` exception documented above for public-safe Merry-Go-Round execution. Other formats, a persisted score ledger, and protected publication still require their later trusted-operation designs.
 
 ## 13. Source of truth, derivation, and denormalization
 

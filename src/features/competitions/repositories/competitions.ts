@@ -13,6 +13,7 @@ import {
 import {
   createDraftRecord,
   duplicateCompetitionRecord,
+  isPublicCompetition,
   isScheduledCompetition,
   publishDraftRecord,
   sortCompetitions,
@@ -164,6 +165,21 @@ export function subscribeScheduledCompetitions(
     database,
     "competitions",
     isScheduledCompetition,
+    (result) =>
+      onData({ ...result, records: sortCompetitions(result.records) }),
+    onError,
+  );
+}
+
+export function subscribePublicCompetitions(
+  database: Database,
+  onData: (result: CompetitionSubscriptionResult<PublishedCompetition>) => void,
+  onError: (error: Error) => void,
+) {
+  return subscribeCollection(
+    database,
+    "competitions",
+    isPublicCompetition,
     (result) =>
       onData({ ...result, records: sortCompetitions(result.records) }),
     onError,
@@ -360,6 +376,9 @@ export async function updateScheduledCompetition(
   competition: PublishedCompetition,
   values: CompetitionFormValues,
 ) {
+  if (competition.status !== "scheduled") {
+    throw new Error("Active and completed competition settings are frozen.");
+  }
   const validation = validateCompetition(values, "publish");
   if (validation.some((item) => item.severity === "error")) {
     throw new Error("Fix the competition validation errors before saving.");
@@ -426,6 +445,9 @@ export function archiveCompetition(
   uid: string,
   competition: PublishedCompetition,
 ) {
+  if (competition.status !== "scheduled") {
+    throw new Error("Only scheduled competitions can be archived.");
+  }
   return transitionCompetition(database, uid, competition, "archived");
 }
 
@@ -479,7 +501,9 @@ export async function reorderCompetitions(
   competitionId: string,
   direction: "earlier" | "later",
 ) {
-  const ordered = sortCompetitions(scheduled);
+  const ordered = sortCompetitions(
+    scheduled.filter((competition) => competition.status === "scheduled"),
+  );
   const index = ordered.findIndex(
     (competition) => competition.id === competitionId,
   );

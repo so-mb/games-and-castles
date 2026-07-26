@@ -129,6 +129,12 @@ export function isScheduledCompetition(
   return record.status === "scheduled";
 }
 
+export function isPublicCompetition(
+  record: CompetitionRecord,
+): record is PublishedCompetition {
+  return record.status !== "draft" && record.status !== "archived";
+}
+
 export function resolveParticipants(
   participantIds: string[],
   participants: ParticipantReference[],

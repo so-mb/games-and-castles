@@ -16,6 +16,21 @@ import {
   update,
 } from "firebase/database";
 import { afterAll, afterEach, beforeAll, describe, it } from "vitest";
+import { createCompetitionRun } from "../../src/features/competitions/engine/activation";
+import {
+  completeCompetitionRun,
+  generateRunKnockout,
+  recordMatchResult,
+  reopenCompetitionRun,
+  resolveRunTie,
+  setMatchInProgress,
+} from "../../src/features/competitions/engine/lifecycle";
+import {
+  deriveStandings,
+  qualificationBlockingTies,
+} from "../../src/features/competitions/engine/standings";
+import type { CompetitionRun } from "../../src/features/competitions/engine/types";
+import type { PublishedCompetition } from "../../src/features/competitions/domain/types";
 
 const projectId = "demo-games-and-castles";
 let environment: RulesTestEnvironment;
@@ -132,6 +147,87 @@ async function seed(data: Record<string, unknown>) {
   await environment.withSecurityRulesDisabled(async (context) => {
     await set(ref(context.database()), data);
   });
+}
+
+function phaseFourFixture(
+  id = "merry-runtime",
+  competitionOverrides: Record<string, unknown> = {},
+) {
+  const competition = publishedCompetition(competitionDraft(id), {
+    ...competitionOverrides,
+  }) as PublishedCompetition;
+  const run = createCompetitionRun(competition, "admin", Date.now(), () => 0);
+  return { competition, run };
+}
+
+function activeCompetition(competition: PublishedCompetition) {
+  return {
+    ...competition,
+    status: "active" as const,
+    revision: competition.revision + 1,
+    updatedAt: Date.now(),
+  };
+}
+
+function finishRoundRobin(source: CompetitionRun) {
+  let run = source;
+  Object.values(run.matches)
+    .filter((match) => match.stage === "round-robin")
+    .sort((left, right) => left.globalSequence - right.globalSequence)
+    .forEach((match) => {
+      run = recordMatchResult(run, match.id, {
+        expectedMatchRevision: run.matches[match.id]!.revision,
+        roundWinnerIds: [match.participantAId!, match.participantAId!],
+        organizerUid: "admin",
+        now: Date.now(),
+      });
+    });
+  const standings = deriveStandings(
+    run.participantIds,
+    Object.values(run.matches),
+    run.configSnapshot.tableScoring,
+    Object.values(run.tieResolutions),
+  );
+  for (const tied of qualificationBlockingTies(
+    standings,
+    run.configSnapshot.qualificationCount,
+  )) {
+    run = resolveRunTie(
+      run,
+      tied,
+      [...tied].sort(),
+      "admin",
+      Date.now(),
+      "Rules fixture",
+    );
+  }
+  return run;
+}
+
+function finishCompetition(source: CompetitionRun) {
+  let run = source.knockout
+    ? source
+    : generateRunKnockout(source, "admin", Date.now());
+  while (true) {
+    const match = Object.values(run.matches)
+      .filter(
+        (candidate) =>
+          candidate.stage !== "round-robin" &&
+          !candidate.isBye &&
+          !candidate.result &&
+          candidate.participantAId &&
+          candidate.participantBId,
+      )
+      .sort((left, right) => left.globalSequence - right.globalSequence)[0];
+    if (!match) break;
+    run = recordMatchResult(run, match.id, {
+      expectedMatchRevision: match.revision,
+      roundWinnerIds: [match.participantAId!, match.participantAId!],
+      organizerUid: "admin",
+      now: Date.now(),
+    });
+  }
+  return completeCompetitionRun(run, "admin", Date.now());
 }
 
 describe("Realtime Database security rules", () => {
@@ -754,6 +850,602 @@ describe("Realtime Database security rules", () => {
       }),
     );
     await assertFails(remove(ref(database, "audit/create-castle-cup")));
+  });
+
+  it("allows authenticated runtime reads and denies unauthenticated reads", async () => {
+    const { competition, run } = phaseFourFixture();
+    await seed({
+      competitions: { [competition.id]: activeCompetition(competition) },
+      competitionRuns: { [competition.id]: run },
+    });
+    await assertFails(
+      get(
+        ref(
+          environment.unauthenticatedContext().database(),
+          `competitionRuns/${competition.id}`,
+        ),
+      ),
+    );
+    await assertSucceeds(
+      get(
+        ref(
+          environment.authenticatedContext("guest").database(),
+          `competitionRuns/${competition.id}`,
+        ),
+      ),
+    );
+  });
+
+  it("allows only an admin to atomically activate a scheduled Merry-Go-Round", async () => {
+    const { competition, run } = phaseFourFixture();
+    await seed({ competitions: { [competition.id]: competition } });
+    const activated = activeCompetition(competition);
+    const rootUpdate = {
+      [`competitions/${competition.id}`]: activated,
+      [`competitionRuns/${competition.id}`]: run,
+    };
+    await assertFails(
+      update(
+        ref(environment.authenticatedContext("guest").database()),
+        rootUpdate,
+      ),
+    );
+    await assertSucceeds(
+      update(
+        ref(
+          environment.authenticatedContext("admin", { admin: true }).database(),
+        ),
+        rootUpdate,
+      ),
+    );
+  });
+
+  it("rejects detached, duplicate, archived, and future-format runtime activation", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFourFixture();
+    await seed({ competitions: { [competition.id]: competition } });
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), run),
+    );
+
+    await seed({
+      competitions: { [competition.id]: activeCompetition(competition) },
+      competitionRuns: { [competition.id]: run },
+    });
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), run),
+    );
+
+    for (const status of ["archived", "completed"] as const) {
+      await seed({
+        competitions: {
+          [competition.id]: { ...competition, status },
+        },
+      });
+      await assertFails(
+        update(ref(admin), {
+          [`competitions/${competition.id}`]: activeCompetition(competition),
+          [`competitionRuns/${competition.id}`]: run,
+        }),
+      );
+    }
+
+    for (const format of ["all-hands", "group-knockout"] as const) {
+      await seed({
+        competitions: {
+          [competition.id]: { ...competition, format },
+        },
+      });
+      await assertFails(
+        update(ref(admin), {
+          [`competitions/${competition.id}`]: activeCompetition(competition),
+          [`competitionRuns/${competition.id}`]: run,
+        }),
+      );
+    }
+  });
+
+  it("rejects malformed runtime participant snapshots and randomized orders", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFourFixture();
+    await seed({ competitions: { [competition.id]: competition } });
+    const activated = activeCompetition(competition);
+    const invalidSnapshots = [
+      { ...run, participantIndex: { ...run.participantIndex, intruder: true } },
+      {
+        ...run,
+        randomizedParticipantIds: [
+          ...run.randomizedParticipantIds.slice(0, -1),
+          "intruder",
+        ],
+      },
+      { ...run, privilegedOverride: true },
+    ];
+    for (const invalidRun of invalidSnapshots) {
+      await assertFails(
+        update(ref(admin), {
+          [`competitions/${competition.id}`]: activated,
+          [`competitionRuns/${competition.id}`]: invalidRun,
+        }),
+      );
+    }
+  });
+
+  it("rejects invalid match identity, participant, status, stage, and extra fields", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFourFixture();
+    const active = activeCompetition(competition);
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+    const match = Object.values(run.matches)[0]!;
+    const mutations = [
+      { participantBId: match.participantAId },
+      { participantAId: "intruder" },
+      { status: "secret" },
+      { stage: "all-hands" },
+      { privilegedOverride: true },
+    ];
+    for (const mutation of mutations) {
+      await assertFails(
+        update(ref(admin, `competitionRuns/${competition.id}`), {
+          revision: run.revision + 1,
+          updatedAt: Date.now(),
+          [`matches/${match.id}`]: {
+            ...match,
+            ...mutation,
+            revision: match.revision + 1,
+          },
+        }),
+      );
+    }
+  });
+
+  it("allows a valid result and correction while rejecting stale and invalid results", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFourFixture();
+    await seed({
+      competitions: { [competition.id]: activeCompetition(competition) },
+      competitionRuns: { [competition.id]: run },
+    });
+    const match = Object.values(run.matches)[0]!;
+    const result = recordMatchResult(run, match.id, {
+      expectedMatchRevision: match.revision,
+      roundWinnerIds: [match.participantAId!, match.participantAId!],
+      organizerUid: "admin",
+      now: Date.now(),
+    });
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), result),
+    );
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), result),
+    );
+
+    const corrected = recordMatchResult(result, match.id, {
+      expectedMatchRevision: result.matches[match.id]!.revision,
+      roundWinnerIds: [match.participantBId!, match.participantBId!],
+      organizerUid: "admin",
+      now: Date.now(),
+    });
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), corrected),
+    );
+
+    const invalidResults = [
+      {
+        ...corrected,
+        revision: corrected.revision + 1,
+        updatedAt: Date.now(),
+        matches: {
+          ...corrected.matches,
+          [match.id]: {
+            ...corrected.matches[match.id],
+            revision: corrected.matches[match.id]!.revision + 1,
+            result: {
+              ...corrected.matches[match.id]!.result!,
+              winnerId: "intruder",
+              resultRevision:
+                corrected.matches[match.id]!.result!.resultRevision + 1,
+              completedAt: Date.now(),
+            },
+          },
+        },
+      },
+      {
+        ...corrected,
+        revision: corrected.revision + 1,
+        updatedAt: Date.now(),
+        matches: {
+          ...corrected.matches,
+          [match.id]: {
+            ...corrected.matches[match.id],
+            revision: corrected.matches[match.id]!.revision + 1,
+            result: {
+              ...corrected.matches[match.id]!.result!,
+              participantAWins: -1,
+              resultRevision:
+                corrected.matches[match.id]!.result!.resultRevision + 1,
+              completedAt: Date.now(),
+            },
+          },
+        },
+      },
+    ];
+    for (const invalid of invalidResults) {
+      await assertFails(
+        set(ref(admin, `competitionRuns/${competition.id}`), invalid),
+      );
+    }
+  });
+
+  it("enforces match and runtime revisions and frozen activation metadata", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFourFixture();
+    await seed({
+      competitions: { [competition.id]: activeCompetition(competition) },
+      competitionRuns: { [competition.id]: run },
+    });
+    const match = Object.values(run.matches)[0]!;
+    const staleRun = setMatchInProgress(
+      run,
+      match.id,
+      match.revision,
+      Date.now(),
+    );
+    staleRun.revision = run.revision;
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), staleRun),
+    );
+    const staleMatch = setMatchInProgress(
+      run,
+      match.id,
+      match.revision,
+      Date.now(),
+    );
+    staleMatch.matches[match.id]!.revision = match.revision;
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), staleMatch),
+    );
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), {
+        ...setMatchInProgress(run, match.id, match.revision, Date.now()),
+        activatedByUid: "someone-else",
+      }),
+    );
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), {
+        ...setMatchInProgress(run, match.id, match.revision, Date.now()),
+        participantIds: [...run.participantIds].reverse(),
+      }),
+    );
+  });
+
+  it("keeps published participants and scoring configuration frozen", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFourFixture();
+    const active = activeCompetition(competition);
+    const completedRun = finishCompetition(
+      generateRunKnockout(finishRoundRobin(run), "admin", Date.now()),
+    );
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+
+    const completedCompetition = {
+      ...active,
+      status: "completed" as const,
+      revision: active.revision + 1,
+      updatedAt: Date.now(),
+    };
+    await assertFails(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: {
+          ...completedCompetition,
+          participantIds: [...competition.participantIds].reverse(),
+        },
+        [`competitionRuns/${competition.id}`]: completedRun,
+      }),
+    );
+    await assertFails(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: {
+          ...completedCompetition,
+          scoringConfig: {
+            ...competition.scoringConfig,
+            table: {
+              ...competition.scoringConfig.table,
+              pointsForMatchWin:
+                competition.scoringConfig.table.pointsForMatchWin + 1,
+            },
+          },
+        },
+        [`competitionRuns/${competition.id}`]: completedRun,
+      }),
+    );
+  });
+
+  it("allows admin tie decisions and denies guest tie and match writes", async () => {
+    const { competition, run } = phaseFourFixture();
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await seed({
+      competitions: { [competition.id]: activeCompetition(competition) },
+      competitionRuns: { [competition.id]: run },
+    });
+    await assertFails(
+      update(ref(admin, `competitionRuns/${competition.id}`), {
+        revision: run.revision + 1,
+        updatedAt: Date.now(),
+        "tieResolutions/too-early": {
+          id: "too-early",
+          participantIds: run.participantIds.slice(0, 2),
+          orderedParticipantIds: run.participantIds.slice(0, 2),
+          reason: "Not finished",
+          resultFingerprint: "unfinished",
+          resolvedAt: Date.now(),
+          resolvedByUid: "admin",
+          schemaVersion: 1,
+        },
+      }),
+    );
+    const tiedRun = finishRoundRobin(run);
+    await seed({
+      competitions: { [competition.id]: activeCompetition(competition) },
+      competitionRuns: { [competition.id]: tiedRun },
+    });
+    const guest = environment.authenticatedContext("guest").database();
+    const match = Object.values(tiedRun.matches)[0]!;
+    await assertFails(
+      update(ref(guest, `competitionRuns/${competition.id}`), {
+        currentMatchId: match.id,
+      }),
+    );
+    await assertFails(
+      set(ref(guest, `competitionRuns/${competition.id}/tieResolutions/test`), {
+        id: "test",
+      }),
+    );
+    const resolution = {
+      id: "manual-order",
+      participantIds: tiedRun.participantIds.slice(0, 2),
+      orderedParticipantIds: tiedRun.participantIds.slice(0, 2).reverse(),
+      reason: "Organizer decision",
+      resultFingerprint: "fixture-fingerprint",
+      resolvedAt: Date.now(),
+      resolvedByUid: "admin",
+      schemaVersion: 1,
+    };
+    await assertSucceeds(
+      update(ref(admin, `competitionRuns/${competition.id}`), {
+        revision: tiedRun.revision + 1,
+        updatedAt: Date.now(),
+        [`tieResolutions/${resolution.id}`]: resolution,
+      }),
+    );
+  });
+
+  it("allows an atomic pre-result reset and rejects reset after a result", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFourFixture();
+    const active = activeCompetition(competition);
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+    await assertSucceeds(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: {
+          ...active,
+          status: "scheduled",
+          revision: active.revision + 1,
+          updatedAt: Date.now(),
+        },
+        [`competitionRuns/${competition.id}`]: null,
+      }),
+    );
+
+    const first = Object.values(run.matches)[0]!;
+    const started = recordMatchResult(run, first.id, {
+      expectedMatchRevision: first.revision,
+      roundWinnerIds: [first.participantAId!, first.participantAId!],
+      organizerUid: "admin",
+      now: Date.now(),
+    });
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: started },
+    });
+    await assertFails(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: {
+          ...active,
+          status: "scheduled",
+          revision: active.revision + 1,
+          updatedAt: Date.now(),
+        },
+        [`competitionRuns/${competition.id}`]: null,
+      }),
+    );
+  });
+
+  it("allows a valid knockout, rejects invalid seeds, and denies guest bracket writes", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const guest = environment.authenticatedContext("guest").database();
+    const { competition, run } = phaseFourFixture();
+    const qualificationRun = finishRoundRobin(run);
+    const knockoutRun = generateRunKnockout(
+      qualificationRun,
+      "admin",
+      Date.now(),
+    );
+    await seed({
+      competitions: { [competition.id]: activeCompetition(competition) },
+      competitionRuns: { [competition.id]: qualificationRun },
+    });
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), knockoutRun),
+    );
+    await assertFails(
+      update(ref(guest, `competitionRuns/${competition.id}`), {
+        knockout: knockoutRun.knockout,
+      }),
+    );
+    const invalidSeed = structuredClone(knockoutRun);
+    invalidSeed.revision += 1;
+    invalidSeed.updatedAt = Date.now();
+    invalidSeed.knockout!.seedOrder[0] = "intruder";
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), invalidSeed),
+    );
+  });
+
+  it("requires atomic valid completion and admin-only strong reopen", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const guest = environment.authenticatedContext("guest").database();
+    const { competition, run } = phaseFourFixture();
+    const active = activeCompetition(competition);
+    const knockout = generateRunKnockout(
+      finishRoundRobin(run),
+      "admin",
+      Date.now(),
+    );
+    const initiallyCompletedRun = finishCompetition(knockout);
+    const readyToCompleteRun = reopenCompetitionRun(
+      initiallyCompletedRun,
+      Date.now(),
+    );
+    const completedRun = completeCompetitionRun(
+      readyToCompleteRun,
+      "admin",
+      Date.now(),
+    );
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: readyToCompleteRun },
+    });
+    const completedCompetition = {
+      ...active,
+      status: "completed" as const,
+      revision: active.revision + 1,
+      updatedAt: Date.now(),
+    };
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), completedRun),
+    );
+    await assertFails(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: completedCompetition,
+        [`competitionRuns/${competition.id}`]: {
+          ...completedRun,
+          placements: {
+            ...completedRun.placements!,
+            entries: [
+              {
+                participantId: "intruder",
+                place: 1,
+                placementBand: "Champion",
+                eliminationStage: "winner",
+              },
+            ],
+          },
+        },
+      }),
+    );
+    await assertSucceeds(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: completedCompetition,
+        [`competitionRuns/${competition.id}`]: completedRun,
+      }),
+    );
+    const reopenedRun = reopenCompetitionRun(completedRun, Date.now());
+    const reopenedCompetition = {
+      ...completedCompetition,
+      status: "active" as const,
+      revision: completedCompetition.revision + 1,
+      updatedAt: Date.now(),
+    };
+    await assertFails(
+      update(ref(guest), {
+        [`competitions/${competition.id}`]: reopenedCompetition,
+        [`competitionRuns/${competition.id}`]: reopenedRun,
+      }),
+    );
+    await assertSucceeds(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: reopenedCompetition,
+        [`competitionRuns/${competition.id}`]: reopenedRun,
+      }),
+    );
+  });
+
+  it("keeps completed runs read-only until reopened", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFourFixture();
+    const active = activeCompetition(competition);
+    const completedRun = finishCompetition(
+      generateRunKnockout(finishRoundRobin(run), "admin", Date.now()),
+    );
+    await seed({
+      competitions: {
+        [competition.id]: {
+          ...active,
+          status: "completed",
+          revision: active.revision + 1,
+        },
+      },
+      competitionRuns: { [competition.id]: completedRun },
+    });
+    const first = Object.values(completedRun.matches)[0]!;
+    await assertFails(
+      update(ref(admin, `competitionRuns/${competition.id}`), {
+        revision: completedRun.revision + 1,
+        updatedAt: Date.now(),
+        [`matches/${first.id}/status`]: "in-progress",
+      }),
+    );
+  });
+
+  it("accepts Phase 4 audit actions but keeps them organizer-authored and append-only", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const guest = environment.authenticatedContext("guest").database();
+    const entry = auditEntry("phase-four-event", "merry-runtime", {
+      action: "match-result-recorded",
+      beforeRevision: 2,
+      afterRevision: 3,
+    });
+    await assertFails(set(ref(guest, "audit/phase-four-event"), entry));
+    await assertSucceeds(set(ref(admin, "audit/phase-four-event"), entry));
+    await assertFails(
+      update(ref(admin, "audit/phase-four-event"), {
+        summary: "Changed history",
+      }),
+    );
   });
 
   it("denies unplanned future competition paths by default", async () => {

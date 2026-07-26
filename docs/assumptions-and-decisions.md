@@ -38,6 +38,12 @@ This document records decisions without describing, naming, or inferring protect
 | CR-23 | Production Pages builds receive the six public Firebase web-configuration values through GitHub Actions repository variables, with emulator mode disabled. | Public Firebase client configuration is expected to be browser-visible and is not a secret. Repository variables keep environment configuration out of source control; service credentials remain prohibited. The Phase 2 production deployment is configured and successfully connected to Firebase. |
 | CR-24 | Phase 3 competition configuration uses conservative hard bounds. | Title/game fields are at most 60 characters, descriptions 280, metric labels 40, participant IDs 128, participant selections and placement rows 32, First to N 10, planned sessions 50, groups 8, and integer point fields 0–100. Required publish fields use a two-character minimum. Client validation, runtime parsing, and Rules enforce the bounds each layer can express. |
 | CR-25 | Phase 3 uses only `draft`, `scheduled`, and `archived` competition states. | `scheduled` means a guest-readable configuration with fixtures pending, not an active competition. The execution lifecycle remains reserved for Phase 4 onward. Archive/restore is reversible; unused drafts may be deleted after confirmation. |
+| CR-26 | Phase 4 Merry-Go-Round uses `scheduled → active → completed`, with strong confirmed reopen and pre-result-only reset. | Activation freezes and persists one runtime; completion persists placements; reopen preserves results and returns to knockout. Active/completed runs are never archived or hard-deleted. |
+| CR-27 | Head-to-head breaks a tie only when exactly two participants remain tied. | Multi-participant/circular cohorts continue through round differential, rounds won, and match wins, then require an explicit audited organizer order. Names, IDs, fixture order, and randomness never break sporting ties. |
+| CR-28 | Any configured even qualifier count uses the next-power-of-two standard seeded bracket, with byes assigned to the highest seeds. | This supports 2/4/6/8 and other valid even fields deterministically; seed 1 and seed 2 cannot meet before the final. |
+| CR-29 | Phase 4 blocks activation when draws are enabled. | Phase 3 stores the toggle, but no terminal series-draw rule is approved. Decisive single/best-of/first-to results are supported; draw execution remains open rather than inferred. |
+| CR-30 | Phase 4 derives itemized projected points per Merry-Go-Round run but persists no score ledger. | Match wins, individual rounds, participation, qualification, and final placement awards recalculate from authoritative results. Phase 7 owns cross-competition persistence and the global leaderboard. |
+| CR-31 | A configured third-place match must be completed before competition completion. | This makes third and fourth place deterministic in the placement snapshot; without it, only champion and runner-up receive exact final places. |
 
 ## 3. Required terminology
 
@@ -81,10 +87,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | ID | Decision required | Recommendation | Needed before |
 |---|---|---|---|
 | OD-05 | Set remaining maximum active-participant/competition record counts, message lengths/counts, and later custom-field counts. Phase 3 per-record configuration bounds are confirmed in CR-24. | Use conservative UI/rules/function limits based on the private group size and load-test at twice expected volume. | Feature-owning later phase |
-| OD-06 | Decide the execution-time maximum-round and terminal-result rule when match draws are enabled. Phase 3 stores the toggle and table-points default only. | Off by default; enable only per competition with an explicit Phase 4 draw condition and 1 table point default. | Phase 4 |
-| OD-07 | Confirm multi-person head-to-head tie behavior. | Use a tied-set mini-table; if unresolved, continue global published tiebreak order and finally organizer decision. | Phase 4 |
-| OD-08 | Define valid nonstandard even knockout qualifier counts and bracket-bye seeding. | Offer top 2/4/8 by default; allow other counts only after a preview shows all byes/seeds and tests cover them. | Phase 4 |
-| OD-09 | Decide whether organizer-decided final tiebreak awards any additional championship point. | No additional points unless a separate configured `qualification`/`competition-win` rule exists. | Phase 4 |
+| OD-06 | Define a terminal series-result rule before enabling match draws. Phase 4 deliberately blocks draw-enabled activation under CR-29. | Keep draws off until a bounded maximum-round/terminal rule is approved; never infer one from table draw points. | Later draw-support change |
 | OD-10 | Define All Hands custom field limits and whether free text is needed. | Prefer numbers/booleans and short allowlisted labels; avoid arbitrary rich text/scoring formulas. | Phase 5 |
 | OD-11 | Choose automatic group policy outside 4–16 participants and whether snake assignment is used. | Require a validated manual group count outside the specified range; use deterministic round-robin assignment after secure shuffle. | Phase 6 |
 | OD-12 | Decide voided/corrected ledger visibility to guests. | Show clear correction activity and current breakdown; keep detailed before-values organizer-only if confusing/private. | Phase 7 |
@@ -98,7 +101,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-The Phase 2 production baseline, including initial organizer-account ownership and provisioning, is complete. The Phase 3 repository implementation is also complete; its production Rules deployment remains an explicit operator action. OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness. Other decisions block only the named feature or phase.
+The Phase 2 production baseline, including initial organizer-account ownership and provisioning, is complete, and Phase 3 is deployed and production-verified. The Phase 4 repository implementation is complete; its runtime Rules deployment remains an explicit operator action. OD-06 now blocks only future draw support. OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness. Other decisions block only the named feature or phase.
 
 ## 6. Technical architecture decisions
 
@@ -148,7 +151,7 @@ The Phase 2 production baseline, including initial organizer-account ownership a
 
 **Reason:** Last-write-wins can erase another organizer's result or lock state.
 
-**Consequences:** Conflicts require explicit UI. Phase 3 configuration writes use Rules-enforced revision increments, atomic multi-path updates, and audit records; later result/scoring operations add backend transactions and idempotent request handling.
+**Consequences:** Conflicts require explicit UI. Phase 3 configuration writes and Phase 4 Merry-Go-Round runtime writes use Rules-enforced revision increments, atomic multi-path updates, and audit records. Phase 4 is compare-and-set rather than last-write-wins: stale runtime, match, or result revisions are denied and reloaded. Later ledger/private operations add backend idempotent request handling where retries could create cross-path awards or protected publication.
 
 ### AD-07 — Phase 1 is a typed, anchor-based static shell
 
@@ -172,7 +175,15 @@ The Phase 2 production baseline, including initial organizer-account ownership a
 
 **Reason:** These paths extend the flat Phase 2 participant/profile schema without prematurely creating the later full `/public`, `/organizer`, and `/backend` hierarchy. Competition configuration is public-safe after publication and has no trusted scoring, generated state, private submission, or protected reveal payload. A Cloud Function would add no authority beyond the Rules for this bounded slice.
 
-**Consequences:** Publishing atomically creates the scheduled record, removes its draft, and appends safe audit metadata. Reordering is part of versioned competition state, so each affected record advances its revision. Runtime readers reject malformed/unsupported records, guest UI filters archived records, privileged writes are disabled offline, and every Phase 4 execution/result/ledger path remains default-denied. Later trusted operations may migrate or fan out the tree with an explicit compatibility plan; this Phase 3 decision does not authorize client-side scoring or protected publication.
+**Consequences:** Publishing atomically creates the scheduled record, removes its draft, and appends safe audit metadata. Reordering is part of versioned competition state, so each affected record advances its revision. Configuration readers reject malformed/unsupported records, guest UI filters archived records, and privileged writes are disabled offline. AD-10 supersedes only the former Phase 4 runtime reservation; ledger and protected publication paths remain denied.
+
+### AD-10 — Phase 4 deterministic client engine with Rules compare-and-set
+
+**Decision:** Store the complete Merry-Go-Round runtime at `/competitionRuns/{competitionId}`. Pure TypeScript functions derive the next runtime from authoritative source results; the organizer client submits one atomic update across runtime, competition status when needed, and append-only audit entries. Realtime Database Rules authorize only `auth.token.admin === true` and enforce legal state, schema, immutable snapshot/fixture fields, participant/result shapes, and one-step revisions. Authenticated guests receive read-only runtime subscriptions through the isolated guest Firebase client.
+
+**Reason:** The Phase 4 data is public-safe to authenticated trip participants, deterministic, bounded to one competition, and fully verifiable through version/state/shape Rules. A callable would not add hidden knowledge for this slice. Keeping generation, standings, bracket progression, correction, and points derivation pure makes retries, tests, future migration, and Phase 7 reuse explainable.
+
+**Consequences:** Production mutation still depends on deploying the version-controlled Phase 4 Rules separately. Two organizer devices cannot silently overwrite one another; the loser receives an actionable stale-state conflict. Runtime adapters quarantine malformed data and normalize RTDB-omitted nulls. Audit is compact and organizer-authored. No All Hands/Group engine, persisted standings, global ledger, Cloud Function, App Check change, private submission, prediction, reveal, or protected trip-data access is authorized by this decision.
 
 ## 7. Assumptions currently used by the specification
 

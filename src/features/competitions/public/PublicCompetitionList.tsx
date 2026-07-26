@@ -18,6 +18,7 @@ import {
 import { formatPresentation } from "../domain/config";
 import { resolveParticipants } from "../domain/transforms";
 import type { PublishedCompetition } from "../domain/types";
+import { MerryGoRoundExperience } from "./MerryGoRoundExperience";
 
 function initials(name: string) {
   return name
@@ -129,6 +130,10 @@ export function PublicCompetitionList() {
   const connection = useConnection();
   const competitions = useCompetitions();
   const participants = useParticipants();
+  const runningCompetitions = [
+    ...competitions.active,
+    ...competitions.completed,
+  ];
 
   return (
     <section aria-labelledby="scheduled-games-title" className="mt-12">
@@ -141,16 +146,16 @@ export function PublicCompetitionList() {
             className="font-display mt-2 text-3xl font-semibold sm:text-4xl"
             id="scheduled-games-title"
           >
-            Scheduled games
+            Live and scheduled games
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-            The order is deliberate, but Friday stays flexible—none of these
-            competition cards assigns a fixed start time.
+            Follow Merry-Go-Round fixtures and results live. Friday remains
+            flexible—competition cards never assign a fixed start time.
           </p>
         </div>
         {firebase.status === "ready" ? (
           <StatusBadge tone={connection === "online" ? "live" : "warning"}>
-            {`${competitions.scheduled.length} live configuration${competitions.scheduled.length === 1 ? "" : "s"}`}
+            {`${runningCompetitions.length} live or completed · ${competitions.scheduled.length} scheduled`}
           </StatusBadge>
         ) : null}
       </div>
@@ -183,13 +188,16 @@ export function PublicCompetitionList() {
         </p>
       ) : (
         <>
-          {competitions.publicMalformedCount > 0 ? (
+          {competitions.publicMalformedCount +
+            competitions.runtimeMalformedCount >
+          0 ? (
             <p
               className="mt-6 flex items-center gap-2 rounded-2xl border border-[var(--color-warning-500)]/30 bg-[var(--color-warning-500)]/8 p-4 text-sm text-[var(--color-warning-500)]"
               role="alert"
             >
               <AlertTriangle aria-hidden="true" size={18} />
-              One or more malformed competition records were safely omitted.
+              One or more malformed competition or runtime records were safely
+              omitted.
             </p>
           ) : null}
           {connection === "offline" ? (
@@ -201,7 +209,42 @@ export function PublicCompetitionList() {
               Offline — saved competition cards may be out of date.
             </p>
           ) : null}
-          {competitions.scheduled.length === 0 ? (
+          {runningCompetitions.length > 0 ? (
+            <div className="mt-6 grid gap-6">
+              {runningCompetitions.map((competition) => {
+                const run = competitions.runs.find(
+                  (candidate) => candidate.competitionId === competition.id,
+                );
+                return run && competition.format === "round-robin-knockout" ? (
+                  <MerryGoRoundExperience
+                    competition={competition}
+                    key={competition.id}
+                    participants={participants.activeParticipants}
+                    run={run}
+                  />
+                ) : (
+                  <Surface
+                    as="article"
+                    className="p-5 sm:p-6"
+                    key={competition.id}
+                    variant="championship"
+                  >
+                    <StatusBadge tone="warning">
+                      Live data unavailable
+                    </StatusBadge>
+                    <h4 className="mt-3 text-xl font-extrabold">
+                      {competition.title}
+                    </h4>
+                    <p className="mt-2 text-sm text-white/55">
+                      This competition runtime is temporarily unavailable.
+                    </p>
+                  </Surface>
+                );
+              })}
+            </div>
+          ) : null}
+          {competitions.scheduled.length === 0 &&
+          runningCompetitions.length === 0 ? (
             <div className="mt-6">
               <EmptyState
                 description="An organizer can publish the first configuration from Competition Studio. No sample game is shown as live data."
@@ -224,7 +267,8 @@ export function PublicCompetitionList() {
       )}
       <p className="mt-4 flex items-center gap-2 text-xs text-white/42">
         <CalendarClock aria-hidden="true" size={15} />
-        Fixtures, groups, sessions, results and points are not created here.
+        Merry-Go-Round can run live. All Hands and Group Format engines arrive
+        in later phases.
       </p>
     </section>
   );

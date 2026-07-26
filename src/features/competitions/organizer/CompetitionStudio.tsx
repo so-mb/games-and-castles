@@ -7,6 +7,7 @@ import {
   Copy,
   FilePenLine,
   Plus,
+  Play,
   RotateCcw,
   Send,
   Trash2,
@@ -28,8 +29,13 @@ import type {
   PublishedCompetition,
 } from "../domain/types";
 import { CompetitionWizard } from "../wizard/CompetitionWizard";
+import type { CompetitionRun } from "../engine/types";
+import {
+  ActivationReview,
+  MerryGoRoundControlRoom,
+} from "./MerryGoRoundControlRoom";
 
-type StudioTab = "drafts" | "scheduled" | "archived";
+type StudioTab = "drafts" | "scheduled" | "active" | "completed" | "archived";
 type PendingAction =
   | { kind: "delete"; record: CompetitionDraft }
   | { kind: "archive"; record: PublishedCompetition }
@@ -114,6 +120,12 @@ export function CompetitionStudio() {
   const [tab, setTab] = useState<StudioTab>("drafts");
   const [editor, setEditor] = useState<CompetitionRecord | "new" | null>(null);
   const [viewing, setViewing] = useState<PublishedCompetition | null>(null);
+  const [activating, setActivating] = useState<PublishedCompetition | null>(
+    null,
+  );
+  const [controlling, setControlling] = useState<PublishedCompetition | null>(
+    null,
+  );
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -123,7 +135,11 @@ export function CompetitionStudio() {
       ? competitions.drafts
       : tab === "scheduled"
         ? competitions.scheduled
-        : competitions.archived;
+        : tab === "active"
+          ? competitions.active
+          : tab === "completed"
+            ? competitions.completed
+            : competitions.archived;
 
   const latestEditor = useMemo(() => {
     if (!editor || editor === "new") return null;
@@ -131,15 +147,69 @@ export function CompetitionStudio() {
       [
         ...competitions.drafts,
         ...competitions.scheduled,
+        ...competitions.active,
+        ...competitions.completed,
         ...competitions.archived,
       ].find((record) => record.id === editor.id) ?? null
     );
   }, [
     competitions.archived,
+    competitions.active,
+    competitions.completed,
     competitions.drafts,
     competitions.scheduled,
     editor,
   ]);
+
+  const controlledRun: CompetitionRun | null = controlling
+    ? (competitions.runs.find((run) => run.competitionId === controlling.id) ??
+      null)
+    : null;
+
+  if (activating) {
+    const latest = competitions.scheduled.find(
+      (competition) => competition.id === activating.id,
+    );
+    return latest ? (
+      <ActivationReview
+        competition={latest}
+        onBack={() => setActivating(null)}
+        onActivated={() => {
+          setActivating(null);
+          setTab("active");
+        }}
+        participants={participants.organizerParticipants}
+      />
+    ) : (
+      <p role="status">Activation accepted. Loading the Control Room…</p>
+    );
+  }
+
+  if (controlling) {
+    const latest = [...competitions.active, ...competitions.completed].find(
+      (competition) => competition.id === controlling.id,
+    );
+    return latest && controlledRun ? (
+      <MerryGoRoundControlRoom
+        competition={latest}
+        onBack={() => setControlling(null)}
+        participants={participants.organizerParticipants}
+        run={controlledRun}
+      />
+    ) : (
+      <div>
+        <Button onClick={() => setControlling(null)} variant="quiet">
+          Back to Studio
+        </Button>
+        <p
+          className="mt-5 rounded-xl border border-[var(--color-warning-500)]/30 p-4 text-sm text-[var(--color-warning-500)]"
+          role="alert"
+        >
+          This competition runtime is unavailable or malformed.
+        </p>
+      </div>
+    );
+  }
 
   const perform = async (id: string, action: () => Promise<unknown>) => {
     if (busyId) return;
@@ -245,8 +315,8 @@ export function CompetitionStudio() {
             Competition Studio
           </h3>
           <p className="mt-2 max-w-xl text-sm leading-6 text-white/55">
-            Configure the Friday order without assigning fixed times. Fixtures,
-            sessions and results remain unopened.
+            Configure the flexible Friday order, then activate Merry-Go-Round
+            competitions and control their live results here.
           </p>
         </div>
         <Button
@@ -264,6 +334,8 @@ export function CompetitionStudio() {
           [
             ["drafts", "Drafts", competitions.drafts.length],
             ["scheduled", "Scheduled", competitions.scheduled.length],
+            ["active", "Active", competitions.active.length],
+            ["completed", "Completed", competitions.completed.length],
             ["archived", "Archived", competitions.archived.length],
           ] as const
         ).map(([id, label, count]) => (
@@ -319,14 +391,22 @@ export function CompetitionStudio() {
               ? "drafts"
               : tab === "scheduled"
                 ? "scheduled games"
-                : "archived games"}
+                : tab === "active"
+                  ? "active games"
+                  : tab === "completed"
+                    ? "completed games"
+                    : "archived games"}
           </h4>
           <p className="mt-1 text-sm text-white/48">
             {tab === "drafts"
               ? "Create a private draft to begin."
               : tab === "scheduled"
                 ? "Published competition configurations appear here."
-                : "Archived competitions stay preserved here."}
+                : tab === "active"
+                  ? "Activated Merry-Go-Round competitions appear here."
+                  : tab === "completed"
+                    ? "Completed competitions stay available as read-only history."
+                    : "Archived competitions stay preserved here."}
           </p>
         </div>
       ) : (
@@ -401,6 +481,19 @@ export function CompetitionStudio() {
                       <ArrowDown aria-hidden="true" size={16} /> Later
                     </Button>
                     <Button
+                      disabled={
+                        !competitions.canMutate ||
+                        record.format !== "round-robin-knockout"
+                      }
+                      onClick={() => setActivating(record)}
+                      variant="dark"
+                    >
+                      <Play aria-hidden="true" size={16} />
+                      {record.format === "round-robin-knockout"
+                        ? "Activate"
+                        : "Engine coming later"}
+                    </Button>
+                    <Button
                       disabled={!competitions.canMutate}
                       onClick={() =>
                         setPendingAction({ kind: "archive", record })
@@ -410,6 +503,14 @@ export function CompetitionStudio() {
                       <Archive aria-hidden="true" size={16} /> Archive
                     </Button>
                   </>
+                ) : record.status === "active" ||
+                  record.status === "completed" ? (
+                  <Button onClick={() => setControlling(record)} variant="dark">
+                    <Play aria-hidden="true" size={16} />
+                    {record.status === "completed"
+                      ? "View result"
+                      : "Open Control Room"}
+                  </Button>
                 ) : (
                   <>
                     <Button onClick={() => setViewing(record)} variant="quiet">

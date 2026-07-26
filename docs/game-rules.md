@@ -18,50 +18,44 @@ All numeric scoring rules are frozen in the competition's `scoringConfig` when p
 
 The following competition lifecycle applies to all three formats.
 
-### Phase 3 configuration-only lifecycle
+### Phase 3 configuration and Phase 4 execution lifecycle
 
-Phase 3 persists only `draft`, `scheduled`, and `archived`. Publishing changes a valid private draft into a guest-readable `scheduled` configuration; it does not confirm a draw, snapshot generated entities, or start play. A scheduled configuration may be edited with a revision precondition, archived, or restored. The fuller lifecycle below begins when Phase 4 adds generated and result-bearing state. Until then, guest cards explicitly say that fixtures are pending.
+Phase 3 persists private `draft` records and published `scheduled`/`archived` configurations. Phase 4 extends only Merry-Go-Round (`round-robin-knockout`) with `active` and `completed`; All Hands and Group Format remain configuration-only until their later phases. Draw review is an organizer UI confirmation, not a separately persisted `preview`, `ready`, or `locked` status.
 
 ```mermaid
 stateDiagram-v2
     [*] --> Draft
-    Draft --> Preview: validate config / generate preview
-    Preview --> Draft: discard preview
-    Preview --> Ready: organizer confirms persisted draw
-    Ready --> Active: start competition
+    Draft --> Scheduled: publish valid configuration
+    Scheduled --> Archived: archive before activation
+    Archived --> Scheduled: restore
+    Scheduled --> Active: confirm secure draw + fixtures
     Active --> Active: record or correct result
-    Active --> Locked: organizer locks final results
-    Locked --> Active: explicit reopen + audit
-    Locked --> Completed: finalize derived standings and scores
-    Completed --> Archived: archive
-    Draft --> Archived: cancel
-    Ready --> Draft: destructive reset confirmed
-    Active --> Draft: destructive reset confirmed
+    Active --> Scheduled: reset only before any result
+    Active --> Completed: confirm required final results
+    Completed --> Active: strong confirmed reopen
 ```
 
 ### 2.1 Status invariants
 
-- `draft`: configuration may change; no confirmed draw or results.
-- `preview`: a proposed draw exists only in organizer UI or an organizer-only expiring preview; it is not official.
-- `ready`: the confirmed participant snapshot, format/scoring configs, and draw are persisted. Regeneration requires an explicit destructive reset.
-- `active`: results may be entered/corrected by organizers. Only eligible scheduled entities may receive results.
-- `locked`: result edits are rejected until an audited reopen.
-- `completed`: final standings and expected ledger entries reconcile; presentation remains readable.
-- `archived`: retained for history, hidden from default active views, not hard-deleted.
+- `draft`: configuration may change; no confirmed draw or runtime exists.
+- `scheduled`: guest-readable configuration with fixtures pending; it may be edited, reordered, archived, or activated.
+- `active`: one persisted immutable runtime snapshot and draw exist; source format, participants, series, qualification, and scoring are frozen. Only claim-authorized organizer mutations may advance results.
+- `completed`: required final/third-place results and a placement snapshot exist; the run is read-only until a strong confirmed organizer reopen.
+- `archived`: pre-activation configuration retained outside the public scheduled list. Active/completed runs are never archived or hard-deleted.
 
-Starting a competition snapshots participant IDs and relevant configuration. Display-name/avatar changes may flow through by reference, but membership and rules do not silently change.
+Display-name/avatar changes continue resolving by participant ID, but membership and rules never silently change. Reopening preserves fixtures/results, removes completion metadata, returns to knockout, increments revisions, and appends audit.
 
-### 2.2 Organizer actions
+### 2.2 Merry-Go-Round organizer actions
 
 | Action | Preconditions | Effect |
 |---|---|---|
-| Confirm draw | Valid config; unique participant IDs; preview acknowledged | Persist participant order/groups/fixtures once, set `ready`, write audit |
-| Regenerate/reset | Organizer re-enters confirmation; impact summary names result deletion | Archive/delete current generated entities and their results; remove/replace related derived ledger entries; increment generation/revision; return to `draft` |
-| Record result | `active`; actor admin; result matches series/session schema | Transactionally replace result source, recalculate affected standings and ledger, audit |
-| Correct result | `active`; existing result; revision precondition matches | Replace authoritative result; replace deterministic derived entries rather than add deltas |
-| Lock | All required results complete or organizer explicitly acknowledges exceptions | Reject further result edits |
-| Reopen | `locked`; explicit reason | Return to `active`, preserve history, audit |
-| Complete | `locked`; standings and ledger reconciliation pass | Freeze final presentation state |
+| Activate | Valid scheduled Merry-Go-Round; selected profiles exist and are active; compatible decisive series | Atomically freeze configuration, securely shuffle once, persist fixtures, set `active`, and append activation/draw audit |
+| Pre-result reset | `active`; zero results; explicit confirmation | Delete runtime, return unchanged configuration to `scheduled`, append audit |
+| Record/correct result | `active`; admin; expected run/match revisions; valid terminal round sequence | Atomically replace source result, dependent slots/state, revisions, and audit; projected points are re-derived |
+| Resolve tie | Round robin complete; published metrics still equal | Persist explicit ordered IDs, reason, result fingerprint, organizer and timestamp |
+| Generate knockout | Qualification review complete; required ties resolved; explicit confirmation | Persist one seeded bracket, highest-seed byes, dependencies, and audit |
+| Complete | Final complete and third-place complete when configured | Atomically persist placements and set competition/runtime `completed` |
+| Reopen | `completed`; strong explicit confirmation | Preserve results, remove completion/placements, return to active knockout, increment revisions, append audit |
 
 ## 3. Match series
 
@@ -161,13 +155,13 @@ The table result may simultaneously give Player A 3 table points and Player B 0;
 Sort by the following order:
 
 1. Table points, descending.
-2. Head-to-head result among tied participants.
+2. Head-to-head result only when exactly two participants remain tied and their direct result separates them.
 3. Round differential (`roundsWon - roundsLost`), descending.
 4. Total rounds won, descending.
 5. Total match wins, descending.
 6. Organizer-defined playoff or final decision.
 
-For a two-person tie, head-to-head is their direct match. For three or more tied participants, build a mini-table using only matches among the tied set and apply table points; if this does not separate all members, continue with global round differential, rounds won, and match wins. Remaining equality is displayed as tied until an organizer records the audited resolution. The UI must show which tiebreak decided a rank.
+For a two-person tie, head-to-head is their direct match. Head-to-head is not applied simplistically to a multi-participant or circular tied cohort; those cohorts continue through global round differential, rounds won, and match wins. Remaining equality is displayed with equal rank and an unresolved marker until an organizer records an explicit audited order. Names, IDs, join dates, fixture order, randomized order, and random selection are never sporting tiebreakers.
 
 ### 4.4 Knockout configuration
 
@@ -193,12 +187,12 @@ flowchart TD
     E -->|"Confirm"| F["Persist fixtures once"]
     E -->|"Discard"| A
     F --> G["Play complete round robin"]
-    G --> H["Derive table + championship ledger entries"]
+    G --> H["Derive table + projected competition points"]
     H --> I["Rank with published tiebreaks"]
     I --> J["Seed configured qualifiers"]
     J --> K["Semifinals / bracket rounds"]
     K --> L["Final and optional third-place match"]
-    L --> M["Lock, reconcile, complete"]
+    L --> M["Persist placements + complete"]
 ```
 
 ## 5. `all-hands` (All Hands)
@@ -295,6 +289,8 @@ Recommended six-participant structure:
 If a correction changes a qualifier after downstream knockout play began, the system presents the exact affected matches and requires explicit confirmation to invalidate them. It never silently keeps an ineligible bracket.
 
 ## 7. Championship ledger
+
+This section remains the Phase 7 target. Phase 4 does not persist ledger entries or a global leaderboard: it applies the same configured award semantics through `deriveCompetitionPointBreakdown`, an itemized pure projection scoped to one Merry-Go-Round run. Corrections recompute that projection from source results and placements.
 
 The ledger is the sole source for overall points. A displayed total is always:
 
