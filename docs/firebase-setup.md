@@ -6,6 +6,8 @@ Firebase powers anonymous guest identity, the shared active-participant roster, 
 
 Phase 2 does not include competition state, scores, messages, predictions, protected reveal data, the exact accommodation address, Cloud Functions, App Check, analytics, or service-worker behavior.
 
+> **Production status (26 July 2026):** Phase 2 setup is complete. The production Firebase project and organizer access are provisioned, the version-controlled Rules are deployed, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase.
+
 ## 2. Create the Firebase projects
 
 Use separate development and production Firebase projects. In each project:
@@ -99,7 +101,7 @@ Before deployment, confirm the CLI target printed by Firebase, confirm the proje
 
 ## 7. GitHub Pages variables
 
-In **Repository settings → Secrets and variables → Actions → Variables**, create:
+The production repository has the following Actions variables configured. For a replacement repository or Firebase project, create them in **Repository settings → Secrets and variables → Actions → Variables**:
 
 - `VITE_FIREBASE_API_KEY`
 - `VITE_FIREBASE_AUTH_DOMAIN`
@@ -108,7 +110,7 @@ In **Repository settings → Secrets and variables → Actions → Variables**, 
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 
-The Pages workflow sets emulator mode to false. A build with missing variables still succeeds and deploys the static page, but live participant features remain unconfigured.
+The Pages workflow sets emulator mode to false. The current deployed build receives all six variables and its live participant features are connected to production Firebase. A future build with missing variables would still deploy the static page, but its live participant features would remain unconfigured.
 
 ## 8. Identity and recovery limitation
 

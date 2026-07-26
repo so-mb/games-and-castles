@@ -35,6 +35,7 @@ This document records decisions without describing, naming, or inferring protect
 | CR-20 | Phase 2 organizer sign-in uses Firebase Email/Password Authentication with no public sign-up or password-reset flow. | Authorization still comes only from `auth.token.admin === true`; an authenticated email alone grants nothing. Initial users and claims are provisioned out of band. |
 | CR-21 | Phase 2 guest identity is browser-local and has no recovery or cross-device claim flow. | Anonymous Auth persistence keeps continuity in the same browser. Clearing storage or changing browser/device may create a new UID; display names are never accepted as ownership proof. |
 | CR-22 | Safe static itinerary content renders independently of Firebase authentication and configuration. | Live participant reads require Authentication, while missing/broken configuration is isolated to the live feature area. |
+| CR-23 | Production Pages builds receive the six public Firebase web-configuration values through GitHub Actions repository variables, with emulator mode disabled. | Public Firebase client configuration is expected to be browser-visible and is not a secret. Repository variables keep environment configuration out of source control; service credentials remain prohibited. The Phase 2 production deployment is configured and successfully connected to Firebase. |
 
 ## 3. Required terminology
 
@@ -95,7 +96,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-Production is blocked by initial organizer-account ownership/provisioning plus OD-13, OD-15, OD-16, OD-18, and OD-19. Other decisions block the named feature/phase but need not prevent unrelated work.
+The Phase 2 production baseline, including initial organizer-account ownership and provisioning, is complete. OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness; they do not block the completed Phase 2 participant foundation. Other decisions block only the named feature or phase.
 
 ## 6. Technical architecture decisions
 

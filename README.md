@@ -2,7 +2,7 @@
 
 Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and Sunday departure and onward travel. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
 
-> **Status:** Phase 2 — Firebase authentication, participant roster, organizer participant controls, realtime connection state, and default-deny database rules implemented. Competition behavior remains a static preview.
+> **Status:** Phase 2 complete and deployed — Firebase authentication, participant roster, organizer participant controls, realtime connection state, and default-deny database rules are implemented. The production GitHub Pages site is connected to Firebase. Phase 3 has not started, so competition behavior remains a static preview.
 
 ## Technology
 
@@ -68,9 +68,9 @@ Generated `dist/` output is ignored and must not be committed.
 
 ## GitHub Pages deployment
 
-The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. In the GitHub repository settings, set **Pages → Build and deployment → Source** to **GitHub Actions**. Add the six `VITE_FIREBASE_*` public values as repository **Actions variables**, not secrets; the workflow maps them only into the build. Production assets use Vite's `/games-and-castles/` base path and the app uses anchor navigation rather than server-side routes.
+The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. The production repository uses **GitHub Actions** as its Pages source and has all six `VITE_FIREBASE_*` public values configured as repository **Actions variables**, not secrets; the workflow maps them only into the build. Production assets use Vite's `/games-and-castles/` base path, the app uses anchor navigation rather than server-side routes, and the deployed site is successfully connected to Firebase.
 
-Phase 2 adds identity and the shared participant roster only. Tournament creation/scoring, message submission, predictions, protected reveal operations, Cloud Functions, and App Check remain Phase 3 or later according to the [implementation roadmap](docs/implementation-roadmap.md).
+Phase 2 delivered identity and the shared participant roster only. Tournament creation/scoring, message submission, predictions, protected reveal operations, Cloud Functions, and App Check remain Phase 3 or later according to the [implementation roadmap](docs/implementation-roadmap.md).
 
 ## Documentation
 

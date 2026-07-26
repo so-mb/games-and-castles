@@ -103,7 +103,7 @@ Cross-cutting rules:
 
 ### Phase 2 — Firebase foundation, Authentication, participants, and realtime state
 
-**Implementation status:** Complete in the Phase 2 repository implementation. Remote project creation, console provider enablement, public configuration, initial organizer provisioning, and Rules deployment remain operator setup steps.
+**Implementation status:** Complete, including production operations. The production Firebase project, console providers, initial organizer provisioning, and deployed Rules are in place. All six public Firebase web-configuration values are configured as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase.
 
 **Goal:** Establish secure identity, role authorization, environment separation, realtime subscriptions, and data/rules foundations before competition features.
 
@@ -121,7 +121,7 @@ Cross-cutting rules:
 - Default-deny Security Rules and an emulator-tested permission matrix for the Phase 2 participant/profile paths.
 - A static-safe unconfigured/error boundary; no trip content was moved into Firebase.
 
-**Dependencies:** Phase 1. Email/Password was selected for persistent organizer sign-in; development/production project ownership and initial console provisioning remain deployment prerequisites.
+**Dependencies:** Satisfied for Phase 2. Phase 1 is complete, Email/Password was selected for persistent organizer sign-in, and development/production project ownership and initial console provisioning are complete.
 
 **Acceptance criteria**
 
@@ -135,7 +135,7 @@ Cross-cutting rules:
 
 **Main technical risks:** Anonymous session loss/duplicate participants; custom-claim token refresh confusion; overly broad rules; root listeners and bandwidth; emulator/production behavior drift.
 
-**Implemented tests/review:** Rules unit matrix; frontend configuration/error/helper/form tests; same-browser anonymous persistence architecture; claim false/true UI paths; static build and forbidden-content scans. Multi-device production-project rehearsal remains an operator check before the weekend.
+**Implemented tests/review:** Rules unit matrix; frontend configuration/error/helper/form tests; same-browser anonymous persistence architecture; claim false/true UI paths; static build and forbidden-content scans; production Pages/Firebase connection smoke check. Broader multi-device rehearsal remains Phase 11 release-hardening work rather than a Phase 2 completion blocker.
 
 ---
 
