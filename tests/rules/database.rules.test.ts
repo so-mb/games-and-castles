@@ -15,7 +15,7 @@ import {
   set,
   update,
 } from "firebase/database";
-import { afterAll, afterEach, beforeAll, describe, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createCompetitionRun } from "../../src/features/competitions/engine/activation";
 import {
   completeCompetitionRun,
@@ -2715,6 +2715,42 @@ describe("Realtime Database security rules", () => {
     it("allows an admin to create a valid source for an active run", async () => {
       const { admin } = contexts();
       const { competition, source } = await activeSourceFixture();
+      await assertSucceeds(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          source,
+        ),
+      );
+    });
+
+    it("allows a Merry-Go-Round source containing real match awards", async () => {
+      const { admin } = contexts();
+      const base = phaseFourFixture("ledger-with-match-awards");
+      const competition = activeCompetition(base.competition);
+      const match = Object.values(base.run.matches)[0]!;
+      const run = recordMatchResult(base.run, match.id, {
+        expectedMatchRevision: match.revision,
+        roundWinnerIds: [
+          match.participantAId!,
+          match.participantBId!,
+          match.participantAId!,
+        ],
+        organizerUid: "admin",
+        now: Date.now(),
+      });
+      const source = phaseSevenSource(competition, run);
+      await seed({
+        participants: {
+          "guest-1": participant("guest-1", "guest-1"),
+          "guest-2": participant("guest-2", "guest-2"),
+          "guest-3": participant("guest-3", "guest-3"),
+          "guest-4": participant("guest-4", "guest-4"),
+        },
+        competitions: { [competition.id]: competition },
+        competitionRuns: { [competition.id]: run },
+      });
+
+      expect(source.meta.entryCount).toBeGreaterThan(0);
       await assertSucceeds(
         set(
           ref(admin, `championshipLedger/competitionSources/${competition.id}`),

@@ -1257,7 +1257,7 @@
                 ".validate": "newData.val() == $competitionId"
               },
               "competitionFormat": {
-                ".validate": "newData.val() == newData.parent().parent().child('meta').child('competitionFormat').val()"
+                ".validate": "newData.val() == newData.parent().parent().parent().child('meta').child('competitionFormat').val()"
               },
               "stage": {
                 ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 64"
