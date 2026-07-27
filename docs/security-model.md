@@ -38,11 +38,11 @@ auth != null && auth.token.admin === true
 - No database field such as `isAdmin`, email comparison in client code, URL parameter, or local-storage flag can grant access.
 - Guest and organizer sessions use separate Firebase Auth instances so organizer sign-in/out cannot replace the same browser's anonymous UID.
 
-### Phase 2–7 implemented boundary
+### Phase 2–8 implemented boundary
 
 Phase 2 permits narrowly scoped direct Realtime Database writes for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Phase 3 additionally permits claim-authorized organizer writes to `/competitionDrafts`, `/competitions`, and append-only `/audit`. Phases 4–6 open authenticated read-only access to `/competitionRuns` and claim-authorized organizer writes for exact `round-robin-knockout`, `all-hands`, and `group-knockout` runtimes. The guest UI selects `scheduled`, `active`, and `completed` records; archived records contain no private payload and remain omitted.
 
-Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Phase 7 adds a bounded admin-claim client exception for complete competition-ledger sources and manual bonuses. Competition source validation binds the path ID, format, status, and run revision to the post-write competition/runtime; entries use an allowlisted schema and award union. Guests have authenticated read-only access. The private bonus branch is organizer-only, while guests read a sanitized active-only projection. All runtime/ledger application writes are root-level atomic updates; malformed client reads are quarantined. Direct writes remain denied for persisted totals, private messages, predictions, reveals, protected trip data, and every unspecified path.
+Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Phase 7 adds a bounded admin-claim client exception for complete competition-ledger sources and manual bonuses. Phase 8 adds a separately bounded Birthday Vault exception: an owner may atomically update only their UID-keyed message and matching identity-free receipt while collecting; an organizer may moderate, change lifecycle state, and atomically replace the complete sanitized published set. Other guests never receive private content or moderation. Direct writes remain denied for persisted totals, predictions, the protected special reveal, protected trip data, and every unspecified path.
 
 Organizer accounts and custom claims are provisioned out of band with the Admin SDK utility documented in [Firebase setup](firebase-setup.md). That utility preserves unrelated custom claims, supports grant/revoke by email or UID, requires an explicit non-demo project ID, and never exposes credentials to Vite.
 
@@ -85,7 +85,7 @@ flowchart TD
 | Submit birthday message | Yes, own validated submission | Yes | Yes |
 | Read own private birthday submission | Optional own-only | Yes | Yes |
 | Read another guest's private birthday submission | No | Yes | Yes |
-| Moderate/publish birthday messages | No | Yes via protected operation | Yes |
+| Moderate/publish birthday messages | No | Yes, bounded Phase 8 Rules and atomic full-set operation | Yes |
 | Submit/update own prediction while open | Yes | Yes for own prediction | Yes |
 | Read another participant's private prediction before reveal | No | Organizer only when operationally required | Yes |
 | Lock prediction event | No | Yes | Yes |
@@ -152,9 +152,9 @@ Conceptual Rules structure (illustrative, not a deployable complete ruleset):
 }
 ```
 
-The recommended production design routes participant creation, birthday submission, prediction upsert, result mutation, publication, and resolution through callable functions. This enables cross-path checks, reliable server timestamps, rate limiting, audit, content-size validation, and idempotency. Semantic ownership remains reflected under `guestOwned`, but direct writes to high-risk branches are denied. If a low-risk direct-write implementation is temporarily used in development, it needs equivalent ownership, immutable-owner, event-status, field allowlist, size, and transition validation and must be replaced or explicitly threat-reviewed before production.
+The recommended production design routes operations containing backend-only knowledge—especially prediction resolution and protected special-reveal publication—through callable functions. Direct client writes are allowed only when all authority and validation inputs are Rules-visible and the decision register explicitly records the boundary. Phase 8 Birthday Vault is one such exception: ownership, participant linkage, lifecycle, immutable IDs, revisions, receipt coupling, admin claim, and sanitized publication shape are Rules-verifiable; readiness checks that require collection-wide analysis also run in the organizer client and block publication.
 
-Phases 4–6 make a bounded exception for public-safe competition execution data. Phase 7 extends the same authorized organizer mutation boundary to one complete derived ledger source per run. The client derives the next runtime and full source, then submits them with status changes and compact audit metadata in one root update. Source reconciliation separately rechecks competition/run revisions before replacing a legacy or stale source. No repository method edits one competition entry or participant total. Manual bonuses are the only direct scoring operation; stale revisions fail, revoked records are retained privately, and the public mirror is added/removed atomically.
+Phases 4–6 make a bounded exception for public-safe competition execution data. Phase 7 extends the same authorized organizer mutation boundary to one complete derived ledger source per run. Phase 8 adds owner-scoped Birthday Vault submission and organizer publication without extending the exception to prediction or protected-reveal data. Each operation uses the smallest root-level atomic update, exact schemas, and one-step revisions; no repository method exposes an individual private collection to guests or incrementally appends published messages.
 
 ### 4.2 Validation rules
 
@@ -203,7 +203,9 @@ Sensitive multi-record organizer actions use callable functions or equally trust
 
 ### 6.2 Birthday publication
 
-Guest submission endpoints validate ownership, submission-open state, content length, and rate limits, then create a pending private record and update count through a trusted transaction/trigger. Organizer publication takes approved message IDs, re-reads them server-side, strips private fields and hidden entries, assigns a publication snapshot/order, writes only sanitized messages to `/public/birthday/publications`, updates reveal state, and audits. Clients replay animation using the existing `publicationId`; replay is not a write.
+Phase 8 uses a Rules-validated client operation and no Cloud Function. A guest atomic update writes `/birthdayVault/privateMessages/{auth.uid}` and the receipt at the message's immutable UUID. Rules require a collecting vault, owner/profile/participant linkage, immutable identity, valid content, one-step revision, and matching receipt state/timestamp. Authenticated guests may read receipts for counting but receive no identity or content through them.
+
+An authorized organizer reads the private and moderation collections, verifies the current expected revisions and reveal-readiness checklist, and derives a complete sanitized snapshot. One root update replaces `/birthdayVault/publishedMessages`, advances `/birthdayVault/publicState`, and appends safe audit metadata. Rules require the admin claim, legal state/reveal revisions, valid anonymous/named published shapes, and the post-write revealed state. Anonymous records omit participant and owner identity. Realtime Database Rules cannot quantify arbitrary sibling collections or map an opaque publication UUID back through a UID-keyed private collection; pending/stale/duplicate/order readiness is therefore also enforced by strict runtime validation and covered by domain/frontend tests. Prediction and protected special-reveal publication remain trusted-backend operations under section 6.3.
 
 ### 6.3 Prediction and special reveal
 
@@ -256,7 +258,7 @@ App Check is enabled and monitored before enforcement, then enforced for Realtim
 
 Rate limits are backend-enforced for callable guest submission, prediction update, protected-code attempts, fixture regeneration, and reveal operations. Use hashed UID/IP/device-app identifiers as appropriate, short and long windows, and conservative retry responses. Never store the protected code as a rate-limit key. Examples of policy to confirm through rehearsal:
 
-- birthday submission: small per-UID count plus burst cooldown;
+- birthday submission: structurally limited to one UID-keyed record with revision checks; final production abuse monitoring/rate policy remains part of Phase 10;
 - prediction update: modest per-UID burst limit while open;
 - protected-code verification: very low per-admin/per-project attempt rate with alerting;
 - result mutation: high enough for normal play, guarded by revision/idempotency rather than only frequency.
@@ -311,7 +313,7 @@ Rules are version-controlled and tested in the Firebase Emulator Suite before de
 
 Tests also cover deletes, partial updates, unknown child fields, null transitions, query indexes, archived records, token claim absence/false/true, claim revocation after token refresh, and concurrent emulator transactions.
 
-The expanded Phase 2–7 emulator matrix preserves participant/configuration and all three runtime suites, then adds authenticated ledger reads; guest mutation denial; valid active/completed source writes; path/format/revision/run/schema/award/point validation; full replacement and orphan removal; split bonus visibility; positive bounds; revisioned revoke/restore; creation-metadata immutability; hard-delete denial; Phase 7 append-only audit actions; and continued denial of birthday, prediction, reveal, and future paths. Production Rules deployment remains a separately authorized operator action and is never performed by the Pages workflow.
+The expanded Phase 2–8 emulator matrix preserves participant/configuration, all three runtime suites, and the complete ledger/bonus matrix. Its 53 Phase 8 cases add public-state authorization/transitions, private owner reads and atomic writes, participant/profile linkage, immutable UUIDs, message/receipt validation, withdrawal, organizer-only moderation, stale revisions, pre-reveal published-read denial, sanitized named/anonymous publication, reveal/republish boundaries, audit append-only behavior, and continued denial of prediction/special-reveal paths. Production Rules deployment remains a separately authorized operator action and is never performed by the Pages workflow.
 
 ## 13. Hardening checklist
 

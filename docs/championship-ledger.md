@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-Phase 7 is complete in the repository. Phase 6 is deployed and production-tested; Phase 7 Rules, frontend deployment, and the first production reconciliation remain explicit operator actions. This phase does not implement birthday submissions, predictions, protected reveal content, Cloud Functions, App Check, or a final championship lock.
+Phase 7 is complete, deployed, production-connected, and reconciled. The instructions below remain the operator runbook for a replacement environment or future source repair. Phase 8 now implements Birthday Vault independently; prediction scoring, protected special-reveal content, Cloud Functions, App Check, and a final championship lock remain outside this phase.
 
 ## Persisted paths
 

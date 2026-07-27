@@ -1192,6 +1192,186 @@
         "$other": { ".validate": false }
       }
     },
+    "birthdayVault": {
+      "publicState": {
+        ".read": "auth != null",
+        ".write": "auth != null && auth.token.admin === true && newData.exists() && ((!data.exists() && newData.child('status').val() == 'collecting' && newData.child('revision').val() == 1 && newData.child('revealRevision').val() == 0 && newData.child('openedByUid').val() == auth.uid) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('openedAt').val() == data.child('openedAt').val() && newData.child('openedByUid').val() == data.child('openedByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val() && ((data.child('status').val() == 'collecting' && newData.child('status').val() == 'closed' && newData.child('revealRevision').val() == 0) || (data.child('status').val() == 'closed' && newData.child('status').val() == 'collecting' && newData.child('revealRevision').val() == 0) || (data.child('status').val() == 'closed' && newData.child('status').val() == 'revealed' && newData.child('revealRevision').val() == 1) || (data.child('status').val() == 'revealed' && newData.child('status').val() == 'revealed' && newData.child('revealRevision').val() == data.child('revealRevision').val() + 1))))",
+        ".validate": "newData.hasChildren(['status', 'openedAt', 'openedByUid', 'revealRevision', 'updatedAt', 'updatedByUid', 'revision', 'schemaVersion']) && ((newData.child('status').val() == 'collecting' && !newData.child('closedAt').exists() && !newData.child('closedByUid').exists() && !newData.child('revealedAt').exists() && !newData.child('revealedByUid').exists() && newData.child('revealRevision').val() == 0) || (newData.child('status').val() == 'closed' && newData.hasChildren(['closedAt', 'closedByUid']) && !newData.child('revealedAt').exists() && !newData.child('revealedByUid').exists() && newData.child('revealRevision').val() == 0) || (newData.child('status').val() == 'revealed' && newData.hasChildren(['closedAt', 'closedByUid', 'revealedAt', 'revealedByUid']) && newData.child('revealRevision').val() >= 1 && newData.parent().child('publishedMessages').exists()))",
+        "status": {
+          ".validate": "newData.val() == 'collecting' || newData.val() == 'closed' || newData.val() == 'revealed'"
+        },
+        "openedAt": {
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
+        },
+        "openedByUid": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128 && ((!data.exists() && newData.val() == auth.uid) || (data.exists() && newData.val() == data.val()))"
+        },
+        "closedAt": {
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
+        },
+        "closedByUid": {
+          ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128 && ((!data.exists() && newData.val() == auth.uid) || (data.exists() && newData.val() == data.val()))"
+        },
+        "revealedAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+        },
+        "revealedByUid": { ".validate": "newData.val() == auth.uid" },
+        "revealRevision": {
+          ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+        },
+        "updatedByUid": { ".validate": "newData.val() == auth.uid" },
+        "revision": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+        },
+        "schemaVersion": { ".validate": "newData.val() == 1" },
+        "$other": { ".validate": false }
+      },
+      "privateMessages": {
+        ".read": "auth != null && auth.token.admin === true",
+        "$uid": {
+          ".read": "auth != null && (auth.uid == $uid || auth.token.admin === true)",
+          ".write": "auth != null && auth.uid == $uid && newData.exists() && newData.parent().parent().child('publicState').child('status').val() == 'collecting' && newData.child('ownerUid').val() == auth.uid && newData.parent().parent().parent().child('userProfiles').child(auth.uid).child('participantId').val() == newData.child('participantId').val() && ((!data.exists() && newData.child('revision').val() == 1 && newData.child('status').val() == 'submitted' && newData.parent().parent().parent().child('participants').child(newData.child('participantId').val()).child('ownerUid').val() == auth.uid && newData.parent().parent().parent().child('participants').child(newData.child('participantId').val()).child('status').val() == 'active') || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('ownerUid').val() == data.child('ownerUid').val() && newData.child('participantId').val() == data.child('participantId').val() && newData.child('publicationId').val() == data.child('publicationId').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val())) && newData.parent().parent().child('submissionReceipts').child(newData.child('publicationId').val()).child('publicationId').val() == newData.child('publicationId').val() && newData.parent().parent().child('submissionReceipts').child(newData.child('publicationId').val()).child('active').val() == (newData.child('status').val() == 'submitted') && newData.parent().parent().child('submissionReceipts').child(newData.child('publicationId').val()).child('updatedAt').val() == newData.child('updatedAt').val()",
+          ".validate": "newData.hasChildren(['ownerUid', 'participantId', 'publicationId', 'message', 'displayMode', 'status', 'createdAt', 'updatedAt', 'revision', 'schemaVersion']) && newData.child('ownerUid').val() == $uid",
+          "ownerUid": {
+            ".validate": "newData.isString() && newData.val() == $uid && newData.val().length <= 128"
+          },
+          "participantId": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+          },
+          "publicationId": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/)"
+          },
+          "title": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+          },
+          "message": {
+            ".validate": "newData.isString() && newData.val().length >= 5 && newData.val().length <= 1200"
+          },
+          "emojiKey": {
+            ".validate": "newData.isString() && newData.val().matches(/^(cake|heart|sparkles|crown|castle|confetti)$/)"
+          },
+          "displayMode": {
+            ".validate": "newData.val() == 'named' || newData.val() == 'anonymous'"
+          },
+          "status": {
+            ".validate": "newData.val() == 'submitted' || newData.val() == 'withdrawn'"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000 && (!data.exists() || newData.val() >= data.val())"
+          },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "schemaVersion": { ".validate": "newData.val() == 1" },
+          "$other": { ".validate": false }
+        }
+      },
+      "submissionReceipts": {
+        ".read": "auth != null",
+        "$publicationId": {
+          ".write": "auth != null && newData.exists() && newData.parent().parent().child('privateMessages').child(auth.uid).child('publicationId').val() == $publicationId && newData.child('publicationId').val() == $publicationId && newData.child('active').val() == (newData.parent().parent().child('privateMessages').child(auth.uid).child('status').val() == 'submitted') && newData.child('updatedAt').val() == newData.parent().parent().child('privateMessages').child(auth.uid).child('updatedAt').val()",
+          ".validate": "newData.hasChildren(['publicationId', 'active', 'updatedAt', 'schemaVersion'])",
+          "publicationId": {
+            ".validate": "newData.isString() && newData.val() == $publicationId && newData.val().matches(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/)"
+          },
+          "active": { ".validate": "newData.isBoolean()" },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          },
+          "schemaVersion": { ".validate": "newData.val() == 1" },
+          "$other": { ".validate": false }
+        }
+      },
+      "moderation": {
+        ".read": "auth != null && auth.token.admin === true",
+        "$uid": {
+          ".write": "auth != null && auth.token.admin === true && newData.exists() && ((!data.exists() && newData.child('revision').val() == 1) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('ownerUid').val() == data.child('ownerUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val()))",
+          ".validate": "newData.hasChildren(['ownerUid', 'messageRevision', 'status', 'updatedAt', 'updatedByUid', 'revision', 'schemaVersion']) && newData.child('ownerUid').val() == $uid && newData.parent().parent().child('privateMessages').child($uid).exists() && newData.child('messageRevision').val() == newData.parent().parent().child('privateMessages').child($uid).child('revision').val() && ((newData.child('status').val() == 'approved') || (newData.child('status').val() == 'hidden' && !newData.child('displayOrder').exists()))",
+          "ownerUid": {
+            ".validate": "newData.isString() && newData.val() == $uid && newData.val().length <= 128"
+          },
+          "messageRevision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "status": {
+            ".validate": "newData.val() == 'approved' || newData.val() == 'hidden'"
+          },
+          "displayOrder": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000 && newData.val() % 1 == 0"
+          },
+          "note": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 280"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          },
+          "updatedByUid": { ".validate": "newData.val() == auth.uid" },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "schemaVersion": { ".validate": "newData.val() == 1" },
+          "$other": { ".validate": false }
+        }
+      },
+      "publishedMessages": {
+        ".read": "auth != null && data.parent().child('publicState').child('status').val() == 'revealed'",
+        ".write": "auth != null && auth.token.admin === true && newData.parent().child('publicState').child('status').val() == 'revealed' && newData.parent().child('publicState').child('revision').val() == data.parent().child('publicState').child('revision').val() + 1 && ((data.parent().child('publicState').child('status').val() == 'closed' && newData.parent().child('publicState').child('revealRevision').val() == 1) || (data.parent().child('publicState').child('status').val() == 'revealed' && newData.parent().child('publicState').child('revealRevision').val() == data.parent().child('publicState').child('revealRevision').val() + 1))",
+        "$publicationId": {
+          ".validate": "newData.hasChildren(['id', 'message', 'author', 'displayOrder', 'sourceMessageRevision', 'publishedAt', 'revealRevision', 'schemaVersion']) && newData.child('id').val() == $publicationId && ((newData.child('author').child('mode').val() == 'anonymous' && newData.child('author').child('displayName').val() == 'Anonymous' && !newData.child('author').child('participantId').exists() && !newData.child('author').child('avatarIcon').exists() && !newData.child('author').child('avatarTone').exists()) || (newData.child('author').child('mode').val() == 'named' && newData.child('author').hasChildren(['participantId', 'displayName', 'avatarIcon', 'avatarTone']) && newData.parent().parent().parent().child('participants').child(newData.child('author').child('participantId').val()).exists()))",
+          "id": {
+            ".validate": "newData.isString() && newData.val() == $publicationId && newData.val().matches(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/)"
+          },
+          "title": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60"
+          },
+          "message": {
+            ".validate": "newData.isString() && newData.val().length >= 5 && newData.val().length <= 1200"
+          },
+          "emojiKey": {
+            ".validate": "newData.isString() && newData.val().matches(/^(cake|heart|sparkles|crown|castle|confetti)$/)"
+          },
+          "author": {
+            "mode": {
+              ".validate": "newData.val() == 'named' || newData.val() == 'anonymous'"
+            },
+            "participantId": {
+              ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+            },
+            "displayName": {
+              ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 24"
+            },
+            "avatarIcon": {
+              ".validate": "newData.isString() && newData.val().matches(/^(castle|dice|trophy|controller|crown|sparkles)$/)"
+            },
+            "avatarTone": {
+              ".validate": "newData.isString() && newData.val().matches(/^(cyan|gold|red|neutral)$/)"
+            },
+            "$other": { ".validate": false }
+          },
+          "displayOrder": {
+            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000 && newData.val() % 1 == 0"
+          },
+          "sourceMessageRevision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "publishedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          },
+          "revealRevision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "schemaVersion": { ".validate": "newData.val() == 1" },
+          "$other": { ".validate": false }
+        }
+      },
+      "$other": { ".validate": false }
+    },
     "championshipLedger": {
       "competitionSources": {
         ".read": "auth != null",
@@ -1360,10 +1540,10 @@
           ".validate": "newData.isString() && newData.val() == $auditId"
         },
         "action": {
-          ".validate": "newData.isString() && newData.val().matches(/^(draft-created|draft-updated|draft-deleted|draft-duplicated|competition-published|competition-updated|competition-archived|competition-restored|competition-reordered|competition-activated|draw-fixtures-generated|group-draw-generated|group-stage-completed|qualification-snapshot-confirmed|cross-group-seed-resolved|competition-run-reset|match-started|match-returned-to-pending|match-result-recorded|match-result-corrected|session-created|session-started|session-returned-to-pending|session-result-recorded|session-result-corrected|session-voided|session-restored|session-deleted|completion-review-opened|tie-resolved|tie-resolution-invalidated|knockout-generated|knockout-reset|downstream-results-cascaded|competition-completed|competition-reopened|championship-source-reconciled|championship-source-backfilled|championship-source-orphan-removed|manual-bonus-created|manual-bonus-revoked|manual-bonus-restored)$/)"
+          ".validate": "newData.isString() && newData.val().matches(/^(draft-created|draft-updated|draft-deleted|draft-duplicated|competition-published|competition-updated|competition-archived|competition-restored|competition-reordered|competition-activated|draw-fixtures-generated|group-draw-generated|group-stage-completed|qualification-snapshot-confirmed|cross-group-seed-resolved|competition-run-reset|match-started|match-returned-to-pending|match-result-recorded|match-result-corrected|session-created|session-started|session-returned-to-pending|session-result-recorded|session-result-corrected|session-voided|session-restored|session-deleted|completion-review-opened|tie-resolved|tie-resolution-invalidated|knockout-generated|knockout-reset|downstream-results-cascaded|competition-completed|competition-reopened|championship-source-reconciled|championship-source-backfilled|championship-source-orphan-removed|manual-bonus-created|manual-bonus-revoked|manual-bonus-restored|birthday-vault-opened|birthday-submissions-closed|birthday-submissions-reopened|birthday-message-approved|birthday-message-hidden|birthday-messages-bulk-approved|birthday-reveal-order-changed|birthday-vault-revealed|birthday-vault-republished)$/)"
         },
         "entityType": {
-          ".validate": "newData.val() == 'competition' || newData.val() == 'championship-source' || newData.val() == 'manual-bonus'"
+          ".validate": "newData.val() == 'competition' || newData.val() == 'championship-source' || newData.val() == 'manual-bonus' || newData.val() == 'birthday-vault'"
         },
         "entityId": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"

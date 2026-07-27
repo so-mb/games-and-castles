@@ -26,7 +26,7 @@ This document records decisions without describing, naming, or inferring protect
 | CR-11 | Sensitive reveal content is backend-only before publication. | Anything in React, Vite variables, public database paths, CSS, source maps, logs, examples, names, or repository history can be inspected. Cloud Functions must authorize, verify protected conditions, publish, and resolve. |
 | CR-12 | Prediction scoring is backend-controlled and idempotent. | Clients cannot know/decide the protected outcome authoritatively. The key `prediction:{eventId}:{participantId}` ensures retries never award twice. |
 | CR-13 | Public accommodation information is limited to `Žižkov, Prague 3`; the exact address is excluded from the static application and repository. | A hidden frontend button is not security. The exact address must not appear in client data, mock data, public examples, or commits. A later authenticated implementation may retrieve it from restricted Firebase data after separate authorization review. |
-| CR-14 | Private birthday submissions are not downloaded to other guests. | Security must be path/rule/function based, not client filtering. Publication creates a separate approved snapshot; count is a trusted aggregate. |
+| CR-14 | Private birthday submissions are not downloaded to other guests. | Security is path- and Rules-based, not client filtering. Publication creates a separate approved snapshot; the public count derives only from identity-free receipts. |
 | CR-15 | The first implementation vertical slice prioritizes `round-robin-knockout`. | It exercises the shared hard parts early: generation, persistence, series, standings, tiebreaks, brackets, round scoring, corrections, audit, and live synchronization. Later formats reuse those primitives. |
 | CR-16 | Animation is controlled and secondary to usability. | Important moments benefit from motion, but score entry/itinerary access must stay fast. Reduced motion is respected; sound is off by default; no constant distracting animation. |
 | CR-17 | Development and production use separate Firebase projects. | This prevents test identities, claims, synthetic reveals, permissive experimentation, and data migrations from affecting the live weekend. |
@@ -58,6 +58,8 @@ This document records decisions without describing, naming, or inferring protect
 | CR-43 | Manual bonuses are positive 1–100 point revisioned records; revoked records remain organizer-visible and are removed from the sanitized public projection. | No hard deletion or negative point editing; every create/revoke/restore appends safe audit metadata. |
 | CR-44 | Public totals, shared ranks, contributions, latest awards, and achievements are pure ledger derivations. | No mutable participant total or leaderboard cache is persisted; active zero-point and inactive historical participants remain explainable. |
 | CR-45 | Public correction visibility shows only current valid awards plus a verification warning for missing/stale/malformed sources. | This resolves OD-12 without exposing confusing before-values or pretending the current-award view is immutable history. |
+| CR-46 | Birthday Vault uses one UID-keyed message, an immutable opaque publication UUID, named/anonymous display, current-revision moderation, and sanitized full-set publication. | Guests can edit or withdraw only while collecting; edits stale prior approval; hidden/withdrawn entries do not publish; anonymous snapshots contain no participant or owner identity. This resolves former OD-13 except the general production retention policy retained in OD-19. |
+| CR-47 | Birthday Vault lifecycle is unopened, `collecting`, `closed`, then irreversibly `revealed`; a revealed vault may only republish a new complete snapshot revision. | Organizer authentication plus revision-checked Rules authorize transitions. Replay is local-only, and the exact non-secret confirmation phrase `REVEAL` prevents accidental publication. |
 
 ## 3. Required terminology
 
@@ -102,7 +104,6 @@ These items require confirmation; recommendations indicate the least-risk starti
 |---|---|---|---|
 | OD-05 | Set remaining maximum active-participant/competition record counts, message lengths/counts, and later custom-field counts. Phase 3 per-record configuration bounds are confirmed in CR-24. | Use conservative UI/rules/function limits based on the private group size and load-test at twice expected volume. | Feature-owning later phase |
 | OD-06 | Define a terminal series-result rule before enabling match draws. Phase 4 deliberately blocks draw-enabled activation under CR-29. | Keep draws off until a bounded maximum-round/terminal rule is approved; never infer one from table draw points. | Later draw-support change |
-| OD-13 | Set Birthday Vault per-UID message count, edit window, moderation/edit policy, anonymous display wording, and retention/deletion period. | One editable submission per UID until closed; organizer hides but does not rewrite guest text; publish a sanitized snapshot; decide deletion after the event. | Phase 8 |
 | OD-14 | Decide whether organizers may view individual predictions before reveal and whether aggregate distribution publishes afterward. | Do not surface individual choices unless operationally necessary; hide aggregate until reveal; publish aggregate only if approved. | Phase 9 |
 | OD-15 | Supply safe dynamic option labels and determine exactly when they become guest-readable. | Content-review them before entering any client-readable path; keep stored values neutral. | Phase 9 content freeze |
 | OD-16 | Choose the protected reveal condition/code lifecycle, attempt limit, and authorized function operators. | Secret Manager value, callable verification, low attempt limit/alert, rotation after use; never share through repository/chat logs. | Phase 9 |
@@ -112,7 +113,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-The Phase 2 production baseline and Phases 3–6 are deployed and production-tested. Phase 7 is complete in the repository; Rules/frontend deployment and production-run reconciliation remain explicit operator actions. CR-45 resolves former OD-12. OD-06 blocks only future draw support, while OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness.
+Phases 1–7 are deployed, production-connected, and reconciled. Phase 8 is complete in the repository; its Rules/frontend deployment remains an explicit operator action. CR-45 resolves former OD-12, and CR-46/CR-47 resolve former OD-13 while leaving the general production retention decision in OD-19. OD-06 blocks only future draw support, while OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness.
 
 ## 6. Technical architecture decisions
 
@@ -150,11 +151,11 @@ The Phase 2 production baseline and Phases 3–6 are deployed and production-tes
 
 ### AD-05 — Trusted publication snapshots
 
-**Decision:** Private/prepublication content is copied by a trusted function into a separate sanitized public snapshot only at publication.
+**Decision:** Protected prepublication content is copied by a trusted function into a separate sanitized public snapshot only at publication. Phase 8 Birthday Vault publication is the narrowly documented exception in AD-14 because the authorized organizer already has permission to read every source message and Rules can validate the bounded snapshot operation without hidden knowledge.
 
 **Reason:** Toggling a boolean beside already-public data does not prevent prior reads/downloads.
 
-**Consequences:** Publication is an idempotent backend workflow; presentation replay reads the snapshot without mutation.
+**Consequences:** Protected special-reveal publication remains an idempotent backend workflow. Birthday Vault presentation replay likewise reads a published snapshot without mutation, but its publication authority is defined separately in AD-14.
 
 ### AD-06 — Revision-based multi-admin control
 
@@ -218,7 +219,15 @@ The Phase 2 production baseline and Phases 3–6 are deployed and production-tes
 
 **Reason:** Realtime Database cannot securely filter revoked children from a guest-readable collection. Full-source replacement makes retries, corrections, reopen, void/restore, knockout reset, and legacy backfill deterministic without mutable totals or compensating entries.
 
-**Consequences:** Admin-claim Rules authorize only bounded source and bonus writes; guests remain read-only. Championship Desk reconciles legacy runs and removes confirmed orphans. Public clients quarantine malformed data and show a verification warning for uncertain expected sources. Competition-derived entries have no direct edit API. Phase 6 is deployed; Phase 7 still requires an explicit Rules/frontend deployment and production reconciliation.
+**Consequences:** Admin-claim Rules authorize only bounded source and bonus writes; guests remain read-only. Championship Desk reconciles legacy runs and removes confirmed orphans. Public clients quarantine malformed data and show a verification warning for uncertain expected sources. Competition-derived entries have no direct edit API. Phase 7 is deployed and the production sources are reconciled.
+
+### AD-14 — Phase 8 Rules-validated Birthday Vault publication
+
+**Decision:** Store Birthday Vault state, sanitized receipts, owner-private messages, organizer-only moderation, and sanitized published snapshots below `/birthdayVault`. Guest submission/withdrawal atomically writes the owner's message and matching opaque receipt. An admin-claim organizer client re-reads and validates the current private/moderation set, then atomically replaces the complete published set with public state and append-only audit metadata. No Cloud Function is added for Phase 8.
+
+**Reason:** Birthday publication has no server-only outcome, protected code, or hidden payload: the organizer is already authorized to read the source messages and decide moderation. Default-deny Rules can enforce owner/profile linkage, immutable publication identity, lifecycle/revision boundaries, receipt coupling, published shape, admin authorization, and the atomic state/snapshot boundary. Runtime readiness additionally blocks pending, stale, malformed, duplicate, offline, or missing-profile publication cases that Realtime Database Rules cannot safely quantify across arbitrary sibling collections.
+
+**Consequences:** One owner UID has one retained record and one stable UUID across edit/withdraw/resubmit. Other guests can read only public state, identity-free receipts, and revealed snapshots. Anonymous snapshots omit owner and participant identity. Approval becomes stale after a message revision. Reveal requires exact `REVEAL` confirmation and is irreversible; republish replaces the full set and advances `revealRevision`. Prediction resolution and the protected special reveal remain Phase 9 trusted-backend work and are not covered by this exception.
 
 ## 7. Assumptions currently used by the specification
 

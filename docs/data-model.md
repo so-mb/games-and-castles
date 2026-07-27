@@ -746,35 +746,88 @@ flowchart TD
 ## 9. Birthday Vault
 
 ```ts
-interface BirthdayMessage extends AuditFields {
-  id: EntityId;
-  authorUid: UserId;
-  displayName: string;
-  title?: string;
+type BirthdayVaultStatus = 'collecting' | 'closed' | 'revealed';
+
+interface BirthdayVaultPublicState {
+  status: BirthdayVaultStatus;
+  openedAt: UnixMs;
+  openedByUid: UserId;
+  closedAt: UnixMs | null;
+  closedByUid: UserId | null;
+  revealedAt: UnixMs | null;
+  revealedByUid: UserId | null;
+  revealRevision: number;
+  updatedAt: UnixMs;
+  updatedByUid: UserId;
+  revision: number;
+  schemaVersion: 1;
+}
+
+interface BirthdayMessage {
+  ownerUid: UserId;
+  participantId: ParticipantId;
+  publicationId: string; // immutable browser-generated UUID
+  title: string | null;
   message: string;
-  emoji?: string;
-  anonymousDisplay: boolean;
-  moderationStatus: 'pending' | 'approved' | 'hidden';
-  moderatedAt?: UnixMs;
-  moderatedBy?: UserId;
+  emojiKey: 'cake' | 'heart' | 'sparkles' | 'crown' | 'castle' | 'confetti' | null;
+  displayMode: 'named' | 'anonymous';
+  status: 'submitted' | 'withdrawn';
+  createdAt: UnixMs;
+  updatedAt: UnixMs;
+  revision: number;
+  schemaVersion: 1;
+}
+
+interface BirthdaySubmissionReceipt {
+  publicationId: string;
+  active: boolean;
+  updatedAt: UnixMs;
+  schemaVersion: 1;
+}
+
+interface BirthdayMessageModeration {
+  ownerUid: UserId;
+  messageRevision: number;
+  status: 'approved' | 'hidden';
+  displayOrder: number | null;
+  note: string | null;
+  updatedAt: UnixMs;
+  updatedByUid: UserId;
+  revision: number;
+  schemaVersion: 1;
 }
 
 interface PublishedBirthdayMessage {
-  id: EntityId; // new public snapshot ID; does not expose author UID
-  schemaVersion: SchemaVersion;
-  displayName?: string; // omitted/replaced when anonymousDisplay was chosen
-  title?: string;
+  id: string; // opaque publication UUID; never an owner/participant ID
+  title: string | null;
   message: string;
-  emoji?: string;
-  sequence: number;
+  emojiKey: BirthdayMessage['emojiKey'];
+  author:
+    | {
+        mode: 'named';
+        participantId: ParticipantId;
+        displayName: string;
+        avatarIcon: string;
+        avatarTone: string;
+      }
+    | {
+        mode: 'anonymous';
+        participantId: null;
+        displayName: 'Anonymous';
+        avatarIcon: null;
+        avatarTone: null;
+      };
+  displayOrder: number;
+  sourceMessageRevision: number;
   publishedAt: UnixMs;
-  publicationId: EntityId;
+  revealRevision: number;
+  schemaVersion: 1;
 }
 ```
 
-Guests write under their own UID branch. The `moderationStatus` and moderation fields are server/admin controlled; create DTOs cannot set them to approved. Publication copies only approved, sanitized display fields into new public snapshot records. Editing a private record after publication does not mutate the published snapshot; republishing is a new audited publication revision.
+The implemented paths are `/birthdayVault/publicState`, `/birthdayVault/submissionReceipts/{publicationId}`, `/birthdayVault/privateMessages/{ownerUid}`, `/birthdayVault/moderation/{ownerUid}`, and `/birthdayVault/publishedMessages/{publicationId}`. One UID owns one retained message. Its owner/participant/publication identity and creation metadata are immutable; every edit, withdrawal, or resubmission advances the message revision and atomically updates the matching sanitized receipt.
 
-The public message count is a backend-maintained aggregate. Guests cannot increment it directly and cannot infer private content from collection access.
+No moderation record means pending. A moderation record is current only when `messageRevision` equals the private message revision, so an edit automatically returns the submission to review. Publication is a complete set derived from current approved submitted records. Named author data is snapshotted at publication; anonymous snapshots omit owner and participant identity. The public count is the number of valid active identity-free receipts, not a manually incremented total.
 
 ## 10. Prediction and reveal state
 
@@ -868,7 +921,7 @@ Public `AppSettings` fixes the trip range to 31 July–2 August 2026 and the pub
 
 Path names are neutral and access-oriented. `$uid`, `$competitionId`, and similar segments are opaque generated IDs.
 
-The implemented Phase 7 ledger branch is:
+The implemented Phase 7–8 branches are:
 
 ```text
 championshipLedger/
@@ -877,9 +930,15 @@ championshipLedger/
     entries/{entryId}
   manualBonuses/{bonusId}                 # organizer-only active/revoked history
   manualBonusesPublic/{bonusId}           # authenticated active-only projection
+birthdayVault/
+  publicState                              # authenticated read; admin transitions
+  submissionReceipts/{publicationId}      # authenticated sanitized count source
+  privateMessages/{ownerUid}               # owner/admin read; owner collecting writes
+  moderation/{ownerUid}                    # organizer only
+  publishedMessages/{publicationId}        # authenticated read after reveal
 ```
 
-The tree below remains the target for later private-content and backend-derived features. The implemented Phase 2–7 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, `/championshipLedger`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
+The tree below remains the target for later protected/backend-derived features. The implemented Phase 2–8 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, `/championshipLedger`, `/birthdayVault`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
 
 ```text
 /
@@ -936,7 +995,7 @@ The tree below remains the target for later private-content and backend-derived 
 
 “Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
-In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. The implemented flat model uses admin-claim Rules for configuration, all three runtimes, Phase 7 complete competition sources, and revisioned manual bonuses. Protected publication still requires its later trusted-operation design.
+In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. The implemented flat model uses admin-claim Rules for configuration, all three runtimes, Phase 7 complete competition sources/bonuses, and Phase 8 Birthday Vault moderation/publication. The protected special reveal still requires its later trusted-operation design.
 
 ## 13. Source of truth, derivation, and denormalization
 
@@ -951,12 +1010,12 @@ In the future target, competition drafts live under `organizer`, while confirmed
 | Manual championship bonus | Yes | Rules-bounded organizer revisioned operation | Private full history plus sanitized active public projection |
 | Leaderboard totals/ranks/recent list | No | Pure client derivation | Rebuilt from validated current sources and active bonuses |
 | Private birthday submission | Yes | Guest create/limited own update; organizer moderate | Never in guest-readable collection |
-| Published birthday snapshot | Yes | Backend publish operation | Public source for reveal presentation |
+| Published birthday snapshot | Yes | Rules-bounded organizer full-set operation | Sanitized public source for reveal presentation |
 | Prediction | Yes | Owner while open; backend resolves | Private per UID |
 | Aggregate prediction distribution | Optional persisted view | Backend | Publish only per configured policy |
 | Reveal prepublication payload | Yes if needed | Backend only | Prefer Secret Manager for protected config |
 | Published reveal snapshot/state | Yes | Backend | Guest-readable only after publication |
-| Message count | Persisted aggregate | Backend | Does not grant submission reads |
+| Message count | No separate total | Pure count of valid active sanitized receipts | Does not grant submission or identity reads |
 
 Safe denormalization includes participant display snapshots in historical presentation, stage IDs on matches, match IDs on stages, bounded recent-activity indexes, and leaderboard caches. Every cache declares the source revision/computation time. Do not denormalize protected content into audit, analytics, client logs, notification text, or public indexes.
 

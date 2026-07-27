@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   Trophy,
   Award,
+  CakeSlice,
   UserPlus,
   UsersRound,
 } from "lucide-react";
@@ -17,12 +18,23 @@ import { useFirebase } from "../live/FirebaseProvider";
 import { ParticipantForm } from "../participants/ParticipantForm";
 import { useParticipants } from "../participants/ParticipantsProvider";
 import type { Participant } from "../participants/types";
-import { CompetitionStudio } from "../competitions/organizer/CompetitionStudio";
+
+const CompetitionStudio = lazy(() =>
+  import("../competitions/organizer/CompetitionStudio").then((module) => ({
+    default: module.CompetitionStudio,
+  })),
+);
 
 const ChampionshipDesk = lazy(() =>
   import("../championship/organizer/ChampionshipDesk").then((module) => ({
     default: module.ChampionshipDesk,
   })),
+);
+
+const BirthdayVaultWorkspace = lazy(() =>
+  import("../birthday-vault/organizer/BirthdayVaultWorkspace").then(
+    (module) => ({ default: module.BirthdayVaultWorkspace }),
+  ),
 );
 
 function initials(name: string) {
@@ -47,7 +59,7 @@ export function OrganizerAccess() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<
-    "participants" | "competitions" | "championship"
+    "participants" | "competitions" | "championship" | "birthday"
   >("competitions");
 
   if (firebase.status !== "ready") return null;
@@ -161,6 +173,21 @@ export function OrganizerAccess() {
                 role="tablist"
               >
                 <button
+                  aria-controls="organizer-panel-birthday"
+                  aria-selected={activeTool === "birthday"}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "birthday" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
+                  id="organizer-tab-birthday"
+                  onClick={() => {
+                    setEditor(null);
+                    setActiveTool("birthday");
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  <CakeSlice aria-hidden="true" size={17} />
+                  Birthday Vault
+                </button>
+                <button
                   aria-controls="organizer-panel-championship"
                   aria-selected={activeTool === "championship"}
                   className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "championship" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
@@ -218,7 +245,18 @@ export function OrganizerAccess() {
                 id="organizer-panel-competitions"
                 role="tabpanel"
               >
-                <CompetitionStudio />
+                <Suspense
+                  fallback={
+                    <p
+                      className="py-12 text-center text-sm text-white/55"
+                      role="status"
+                    >
+                      Opening Competition Studio…
+                    </p>
+                  }
+                >
+                  <CompetitionStudio />
+                </Suspense>
               </div>
             ) : activeTool === "championship" ? (
               <div
@@ -237,6 +275,25 @@ export function OrganizerAccess() {
                   }
                 >
                   <ChampionshipDesk />
+                </Suspense>
+              </div>
+            ) : activeTool === "birthday" ? (
+              <div
+                aria-labelledby="organizer-tab-birthday"
+                id="organizer-panel-birthday"
+                role="tabpanel"
+              >
+                <Suspense
+                  fallback={
+                    <p
+                      className="py-12 text-center text-sm text-white/55"
+                      role="status"
+                    >
+                      Opening Birthday Vault…
+                    </p>
+                  }
+                >
+                  <BirthdayVaultWorkspace />
                 </Suspense>
               </div>
             ) : (

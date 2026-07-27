@@ -438,11 +438,71 @@ button:disabled {
 }
 
 .birthday-section::before {
-  background: radial-gradient(
-    circle at 15% 20%,
-    rgb(210 176 106 / 8%),
-    transparent 32%
-  );
+  background:
+    radial-gradient(circle at 15% 20%, rgb(210 176 106 / 12%), transparent 32%),
+    linear-gradient(
+      115deg,
+      transparent 0 74%,
+      rgb(158 48 56 / 3%) 74% 74.15%,
+      transparent 74.15%
+    );
+}
+
+.birthday-vault-shell {
+  background-image:
+    linear-gradient(rgb(33 27 24 / 3%) 1px, transparent 1px),
+    radial-gradient(circle at 92% 12%, rgb(158 48 56 / 8%), transparent 26%);
+  background-size:
+    100% 2rem,
+    auto;
+}
+
+.birthday-vault-shell::after {
+  position: absolute;
+  right: -3rem;
+  bottom: -4rem;
+  width: 14rem;
+  height: 14rem;
+  border: 1rem double rgb(158 48 56 / 6%);
+  border-radius: 50%;
+  content: "";
+}
+
+.birthday-wax-seal {
+  position: absolute;
+  z-index: 2;
+  top: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  width: 4rem;
+  height: 4rem;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgb(126 37 44 / 28%);
+  border-radius: 50%;
+  background: var(--color-prague-red-700);
+  color: white;
+  box-shadow:
+    0 0 0 5px rgb(158 48 56 / 10%),
+    0 10px 24px rgb(79 31 33 / 22%);
+}
+
+.birthday-message-card {
+  background-image:
+    linear-gradient(rgb(33 27 24 / 3%) 1px, transparent 1px),
+    radial-gradient(circle at 100% 0, rgb(210 176 106 / 14%), transparent 30%);
+  background-size:
+    100% 1.85rem,
+    auto;
+}
+
+.birthday-presentation-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 35%, rgb(210 176 106 / 18%), transparent 34%),
+    radial-gradient(circle at 15% 90%, rgb(158 48 56 / 18%), transparent 28%);
+  pointer-events: none;
 }
 
 .special-reveal-section {
@@ -589,6 +649,13 @@ button:disabled {
     top: 1rem;
     right: -5rem;
     transform: none;
+  }
+
+  .birthday-wax-seal {
+    top: 1rem;
+    right: 1rem;
+    width: 3rem;
+    height: 3rem;
   }
 }
 

@@ -47,6 +47,14 @@ vi.mock("../championship/organizer/ChampionshipDesk", () => ({
   ),
 }));
 
+vi.mock("../birthday-vault/organizer/BirthdayVaultWorkspace", () => ({
+  BirthdayVaultWorkspace: () => (
+    <section aria-label="Birthday Vault content">
+      Birthday Vault content
+    </section>
+  ),
+}));
+
 describe("OrganizerAccess", () => {
   beforeEach(() => {
     organizerState.auth.organizer.status = "authorized";
@@ -69,7 +77,7 @@ describe("OrganizerAccess", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens all three authorized organizer workspaces including Championship Desk", async () => {
+  it("opens all four authorized organizer workspaces including Birthday Vault", async () => {
     render(<OrganizerAccess />);
 
     const trigger = screen.getByRole("button", {
@@ -88,6 +96,9 @@ describe("OrganizerAccess", () => {
     const championshipTab = within(dialog).getByRole("tab", {
       name: "Championship Desk",
     });
+    const birthdayTab = within(dialog).getByRole("tab", {
+      name: "Birthday Vault",
+    });
 
     expect(studioTab).toHaveAttribute("aria-selected", "true");
     expect(
@@ -96,7 +107,7 @@ describe("OrganizerAccess", () => {
     expect(
       within(dialog).getByRole("tabpanel", { name: "Competition Studio" }),
     ).toContainElement(
-      within(dialog).getByRole("region", {
+      await within(dialog).findByRole("region", {
         name: "Competition Studio content",
       }),
     );
@@ -112,7 +123,7 @@ describe("OrganizerAccess", () => {
 
     fireEvent.click(studioTab);
     expect(
-      within(dialog).getByText("Competition Studio content"),
+      await within(dialog).findByText("Competition Studio content"),
     ).toBeInTheDocument();
 
     fireEvent.click(championshipTab);
@@ -124,6 +135,15 @@ describe("OrganizerAccess", () => {
     ).toBeInTheDocument();
     expect(
       await within(dialog).findByText("Championship Desk content"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(birthdayTab);
+    expect(birthdayTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      await within(dialog).findByRole("tabpanel", { name: "Birthday Vault" }),
+    ).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText("Birthday Vault content"),
     ).toBeInTheDocument();
   });
 });

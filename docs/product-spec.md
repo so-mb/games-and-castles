@@ -106,9 +106,9 @@ The full timeline in section 5 is the approved source for Phase 1. Each entry in
 
 ### 4.5 Birthday Vault
 
-Before publication, the section is visibly locked. A guest can submit a display name, message, optional title, optional emoji, and optional anonymous-display preference. After submission the guest sees a confirmation and aggregate message count only. Other messages must not be queried or delivered to the guest browser.
+Before publication, the section presents a sealed guestbook. A linked guest can submit one message with an optional title, allowlisted motif, and named/anonymous display preference. Named identity comes from the participant profile rather than user-entered message data. After submission the guest sees their owner-private preview and an aggregate count derived from identity-free receipts. Other private messages and moderation must not be queried or delivered to the guest browser.
 
-The organizer can read, moderate, hide, close/reopen submissions, and publish approved messages. Publication copies a sanitized, approved snapshot to a separate public revealed path. Connected clients receive the published snapshot in realtime. Presentation mode is full-screen, tasteful, and replayable without rewriting publication data.
+The organizer can read, approve/hide, order, close/reopen submissions before reveal, privately preview, and atomically publish a complete approved snapshot. Editing a message stales its earlier approval. Connected clients receive the sanitized published set in realtime. Presentation mode is full-screen, tasteful, keyboard accessible, reduced-motion safe, and replayable without rewriting publication data.
 
 #### Birthday message publishing flow
 
@@ -117,16 +117,17 @@ sequenceDiagram
     participant G as Guest
     participant DB as Realtime Database
     participant O as Organizer
-    participant CF as Cloud Function
     G->>DB: Create own private submission
-    DB-->>G: Confirmation + aggregate count only
+    G->>DB: Atomically write matching identity-free receipt
+    DB-->>G: Owner-private confirmation + aggregate count
     O->>DB: Read and moderate private submissions
-    O->>CF: Publish approved message IDs
-    CF->>CF: Verify admin and sanitize snapshot
-    CF->>DB: Write published messages + reveal state + audit
+    O->>O: Validate readiness + build sanitized full snapshot
+    O->>DB: Atomic published set + reveal state + audit
     DB-->>G: Realtime published snapshot
     O->>O: Replay presentation locally (no republish)
 ```
+
+Phase 8 intentionally uses no Cloud Function. Organizer authentication and strict Realtime Database Rules authorize and validate the bounded atomic operation because the organizer already has permission to read the source messages and no protected server-only outcome is involved. This exception does not apply to prediction resolution or the protected special reveal in section 4.6.
 
 ### 4.6 Special Reveal
 

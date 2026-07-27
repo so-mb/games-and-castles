@@ -14,6 +14,7 @@ import {
   remove,
   set,
   update,
+  type Database,
 } from "firebase/database";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 import { createCompetitionRun } from "../../src/features/competitions/engine/activation";
@@ -244,6 +245,101 @@ function publicManualBonus(bonus: ManualChampionshipBonus) {
     updatedAt: bonus.updatedAt,
     revision: bonus.revision,
     schemaVersion: 1,
+  };
+}
+
+const birthdayPublicationId = "00000000-0000-4000-8000-000000000001";
+const secondBirthdayPublicationId = "00000000-0000-4000-8000-000000000002";
+
+function birthdayState(
+  status: "collecting" | "closed" | "revealed" = "collecting",
+  overrides: Record<string, unknown> = {},
+) {
+  const now = Date.now();
+  const value: Record<string, unknown> = {
+    status,
+    openedAt: now,
+    openedByUid: "admin",
+    revealRevision: status === "revealed" ? 1 : 0,
+    updatedAt: now,
+    updatedByUid: "admin",
+    revision: status === "collecting" ? 1 : status === "closed" ? 2 : 3,
+    schemaVersion: 1,
+  };
+  if (status !== "collecting") {
+    value.closedAt = now;
+    value.closedByUid = "admin";
+  }
+  if (status === "revealed") {
+    value.revealedAt = now;
+    value.revealedByUid = "admin";
+  }
+  return { ...value, ...overrides };
+}
+
+function birthdayMessage(overrides: Record<string, unknown> = {}) {
+  const now = Date.now();
+  return {
+    ownerUid: "guest-1",
+    participantId: "guest-1",
+    publicationId: birthdayPublicationId,
+    title: "For the road",
+    message: "A thoughtful birthday note.",
+    emojiKey: "sparkles",
+    displayMode: "named",
+    status: "submitted",
+    createdAt: now,
+    updatedAt: now,
+    revision: 1,
+    schemaVersion: 1,
+    ...overrides,
+  };
+}
+
+function birthdayReceipt(overrides: Record<string, unknown> = {}) {
+  return {
+    publicationId: birthdayPublicationId,
+    active: true,
+    updatedAt: Date.now(),
+    schemaVersion: 1,
+    ...overrides,
+  };
+}
+
+function birthdayModeration(overrides: Record<string, unknown> = {}) {
+  return {
+    ownerUid: "guest-1",
+    messageRevision: 1,
+    status: "approved",
+    displayOrder: 0,
+    note: "Ready for the reveal.",
+    updatedAt: Date.now(),
+    updatedByUid: "admin",
+    revision: 1,
+    schemaVersion: 1,
+    ...overrides,
+  };
+}
+
+function publishedBirthdayMessage(overrides: Record<string, unknown> = {}) {
+  return {
+    id: birthdayPublicationId,
+    title: "For the road",
+    message: "A thoughtful birthday note.",
+    emojiKey: "sparkles",
+    author: {
+      mode: "named",
+      participantId: "guest-1",
+      displayName: "Castle Guest",
+      avatarIcon: "castle",
+      avatarTone: "cyan",
+    },
+    displayOrder: 0,
+    sourceMessageRevision: 1,
+    publishedAt: Date.now(),
+    revealRevision: 1,
+    schemaVersion: 1,
+    ...overrides,
   };
 }
 
@@ -3230,6 +3326,769 @@ describe("Realtime Database security rules", () => {
         await assertFails(set(ref(admin, path), { value: "not implemented" }));
         await assertFails(set(ref(guest, path), { value: "not implemented" }));
       }
+    });
+  });
+
+  describe("Phase 8 Birthday Vault", () => {
+    function contexts() {
+      return {
+        unauthenticated: environment.unauthenticatedContext().database(),
+        guest: environment.authenticatedContext("guest-1").database(),
+        otherGuest: environment.authenticatedContext("guest-2").database(),
+        admin: environment
+          .authenticatedContext("admin", { admin: true })
+          .database(),
+      };
+    }
+
+    async function seedCollecting(overrides: Record<string, unknown> = {}) {
+      await seed({
+        participants: {
+          "guest-1": participant("guest-1", "guest-1"),
+          "guest-2": participant("guest-2", "guest-2"),
+        },
+        userProfiles: {
+          "guest-1": {
+            uid: "guest-1",
+            participantId: "guest-1",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            schemaVersion: 1,
+          },
+          "guest-2": {
+            uid: "guest-2",
+            participantId: "guest-2",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            schemaVersion: 1,
+          },
+        },
+        birthdayVault: {
+          publicState: birthdayState("collecting"),
+          ...overrides,
+        },
+      });
+    }
+
+    async function submitOwn(database: Database) {
+      const message = birthdayMessage();
+      await update(ref(database), {
+        "birthdayVault/privateMessages/guest-1": message,
+        [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+          birthdayReceipt({
+            updatedAt: message.updatedAt,
+          }),
+      });
+      return message;
+    }
+
+    it("1 denies unauthenticated public-state reads", async () => {
+      await seedCollecting();
+      await assertFails(
+        get(ref(contexts().unauthenticated, "birthdayVault/publicState")),
+      );
+    });
+
+    it("2 allows authenticated public-state reads", async () => {
+      await seedCollecting();
+      await assertSucceeds(
+        get(ref(contexts().guest, "birthdayVault/publicState")),
+      );
+    });
+
+    it("3 denies guest public-state creation and modification", async () => {
+      await assertFails(
+        set(
+          ref(contexts().guest, "birthdayVault/publicState"),
+          birthdayState(),
+        ),
+      );
+      await seedCollecting();
+      await assertFails(
+        set(
+          ref(contexts().guest, "birthdayVault/publicState"),
+          birthdayState("closed"),
+        ),
+      );
+    });
+
+    it("4 allows an admin to open the vault in collecting state", async () => {
+      await assertSucceeds(
+        set(
+          ref(contexts().admin, "birthdayVault/publicState"),
+          birthdayState(),
+        ),
+      );
+    });
+
+    it("5 rejects invalid state transitions", async () => {
+      await seedCollecting();
+      await assertFails(
+        set(
+          ref(contexts().admin, "birthdayVault/publicState"),
+          birthdayState("revealed", { revision: 2 }),
+        ),
+      );
+    });
+
+    it("6 rejects stale public-state revisions", async () => {
+      await seedCollecting();
+      await assertFails(
+        set(
+          ref(contexts().admin, "birthdayVault/publicState"),
+          birthdayState("closed", { revision: 1 }),
+        ),
+      );
+    });
+
+    it("7 allows an owner to atomically create one valid message and receipt", async () => {
+      await seedCollecting();
+      await assertSucceeds(submitOwn(contexts().guest));
+    });
+
+    it("8 rejects a submission before participant-profile linking", async () => {
+      await seedCollecting();
+      await seedAt("userProfiles/guest-1", null);
+      await assertFails(submitOwn(contexts().guest));
+    });
+
+    it("9 rejects a submission for another participant", async () => {
+      await seedCollecting();
+      const message = birthdayMessage({ participantId: "guest-2" });
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": message,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ updatedAt: message.updatedAt }),
+        }),
+      );
+    });
+
+    it("10 denies reading another guest private message", async () => {
+      await seedCollecting({
+        privateMessages: { "guest-1": birthdayMessage() },
+      });
+      await assertFails(
+        get(
+          ref(contexts().otherGuest, "birthdayVault/privateMessages/guest-1"),
+        ),
+      );
+    });
+
+    it("11 denies writing another guest private message", async () => {
+      await seedCollecting();
+      await assertFails(
+        set(
+          ref(contexts().otherGuest, "birthdayVault/privateMessages/guest-1"),
+          birthdayMessage(),
+        ),
+      );
+    });
+
+    it("12 allows an organizer to read the private collection", async () => {
+      await seedCollecting({
+        privateMessages: { "guest-1": birthdayMessage() },
+      });
+      await assertSucceeds(
+        get(ref(contexts().admin, "birthdayVault/privateMessages")),
+      );
+    });
+
+    it("13 allows an owner edit with an atomic receipt update while collecting", async () => {
+      await seedCollecting();
+      const current = await submitOwn(contexts().guest);
+      const next = {
+        ...current,
+        message: "An edited thoughtful birthday note.",
+        updatedAt: Date.now(),
+        revision: 2,
+      };
+      await assertSucceeds(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": next,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ updatedAt: next.updatedAt }),
+        }),
+      );
+    });
+
+    it("14 rejects owner edits after close", async () => {
+      await seedCollecting();
+      const current = await submitOwn(contexts().guest);
+      await seedAt("birthdayVault/publicState", birthdayState("closed"));
+      const next = {
+        ...current,
+        message: "An edited thoughtful birthday note.",
+        updatedAt: Date.now(),
+        revision: 2,
+      };
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": next,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ updatedAt: next.updatedAt }),
+        }),
+      );
+    });
+
+    it("15 rejects owner edits after reveal", async () => {
+      await seedCollecting();
+      const current = await submitOwn(contexts().guest);
+      await seedAt("birthdayVault/publicState", birthdayState("revealed"));
+      const next = {
+        ...current,
+        message: "An edited thoughtful birthday note.",
+        updatedAt: Date.now(),
+        revision: 2,
+      };
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": next,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ updatedAt: next.updatedAt }),
+        }),
+      );
+    });
+
+    it("16 keeps publication identity immutable", async () => {
+      await seedCollecting();
+      const current = await submitOwn(contexts().guest);
+      const next = {
+        ...current,
+        publicationId: secondBirthdayPublicationId,
+        updatedAt: Date.now(),
+        revision: 2,
+      };
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": next,
+          [`birthdayVault/submissionReceipts/${secondBirthdayPublicationId}`]:
+            birthdayReceipt({
+              publicationId: secondBirthdayPublicationId,
+              updatedAt: next.updatedAt,
+            }),
+        }),
+      );
+    });
+
+    it("17 keeps participant identity immutable", async () => {
+      await seedCollecting();
+      const current = await submitOwn(contexts().guest);
+      const next = {
+        ...current,
+        participantId: "guest-2",
+        updatedAt: Date.now(),
+        revision: 2,
+      };
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": next,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ updatedAt: next.updatedAt }),
+        }),
+      );
+    });
+
+    it("18 rejects stale message revisions", async () => {
+      await seedCollecting();
+      const current = await submitOwn(contexts().guest);
+      const next = {
+        ...current,
+        message: "A stale replacement message.",
+        updatedAt: Date.now(),
+        revision: 1,
+      };
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": next,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ updatedAt: next.updatedAt }),
+        }),
+      );
+    });
+
+    it("19 rejects invalid message lengths", async () => {
+      await seedCollecting();
+      for (const text of ["four", "x".repeat(1201)]) {
+        const message = birthdayMessage({ message: text });
+        await assertFails(
+          update(ref(contexts().guest), {
+            "birthdayVault/privateMessages/guest-1": message,
+            [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+              birthdayReceipt({ updatedAt: message.updatedAt }),
+          }),
+        );
+      }
+    });
+
+    it("20 rejects an overlong title", async () => {
+      await seedCollecting();
+      const message = birthdayMessage({ title: "x".repeat(61) });
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": message,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ updatedAt: message.updatedAt }),
+        }),
+      );
+    });
+
+    it("21 rejects an unapproved emoji key", async () => {
+      await seedCollecting();
+      const message = birthdayMessage({ emojiKey: "remote-image" });
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": message,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ updatedAt: message.updatedAt }),
+        }),
+      );
+    });
+
+    it("22 allows withdrawal with a matching inactive receipt", async () => {
+      await seedCollecting();
+      const current = await submitOwn(contexts().guest);
+      const next = {
+        ...current,
+        status: "withdrawn",
+        updatedAt: Date.now(),
+        revision: 2,
+      };
+      await assertSucceeds(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": next,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ active: false, updatedAt: next.updatedAt }),
+        }),
+      );
+    });
+
+    it("23 rejects withdrawal after close", async () => {
+      await seedCollecting();
+      const current = await submitOwn(contexts().guest);
+      await seedAt("birthdayVault/publicState", birthdayState("closed"));
+      const next = {
+        ...current,
+        status: "withdrawn",
+        updatedAt: Date.now(),
+        revision: 2,
+      };
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": next,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ active: false, updatedAt: next.updatedAt }),
+        }),
+      );
+    });
+
+    it("24 requires the receipt matching the owner message", async () => {
+      await seedCollecting();
+      await assertSucceeds(submitOwn(contexts().guest));
+      await assertFails(
+        set(
+          ref(
+            contexts().guest,
+            `birthdayVault/submissionReceipts/${birthdayPublicationId}`,
+          ),
+          birthdayReceipt({ updatedAt: Date.now() }),
+        ),
+      );
+    });
+
+    it("25 denies receipts for another publication identity", async () => {
+      await seedCollecting();
+      await submitOwn(contexts().guest);
+      await assertFails(
+        set(
+          ref(
+            contexts().guest,
+            `birthdayVault/submissionReceipts/${secondBirthdayPublicationId}`,
+          ),
+          birthdayReceipt({ publicationId: secondBirthdayPublicationId }),
+        ),
+      );
+    });
+
+    it("26 rejects private fields in a receipt", async () => {
+      await seedCollecting();
+      const message = birthdayMessage();
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": message,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ message: "private" }),
+        }),
+      );
+    });
+
+    it("27 rejects a receipt inconsistent with message status", async () => {
+      await seedCollecting();
+      const message = birthdayMessage({ status: "withdrawn" });
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/privateMessages/guest-1": message,
+          [`birthdayVault/submissionReceipts/${birthdayPublicationId}`]:
+            birthdayReceipt({ active: true, updatedAt: message.updatedAt }),
+        }),
+      );
+    });
+
+    it("28 allows authenticated reads of sanitized receipts", async () => {
+      await seedCollecting({
+        submissionReceipts: { [birthdayPublicationId]: birthdayReceipt() },
+      });
+      await assertSucceeds(
+        get(ref(contexts().otherGuest, "birthdayVault/submissionReceipts")),
+      );
+    });
+
+    it("29 denies guest moderation reads", async () => {
+      await seedCollecting({ moderation: { "guest-1": birthdayModeration() } });
+      await assertFails(
+        get(ref(contexts().guest, "birthdayVault/moderation/guest-1")),
+      );
+    });
+
+    it("30 denies guest moderation writes", async () => {
+      await seedCollecting({
+        privateMessages: { "guest-1": birthdayMessage() },
+      });
+      await assertFails(
+        set(
+          ref(contexts().guest, "birthdayVault/moderation/guest-1"),
+          birthdayModeration({ updatedByUid: "guest-1" }),
+        ),
+      );
+    });
+
+    it("31 allows admin approval of the current message revision", async () => {
+      await seedCollecting({
+        privateMessages: { "guest-1": birthdayMessage() },
+      });
+      await assertSucceeds(
+        set(
+          ref(contexts().admin, "birthdayVault/moderation/guest-1"),
+          birthdayModeration(),
+        ),
+      );
+    });
+
+    it("32 allows an admin to hide a message", async () => {
+      await seedCollecting({
+        privateMessages: { "guest-1": birthdayMessage() },
+      });
+      const hidden = birthdayModeration({ status: "hidden" });
+      delete hidden.displayOrder;
+      await assertSucceeds(
+        set(ref(contexts().admin, "birthdayVault/moderation/guest-1"), hidden),
+      );
+    });
+
+    it("33 rejects invalid moderation statuses", async () => {
+      await seedCollecting({
+        privateMessages: { "guest-1": birthdayMessage() },
+      });
+      await assertFails(
+        set(
+          ref(contexts().admin, "birthdayVault/moderation/guest-1"),
+          birthdayModeration({ status: "pending" }),
+        ),
+      );
+    });
+
+    it("34 rejects stale moderation revisions", async () => {
+      await seedCollecting({
+        privateMessages: { "guest-1": birthdayMessage() },
+        moderation: { "guest-1": birthdayModeration() },
+      });
+      await assertFails(
+        set(
+          ref(contexts().admin, "birthdayVault/moderation/guest-1"),
+          birthdayModeration({ revision: 1 }),
+        ),
+      );
+    });
+
+    it("35 rejects overlong moderation notes", async () => {
+      await seedCollecting({
+        privateMessages: { "guest-1": birthdayMessage() },
+      });
+      await assertFails(
+        set(
+          ref(contexts().admin, "birthdayVault/moderation/guest-1"),
+          birthdayModeration({ note: "x".repeat(281) }),
+        ),
+      );
+    });
+
+    it("36 denies guest writes to published messages", async () => {
+      await seedCollecting();
+      await assertFails(
+        set(
+          ref(
+            contexts().guest,
+            `birthdayVault/publishedMessages/${birthdayPublicationId}`,
+          ),
+          publishedBirthdayMessage(),
+        ),
+      );
+    });
+
+    it("37 denies published-message reads before reveal", async () => {
+      await seedCollecting({
+        publishedMessages: {
+          [birthdayPublicationId]: publishedBirthdayMessage(),
+        },
+      });
+      await assertFails(
+        get(ref(contexts().guest, "birthdayVault/publishedMessages")),
+      );
+    });
+
+    it("38 allows published-message reads after reveal", async () => {
+      await seedCollecting({
+        publicState: birthdayState("revealed"),
+        publishedMessages: {
+          [birthdayPublicationId]: publishedBirthdayMessage(),
+        },
+      });
+      await assertSucceeds(
+        get(ref(contexts().guest, "birthdayVault/publishedMessages")),
+      );
+    });
+
+    it("39 rejects anonymous publication containing participant identity", async () => {
+      await seedCollecting({ publicState: birthdayState("revealed") });
+      await assertFails(
+        set(
+          ref(
+            contexts().admin,
+            `birthdayVault/publishedMessages/${birthdayPublicationId}`,
+          ),
+          publishedBirthdayMessage({
+            author: {
+              mode: "anonymous",
+              participantId: "guest-1",
+              displayName: "Anonymous",
+            },
+          }),
+        ),
+      );
+    });
+
+    it("40 rejects named publication missing author snapshot data", async () => {
+      await seedCollecting({ publicState: birthdayState("revealed") });
+      await assertFails(
+        set(
+          ref(
+            contexts().admin,
+            `birthdayVault/publishedMessages/${birthdayPublicationId}`,
+          ),
+          publishedBirthdayMessage({
+            author: {
+              mode: "named",
+              participantId: "guest-1",
+              displayName: "Castle Guest",
+            },
+          }),
+        ),
+      );
+    });
+
+    it("41 rejects invalid published display order", async () => {
+      await seedCollecting({ publicState: birthdayState("revealed") });
+      await assertFails(
+        set(
+          ref(
+            contexts().admin,
+            `birthdayVault/publishedMessages/${birthdayPublicationId}`,
+          ),
+          publishedBirthdayMessage({ displayOrder: -1 }),
+        ),
+      );
+    });
+
+    it("42 rejects published records with the wrong reveal revision", async () => {
+      await seedCollecting({ publicState: birthdayState("revealed") });
+      await assertFails(
+        set(
+          ref(
+            contexts().admin,
+            `birthdayVault/publishedMessages/${birthdayPublicationId}`,
+          ),
+          publishedBirthdayMessage({ revealRevision: 2 }),
+        ),
+      );
+    });
+
+    it("43 allows an admin to atomically reveal one valid published set", async () => {
+      const closed = birthdayState("closed", {
+        closedAt: Date.now() - 120_000,
+        closedByUid: "another-admin",
+      });
+      await seedCollecting({ publicState: closed });
+      await assertSucceeds(
+        update(ref(contexts().admin), {
+          "birthdayVault/publicState": birthdayState("revealed", {
+            openedAt: closed.openedAt,
+            openedByUid: closed.openedByUid,
+            closedAt: closed.closedAt,
+            closedByUid: closed.closedByUid,
+          }),
+          "birthdayVault/publishedMessages": {
+            [birthdayPublicationId]: publishedBirthdayMessage(),
+          },
+          "audit/birthday-reveal": auditEntry(
+            "birthday-reveal",
+            "birthday-vault",
+            {
+              action: "birthday-vault-revealed",
+              entityType: "birthday-vault",
+              beforeRevision: 2,
+              afterRevision: 3,
+              summary: "Birthday Vault revealed to authenticated guests.",
+            },
+          ),
+        }),
+      );
+    });
+
+    it("44 blocks a structurally incomplete reveal with no published set", async () => {
+      await seedCollecting({
+        publicState: birthdayState("closed"),
+        privateMessages: { "guest-1": birthdayMessage() },
+      });
+      await assertFails(
+        set(
+          ref(contexts().admin, "birthdayVault/publicState"),
+          birthdayState("revealed"),
+        ),
+      );
+    });
+
+    it("45 blocks publication changes outside an atomic reveal transition", async () => {
+      await seedCollecting({
+        publicState: birthdayState("revealed"),
+        publishedMessages: {
+          [birthdayPublicationId]: publishedBirthdayMessage(),
+        },
+      });
+      await assertFails(
+        set(
+          ref(
+            contexts().admin,
+            `birthdayVault/publishedMessages/${birthdayPublicationId}`,
+          ),
+          publishedBirthdayMessage({ title: "Changed after publication" }),
+        ),
+      );
+    });
+
+    it("46 allows controlled republish with incremented state and reveal revisions", async () => {
+      const revealed = birthdayState("revealed");
+      await seedCollecting({
+        publicState: revealed,
+        publishedMessages: {
+          [birthdayPublicationId]: publishedBirthdayMessage(),
+        },
+      });
+      await assertSucceeds(
+        update(ref(contexts().admin), {
+          "birthdayVault/publicState": birthdayState("revealed", {
+            openedAt: revealed.openedAt,
+            openedByUid: revealed.openedByUid,
+            closedAt: revealed.closedAt,
+            closedByUid: revealed.closedByUid,
+            revision: 4,
+            revealRevision: 2,
+          }),
+          [`birthdayVault/publishedMessages/${birthdayPublicationId}`]:
+            publishedBirthdayMessage({ revealRevision: 2 }),
+        }),
+      );
+    });
+
+    it("47 denies guest republish", async () => {
+      await seedCollecting({
+        publicState: birthdayState("revealed"),
+        publishedMessages: {
+          [birthdayPublicationId]: publishedBirthdayMessage(),
+        },
+      });
+      await assertFails(
+        update(ref(contexts().guest), {
+          "birthdayVault/publicState": birthdayState("revealed", {
+            revision: 4,
+            revealRevision: 2,
+            updatedByUid: "guest-1",
+            revealedByUid: "guest-1",
+          }),
+          [`birthdayVault/publishedMessages/${birthdayPublicationId}`]:
+            publishedBirthdayMessage({ revealRevision: 2 }),
+        }),
+      );
+    });
+
+    it("48 keeps Birthday Vault audit entries append-only", async () => {
+      const entry = auditEntry("birthday-audit", "birthday-vault", {
+        action: "birthday-vault-opened",
+        entityType: "birthday-vault",
+        summary: "Birthday Vault submissions opened.",
+      });
+      await assertSucceeds(
+        set(ref(contexts().admin, "audit/birthday-audit"), entry),
+      );
+      await assertFails(
+        set(ref(contexts().admin, "audit/birthday-audit"), {
+          ...entry,
+          summary: "Changed.",
+        }),
+      );
+    });
+
+    it("49 preserves existing participant owner protections", async () => {
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+      });
+      await assertFails(remove(ref(contexts().guest, "participants/guest-1")));
+    });
+
+    it("50 preserves existing competition guest-write denial", async () => {
+      await assertFails(
+        set(ref(contexts().guest, "competitions/new"), competitionDraft("new")),
+      );
+    });
+
+    it("51 preserves existing championship-ledger guest-write denial", async () => {
+      await assertFails(
+        set(
+          ref(contexts().guest, "championshipLedger/manualBonusesPublic/new"),
+          { points: 4 },
+        ),
+      );
+    });
+
+    it("52 keeps prediction paths denied", async () => {
+      await assertFails(
+        set(ref(contexts().admin, "predictions/event/guest-1"), {
+          selection: "option-a",
+        }),
+      );
+      await assertFails(
+        set(ref(contexts().guest, "predictions/event/guest-1"), {
+          selection: "option-a",
+        }),
+      );
+    });
+
+    it("53 keeps special-reveal paths denied", async () => {
+      await assertFails(
+        set(ref(contexts().admin, "specialReveal/state"), { status: "locked" }),
+      );
+      await assertFails(
+        set(ref(contexts().guest, "specialReveal/state"), { status: "locked" }),
+      );
     });
   });
 });

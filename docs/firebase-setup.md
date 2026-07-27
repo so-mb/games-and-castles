@@ -1,12 +1,12 @@
 # Firebase setup and operations
 
-## 1. Phase 2–6 scope
+## 1. Phase 2–8 scope
 
-Firebase powers anonymous guest identity, the shared participant roster, organizer email/password authentication, organizer participant management, competition configuration, all three competition runtimes, and the Phase 7 championship ledger. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
+Firebase powers anonymous guest identity, the shared participant roster, organizer email/password authentication, organizer participant management, competition configuration, all three competition runtimes, the Phase 7 championship ledger, and the Phase 8 Birthday Vault. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
 
-Phases 4–6 store public-safe active/completed competition records and format-discriminated `/competitionRuns/{competitionId}` data. Phase 7 stores one replaceable normalized source per valid active/completed run under `/championshipLedger/competitionSources/{competitionId}`. Every score-relevant runtime mutation writes the next run, full ledger source, status change when applicable, and audit event as one root update. Totals and ranks remain pure client derivations. Manual bonuses use a restricted full history plus a sanitized active-only public projection. Messages, predictions, protected reveal data, the exact accommodation address, Cloud Functions, App Check, analytics, and service-worker behavior remain unimplemented.
+Phases 4–6 store public-safe active/completed competition records and format-discriminated `/competitionRuns/{competitionId}` data. Phase 7 stores one replaceable normalized source per valid active/completed run under `/championshipLedger/competitionSources/{competitionId}`. Phase 8 stores lifecycle state, identity-free receipts, owner-private messages, organizer-only moderation, and sanitized revealed snapshots under `/birthdayVault`. Birthday submit/withdraw and reveal/republish are atomic root updates validated by Rules; presentation replay is local-only. Predictions, protected special-reveal data, the exact accommodation address, Cloud Functions, App Check, analytics, and service-worker behavior remain unimplemented.
 
-> **Production status (27 July 2026):** Phases 2–6 are deployed and production-tested. The production Firebase project and organizer access are provisioned, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. Phase 7 is complete in the repository only; its Rules/frontend deployment and production-run reconciliation remain deliberate operator actions. This implementation did not deploy Rules or change remote Firebase data.
+> **Production status (27 July 2026):** Phases 2–7 are deployed, production-connected, and reconciled. The production Firebase project and organizer access are provisioned, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. Phase 8 is complete in the repository only; its Rules/frontend deployment remains a deliberate operator action. This implementation did not deploy Rules or change remote Firebase data.
 
 ## 2. Create the Firebase projects
 
@@ -100,7 +100,7 @@ npm run deploy:rules -- YOUR_PRODUCTION_PROJECT_ID
 
 Run only the line for the intended environment. Before deployment, confirm the CLI target printed by Firebase, confirm the project is development or production as intended, and inspect `git diff -- database.rules.json`. Do not deploy from the Pages workflow.
 
-Phases 3–6 add these flat paths to the existing Phase 2 schema:
+Phases 3–7 add these flat paths to the existing Phase 2 schema:
 
 - `/competitionDrafts/{competitionId}` — organizer read/write; unused drafts may be deleted.
 - `/competitions/{competitionId}` — authenticated read; organizer configuration lifecycle plus atomic Merry-Go-Round, All Hands, or Group Format activate/complete/reopen/reset status transitions; no client delete.
@@ -109,6 +109,17 @@ Phases 3–6 add these flat paths to the existing Phase 2 schema:
 - `/championshipLedger/manualBonuses/{bonusId}` — organizer-only active/revoked history; no hard deletion.
 - `/championshipLedger/manualBonusesPublic/{bonusId}` — authenticated read of sanitized active bonuses only.
 - `/audit/{auditId}` — organizer read and create-only append; no update/delete. Phase 7 adds safe source backfill/reconciliation/orphan-removal and bonus create/revoke/restore events.
+
+Phase 8 adds:
+
+- `/birthdayVault/publicState` — authenticated read; organizer-only revisioned lifecycle transitions.
+- `/birthdayVault/submissionReceipts/{publicationId}` — authenticated read of sanitized count records; the owner may write only the UUID matching their own message and only atomically with its status.
+- `/birthdayVault/privateMessages/{ownerUid}` — owner/admin read; owner-only create/edit/withdraw/resubmit while collecting, with profile/participant linkage and immutable identity.
+- `/birthdayVault/moderation/{ownerUid}` — organizer-only read/write, one-step revisions, current message-revision references, private notes, and ordering.
+- `/birthdayVault/publishedMessages/{publicationId}` — authenticated read only after reveal; organizer-only sanitized records tied to the current reveal revision.
+- `/audit/{auditId}` — adds compact Birthday Vault state/moderation/order/publication actions without message bodies or notes.
+
+After deliberately deploying the Phase 8 Rules and frontend, sign in to Organizer Mode and open **Birthday Vault**. Open submissions only when ready to collect real messages. Rehearse with synthetic emulator data first; do not create production test messages that might be mistaken for guest content. Rules deployment is still separate from Pages deployment and is never performed by the Pages workflow.
 
 After the revised Rules are deliberately deployed, publish the frontend through the normal Pages workflow. In Organizer Mode, open **Championship Desk**, review the preview counts, reconcile each existing valid run (or use **Reconcile all**), then repeat the scan to confirm every supported active/completed run is **In sync**. Reconciliation is idempotent and does not alter results. Test result correction, All Hands void/restore, completion/reopen, bonus revoke/restore, and guest write denial with synthetic development data before production. A production smoke check should remain non-destructive beyond the required ledger backfill.
 

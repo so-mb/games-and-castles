@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { itineraryItems } from "../data/itinerary";
-import { birthdayVaultState, specialRevealState } from "../data/lockedStates";
+import { specialRevealState } from "../data/lockedStates";
 import { competitionPreviews } from "../data/mockChampionship";
 import {
   navigationItems,
@@ -85,20 +85,18 @@ describe("Games & Castles static shell", () => {
     );
   });
 
-  it("keeps both locked sections neutral and presentation-only", () => {
+  it("renders the live Birthday Vault and keeps the special reveal neutral", async () => {
     renderApp();
 
     expect(
-      screen.getByRole("heading", { name: birthdayVaultState.title }),
+      await screen.findByRole("heading", { name: "Birthday Vault" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: specialRevealState.title }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Interactive submissions arrive in a later phase/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/private digital guestbook/i)).toBeInTheDocument();
 
-    const lockedData = JSON.stringify([birthdayVaultState, specialRevealState]);
+    const lockedData = JSON.stringify([specialRevealState]);
     expect(lockedData).not.toMatch(/option-a|option-b|secret code|pin/i);
     expect(document.body.textContent).not.toMatch(
       /option-a|option-b|secret code|organizer pin/i,

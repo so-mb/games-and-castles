@@ -300,7 +300,7 @@ Cross-cutting rules:
 
 ### Phase 7 — Overall championship ledger and leaderboard
 
-**Implementation status:** Complete in the repository. Deployment of the Phase 7 Rules/frontend and one production reconciliation remain operator actions; no remote Firebase resource was changed by this implementation.
+**Implementation status:** Complete, deployed, production-connected, and reconciled. All three authoritative competition runtimes feed current deterministic sources; the public leaderboard and organizer bonus/reconciliation tools are live.
 
 **Goal:** Turn the Phase 4–6 per-run point projections into a persisted, weekend-wide, explainable scoring ledger for all three competition formats. Prediction scoring remains deferred.
 
@@ -336,20 +336,22 @@ Cross-cutting rules:
 
 ### Phase 8 — Birthday Vault
 
+**Implementation status:** Complete in the repository. Owner-private submission/edit/withdrawal, sanitized receipt counting, revision-aware organizer moderation/order, lifecycle controls, atomic full-set reveal/republish, public gallery, private/public full-screen presentation, default-deny Rules, runtime quarantine, and the expanded emulator/frontend/domain suites are implemented. Deployment of the Phase 8 Rules/frontend remains a deliberate operator action; no remote Firebase resource was changed by this implementation.
+
 **Goal:** Deliver a private guestbook whose submissions remain unreadable to other guests until an organizer publishes an approved snapshot.
 
 **Inputs**
 
-- Phase 2 identity/functions/rules; Phase 7 realtime/presentation foundations; Birthday Vault model and locked/reveal design.
+- Phase 2 identity/rules; Phase 7 realtime/presentation foundations; confirmed Phase 8 lifecycle/privacy/content decisions; Birthday Vault locked/reveal design.
 
 **Outputs**
 
-- Validated/rate-limited guest submission and confirmation flow.
-- Backend-maintained public message count without public submission reads.
+- Validated, owner-scoped guest submission and confirmation flow with revision conflict handling.
+- Receipt-derived public message count without public submission reads or identities.
 - Organizer moderation, hide, close/reopen, ordering, and approved publication.
 - Separate published snapshot path and full-screen replayable presentation.
 
-**Dependencies:** Phase 2; content limits/retention and anonymous display policy confirmed; presentation shell.
+**Dependencies:** Satisfied. Phase 2 identity and Rules foundations plus Phase 7 presentation/realtime patterns are deployed. Content limits, edit/moderation behavior, anonymous wording, lifecycle, and publication authority are confirmed; general production retention remains Phase 10 policy work.
 
 **Acceptance criteria**
 
@@ -363,7 +365,9 @@ Cross-cutting rules:
 
 **Main technical risks:** Rules query misconception leaking the collection; unsafe rich text/XSS; count manipulation; anonymous preference not honored; publication race while moderation changes.
 
-**Recommended tests:** Rules/emulator enumeration attempts; callable rate/schema tests; sanitization/XSS cases; publication snapshot golden test; concurrency/expected revision; replay network-write assertion; screen-reader/presentation tests.
+**Implemented tests/review:** Pure domain tests cover content normalization/bounds, receipts, moderation freshness, ordering normalization, named/anonymous snapshots, readiness, lifecycle, republish removal, and malformed quarantine. Frontend tests cover live guest states, form/preview, closed editing boundary, anonymous presentation, keyboard close, and organizer workspace access. The 154-case Rules matrix preserves every Phase 2–7 regression and adds 53 focused Birthday Vault authorization, privacy, revision, receipt, moderation, publication, audit, and deferred-path cases. Broader physical-device, multi-client, and production rehearsal remains Phase 11 hardening work.
+
+**Phase boundary:** Phase 8 introduces no Cloud Function, prediction data, special-reveal payload, protected code, scoring, App Check enforcement, or protected accommodation data. Phase 9 retains the trusted-backend boundary for prediction resolution and protected reveal publication.
 
 ---
 

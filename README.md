@@ -2,7 +2,7 @@
 
 Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and Sunday departure and onward travel. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
 
-> **Status:** Phase 7 repository implementation complete — Phase 6 is deployed and production-tested, and all three live engines now feed a deterministic, itemized championship ledger. The public site derives its realtime podium, shared-rank leaderboard, contributions, latest awards, participant explanations, and achievements from current ledger entries. Organizer Mode adds Championship Sync and revisioned manual bonuses. The Phase 7 Rules and frontend still require deliberate deployment, followed by one organizer reconciliation of existing production runs; this repository change did not modify remote Firebase resources.
+> **Status:** Phase 8 repository implementation complete — Phases 1–7 are deployed, production-connected, and reconciled. The Birthday Vault now provides one owner-scoped private message per participant, sanitized public counting, revision-safe organizer moderation, atomic reveal/republish, and a replayable presentation. The Phase 8 Rules and frontend still require deliberate deployment; this repository change did not modify remote Firebase resources.
 
 ## Technology
 
@@ -70,13 +70,14 @@ Generated `dist/` output is ignored and must not be committed.
 
 The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. The production repository uses **GitHub Actions** as its Pages source and has all six `VITE_FIREBASE_*` public values configured as repository **Actions variables**, not secrets; the workflow maps them only into the build. Production assets use Vite's `/games-and-castles/` base path, the app uses anchor navigation rather than server-side routes, and the deployed site is successfully connected to Firebase.
 
-Phase 6 is deployed and production-tested. Phase 7 adds `/championshipLedger/competitionSources`, a public active-bonus projection, a restricted bonus history, deterministic full-source replacement alongside runtime mutations, strict client validation, and organizer-only reconciliation for runs created before the ledger existed. No mutable participant total or persisted leaderboard cache exists. See the [championship ledger](docs/championship-ledger.md) for the production backfill sequence. Birthday submissions, predictions, protected reveal operations, Cloud Functions, and App Check remain later phases according to the [implementation roadmap](docs/implementation-roadmap.md).
+Phases 1–7 are deployed and production-connected; the Phase 7 championship sources have been reconciled. Phase 8 adds `/birthdayVault` owner-private messages, identity-free receipts, organizer-only moderation, sanitized published snapshots, strict runtime validation, and local-only presentation replay. It intentionally uses no Cloud Function: guest and organizer clients submit atomic multi-location operations that the default-deny Rules validate. Prediction processing, the protected special reveal, Cloud Functions, and App Check remain later phases according to the [implementation roadmap](docs/implementation-roadmap.md).
 
 ## Documentation
 
 - [Product specification](docs/product-spec.md)
 - [Competition and scoring rules](docs/game-rules.md)
 - [Championship ledger and reconciliation](docs/championship-ledger.md)
+- [Birthday Vault](docs/birthday-vault.md)
 - [Domain and Firebase data model](docs/data-model.md)
 - [Authentication and security model](docs/security-model.md)
 - [Firebase setup and operations](docs/firebase-setup.md)
@@ -87,9 +88,9 @@ Phase 6 is deployed and production-tested. Phase 7 adds `/championshipLedger/com
 ## Development phases
 
 - **Phase 0:** frozen product and architecture documentation.
-- **Phases 1–6:** implemented, deployed, and production-tested — static shell, Firebase participant foundation, Competition Studio, and all three competition engines.
-- **Phase 7:** repository implementation complete — ledger-derived championship, reconciliation, and manual bonuses; deployment/backfill remains an operator action.
-- **Phases 8–9:** Birthday Vault, prediction event, and protected reveal flow.
+- **Phases 1–7:** implemented, deployed, production-connected, and reconciled — static shell, Firebase participant foundation, Competition Studio, all three competition engines, and ledger-derived championship.
+- **Phase 8:** repository implementation complete — private Birthday Vault submission, moderation, publication, and presentation; deployment remains an operator action.
+- **Phase 9:** prediction event and protected reveal flow.
 - **Phases 10–11:** security hardening, accessibility, animation, multi-device rehearsal, and production deployment.
 
 See the [implementation roadmap](docs/implementation-roadmap.md) for measurable phase gates.

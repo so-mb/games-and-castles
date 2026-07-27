@@ -1,11 +1,16 @@
 import { Castle } from "lucide-react";
-import { useMemo } from "react";
+import { lazy, Suspense, useMemo } from "react";
 import { navigationItems } from "../../data/trip";
-import { OrganizerAccess } from "../../features/organizer/OrganizerAccess";
 import { cn } from "../../lib/cn";
 import { useActiveSection } from "../../hooks/useActiveSection";
 import { Container } from "../layout/Container";
 import { ContentIcon } from "../ui/ContentIcon";
+
+const OrganizerAccess = lazy(() =>
+  import("../../features/organizer/OrganizerAccess").then((module) => ({
+    default: module.OrganizerAccess,
+  })),
+);
 
 export function SiteNavigation() {
   const sectionIds = useMemo(() => navigationItems.map((item) => item.id), []);
@@ -62,7 +67,16 @@ export function SiteNavigation() {
           </ul>
         </nav>
 
-        <OrganizerAccess />
+        <Suspense
+          fallback={
+            <span
+              aria-hidden="true"
+              className="min-h-11 w-24 shrink-0 rounded-xl border border-white/8 bg-white/4"
+            />
+          }
+        >
+          <OrganizerAccess />
+        </Suspense>
       </Container>
     </header>
   );
