@@ -624,11 +624,52 @@ The common result metadata contains the complete `entityIndex`, `completedAt`, `
 
 For team sessions, every selected participant appears in exactly one non-empty session-local team and result entity IDs reference those stable team IDs. The pure derivation expands each team award in full to every member under `teamAwardPolicy: 'each-member'`. Individual sessions map entity IDs directly to participant IDs.
 
-Persisted All Hands sources of truth are the frozen snapshot and eligibility, session definitions/membership, raw result inputs and revisions, void metadata, explicit final tie orders with standings fingerprints, final placement snapshot, and audit events. Session awards, standings, placement/win counts, average placement, progress, and itemized projected competition points are rebuilt from that source. No independently mutable total and no Phase 7 score-ledger entry is written.
+Persisted All Hands sources of truth are the frozen snapshot and eligibility, session definitions/membership, raw result inputs and revisions, void metadata, explicit final tie orders with standings fingerprints, final placement snapshot, and audit events. Session awards, standings, placement/win counts, average placement, progress, and itemized competition points are rebuilt from that source. The runtime contains no total or ledger field; Phase 7 writes its normalized external competition source atomically beside runtime mutations.
 
 Fixed plans may enter completion review only after the configured number of non-voided completed sessions; open-ended plans require at least one. Completion atomically moves both competition and run to `completed`. Reopen preserves sessions/results, removes final placement/completion/tie metadata, and returns the run to `sessions`. Before any result, reset may remove the runtime and return the unchanged competition to `scheduled`.
 
 ## 8. Standings and championship ledger
+
+Phase 7 implements the namespaced ledger below. The older `Standing` and `ChampionshipScoreEntry` interfaces in this section remain conceptual future/cache shapes; the current authoritative competition source uses `CompetitionLedgerSnapshot` and is never reduced to a mutable total.
+
+```ts
+interface CompetitionLedgerSnapshot {
+  meta: {
+    competitionId: string;
+    competitionFormat: CompetitionFormat;
+    competitionStatus: 'active' | 'completed';
+    competitionTitle: string;
+    runRevision: number;
+    sourceFingerprint: string;
+    generatedAt: number;
+    generatedBy: 'organizer'; // public-safe marker; actor UID remains in organizer-only audit
+    entryCount: number;
+    schemaVersion: 1;
+  };
+  entries: Record<string, ChampionshipLedgerEntry>;
+}
+
+interface ChampionshipLedgerEntry {
+  id: string; // deterministic path-safe hash of logical source identity
+  participantId: string;
+  sourceNamespace: 'competition';
+  sourceId: string; // competition ID
+  sourceEntityId: string; // match, session, qualification, or placement source
+  sourceType: ChampionshipAwardType;
+  points: number;
+  label: string;
+  competitionId: string;
+  competitionFormat: CompetitionFormat;
+  stage: string | null;
+  awardedAt: number;
+  sourceRevision: number;
+  schemaVersion: 1;
+}
+```
+
+The implemented award union covers match wins, round wins, match participation, session wins/placements/participation/custom awards, qualification, and the three competition podium places. Zero awards are omitted. The entry identity hashes competition, participant, award type, source entity, and optional discriminator after canonical serialization; display names never participate.
+
+One runtime mutation replaces the complete `/championshipLedger/competitionSources/{competitionId}` source. Reopen, correction, session void/restore, knockout reset, and pre-result run reset therefore remove unsupported entries rather than adding compensating corrections. The source fingerprint covers the authoritative run revision, canonical scoring configuration, status, and stable sorted entries; metadata also exposes the revision explicitly for validation and reconciliation.
 
 ```ts
 interface Standing {
@@ -683,7 +724,7 @@ interface ChampionshipScoreEntry {
 }
 ```
 
-`Standing` is derived and may be persisted as a public read model. `ChampionshipScoreEntry` is persisted authoritative ledger data generated from authoritative results/events; it is backend-write-only and can be public-readable after its `reason` is sanitized. Leaderboard totals and breakdowns are derived views. Never persist a client-editable `totalPoints` as source of truth.
+`Standing` is derived and is not persisted in Phase 7. The implemented ledger is authenticated-readable and written only by the authorized organizer client through exact Rules-validated full-source or bonus operations. Leaderboard totals, ranks, recent awards, contributions, and achievements are derived views. Never persist a client-editable `totalPoints` as source of truth.
 
 Idempotency keys are deterministically constructed from source type, source entity/revision unit, participant, and rule. They are indexed in a backend-only map for atomic claim/upsert. Correcting a source creates the complete expected set; obsolete entries become `void` (preferred for audit) or move to an archive. Public totals include only `active` entries.
 
@@ -827,7 +868,18 @@ Public `AppSettings` fixes the trip range to 31 July–2 August 2026 and the pub
 
 Path names are neutral and access-oriented. `$uid`, `$competitionId`, and similar segments are opaque generated IDs.
 
-The tree below remains the target for later private-content and backend-derived features. The implemented Phase 2–6 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
+The implemented Phase 7 ledger branch is:
+
+```text
+championshipLedger/
+  competitionSources/{competitionId}/
+    meta
+    entries/{entryId}
+  manualBonuses/{bonusId}                 # organizer-only active/revoked history
+  manualBonusesPublic/{bonusId}           # authenticated active-only projection
+```
+
+The tree below remains the target for later private-content and backend-derived features. The implemented Phase 2–7 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, `/championshipLedger`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
 
 ```text
 /
@@ -884,7 +936,7 @@ The tree below remains the target for later private-content and backend-derived 
 
 “Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
-In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. Phase 3 instead uses the flat paths documented above and Rules-authorized atomic client publication because it contains public-safe configuration only. Phases 4–6 add the bounded, admin-claim-authorized `/competitionRuns` exception documented above for public-safe Merry-Go-Round, All Hands, and Group Format execution. A persisted score ledger and protected publication still require their later trusted-operation designs.
+In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. The implemented flat model uses admin-claim Rules for configuration, all three runtimes, Phase 7 complete competition sources, and revisioned manual bonuses. Protected publication still requires its later trusted-operation design.
 
 ## 13. Source of truth, derivation, and denormalization
 
@@ -895,8 +947,9 @@ In the future target, competition drafts live under `organizer`, while confirmed
 | Confirmed shuffle/groups/fixture order | Yes | Organizer confirmation/backend operation | Generated once, then authoritative |
 | Match/session result | Yes | Organizer under format-specific Rules | Authoritative versioned source |
 | Standings | No for Phases 4–5 | Pure client derivation | Rebuildable from results/config; no independently mutable total |
-| Championship score entries | Yes | Backend/trusted admin operation | Authoritative ledger, deterministic |
-| Leaderboard totals/recent list | Optional persisted cache | Trusted derivation | Rebuildable from active ledger |
+| Championship competition sources | Yes | Rules-bounded organizer full-source operation | Authoritative current ledger; deterministic identity/fingerprint |
+| Manual championship bonus | Yes | Rules-bounded organizer revisioned operation | Private full history plus sanitized active public projection |
+| Leaderboard totals/ranks/recent list | No | Pure client derivation | Rebuilt from validated current sources and active bonuses |
 | Private birthday submission | Yes | Guest create/limited own update; organizer moderate | Never in guest-readable collection |
 | Published birthday snapshot | Yes | Backend publish operation | Public source for reveal presentation |
 | Prediction | Yes | Owner while open; backend resolves | Private per UID |
@@ -919,7 +972,7 @@ Safe denormalization includes participant display snapshots in historical presen
 
 - Prefer status-based archival for competitions, participants with history, publications, and score entries. Public views exclude archived/void records by default.
 - A draft with no references may be hard-deleted by an organizer after confirmation. A confirmed draw reset archives the old generation and results or records tombstones before deleting active paths.
-- A result correction creates a revision/audit record and deterministically replaces or voids its derived ledger set. It does not erase the fact a correction occurred.
+- A result correction creates a revision/audit record and deterministically replaces the complete current competition source. It does not erase safe correction metadata from audit.
 - Birthday submissions may be hidden rather than deleted during moderation. A privacy deletion request may hard-delete private content, but an already published copy requires a separate audited unpublish/redaction operation.
 - Predictions are retained privately through resolution for audit, then removed or anonymized according to a retention period that organizers must decide before production.
 - Audit metadata has its own retention policy and must avoid personal/sensitive payloads so retention does not become unintended disclosure.

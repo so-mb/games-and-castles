@@ -54,6 +54,10 @@ This document records decisions without describing, naming, or inferring protect
 | CR-39 | Group qualification is an explicit frozen snapshot created only after every real group match and every qualification-affecting group tie is resolved. | Group ID/rank, normalized metrics, standings fingerprints, and the source runtime revision remain explainable and cannot drift under later presentation derivation. |
 | CR-40 | Cross-group knockout seeds preserve group-rank tiers, use normalized per-match metrics within a tier, require organizer order for remaining equality, and permute only equivalent lower-tier opponents to avoid first-round rematches. | Higher-rank tiers and deserved BYEs remain intact. The two-group/two-qualifier golden pairing is A1–B2 and B1–A2; an unavoidable rematch is disclosed before bracket confirmation. |
 | CR-41 | A Group Format run may return to scheduled only before any result exists. A qualifier-changing group correction after knockout generation requires an explicit complete knockout reset; a knockout correction clears only affected descendants when possible. | Draw identity and played history are never casually reshuffled or silently left inconsistent with qualification. |
+| CR-42 | Phase 7 stores one complete deterministic ledger source per active/completed competition and replaces it on every score-relevant runtime change. | Corrections, reopen, void/restore, knockout reset, retry, and backfill cannot append duplicate or obsolete awards. |
+| CR-43 | Manual bonuses are positive 1–100 point revisioned records; revoked records remain organizer-visible and are removed from the sanitized public projection. | No hard deletion or negative point editing; every create/revoke/restore appends safe audit metadata. |
+| CR-44 | Public totals, shared ranks, contributions, latest awards, and achievements are pure ledger derivations. | No mutable participant total or leaderboard cache is persisted; active zero-point and inactive historical participants remain explainable. |
+| CR-45 | Public correction visibility shows only current valid awards plus a verification warning for missing/stale/malformed sources. | This resolves OD-12 without exposing confusing before-values or pretending the current-award view is immutable history. |
 
 ## 3. Required terminology
 
@@ -85,7 +89,7 @@ Do not create aliases for the format identifiers in persisted data. Friendly lab
 | RD-11 | Locked prediction aggregate remains hidden until reveal | Organizer/event policy | Preserves surprise and avoids social influence |
 | RD-13 | Birthday publication is a snapshot; replay is client-only | Fixed implementation behavior | Moderation remains stable and animation cannot duplicate writes |
 | RD-14 | Cryptographic Fisher–Yates shuffle plus circle method | Fixed technical behavior | Unbiased initial order and proven complete pairings |
-| RD-15 | Persist voided score entries instead of silently deleting them | Technical implementation unless retention policy requires removal | Supports audit and correction explanation while totals filter to active entries |
+| RD-15 | Replace the complete current competition source; retain safe correction metadata in append-only audit | Fixed Phase 7 behavior | Current totals never include obsolete awards, while organizers retain who/when/action context without duplicating sensitive before-values |
 | RD-16 | User sound is off by default | User can opt in | Avoids surprise/disruption and meets the brief |
 
 Defaults are copied into the relevant event/competition record and frozen when play/event state begins. Changing a default later does not rewrite historical competitions.
@@ -98,7 +102,6 @@ These items require confirmation; recommendations indicate the least-risk starti
 |---|---|---|---|
 | OD-05 | Set remaining maximum active-participant/competition record counts, message lengths/counts, and later custom-field counts. Phase 3 per-record configuration bounds are confirmed in CR-24. | Use conservative UI/rules/function limits based on the private group size and load-test at twice expected volume. | Feature-owning later phase |
 | OD-06 | Define a terminal series-result rule before enabling match draws. Phase 4 deliberately blocks draw-enabled activation under CR-29. | Keep draws off until a bounded maximum-round/terminal rule is approved; never infer one from table draw points. | Later draw-support change |
-| OD-12 | Decide voided/corrected ledger visibility to guests. | Show clear correction activity and current breakdown; keep detailed before-values organizer-only if confusing/private. | Phase 7 |
 | OD-13 | Set Birthday Vault per-UID message count, edit window, moderation/edit policy, anonymous display wording, and retention/deletion period. | One editable submission per UID until closed; organizer hides but does not rewrite guest text; publish a sanitized snapshot; decide deletion after the event. | Phase 8 |
 | OD-14 | Decide whether organizers may view individual predictions before reveal and whether aggregate distribution publishes afterward. | Do not surface individual choices unless operationally necessary; hide aggregate until reveal; publish aggregate only if approved. | Phase 9 |
 | OD-15 | Supply safe dynamic option labels and determine exactly when they become guest-readable. | Content-review them before entering any client-readable path; keep stored values neutral. | Phase 9 content freeze |
@@ -109,7 +112,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-The Phase 2 production baseline, including initial organizer-account ownership and provisioning, is complete, and Phases 3–5 are deployed and production-tested. The Phase 6 repository implementation is complete; its runtime Rules deployment remains an explicit operator action. OD-06 now blocks only future draw support, CR-37 resolves former OD-10 for the Phase 5 custom result shape, and CR-38 resolves former OD-11 for Group Format counts/assignment. OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness. Other decisions block only the named feature or phase.
+The Phase 2 production baseline and Phases 3–6 are deployed and production-tested. Phase 7 is complete in the repository; Rules/frontend deployment and production-run reconciliation remain explicit operator actions. CR-45 resolves former OD-12. OD-06 blocks only future draw support, while OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness.
 
 ## 6. Technical architecture decisions
 
@@ -207,7 +210,15 @@ The Phase 2 production baseline, including initial organizer-account ownership a
 
 **Reason:** Group execution is public-safe to authenticated trip participants but needs a stronger freeze boundary than configuration. Persisting source results and explicit sporting decisions—rather than standings or mutable totals—keeps corrections, retries, Rules validation, and future Phase 7 ledger derivation explainable. The local preview avoids publishing a draw that the organizer has not confirmed, while the exact persisted snapshot prevents reconnects or other devices from reshuffling it.
 
-**Consequences:** Automatic group count is deliberately bounded to 4–16 participants; valid manual counts cover other supported participant totals. Draw-enabled activation remains blocked. Qualification cannot be created from an incomplete persisted group stage, equal cross-group metrics require an audited order, highest seeds retain BYEs, and first-round opponents move only within an equivalent lower rank tier. A started run cannot be redrawn; a qualifier-changing correction explicitly removes the complete knockout before returning to group play. The 73-case Rules matrix enforces the bounded branch, but production mutation still depends on separately deploying the version-controlled Phase 6 Rules. The global ledger and all private/protected later features remain unauthorized.
+**Consequences:** Automatic group count is deliberately bounded to 4–16 participants; valid manual counts cover other supported participant totals. Draw-enabled activation remains blocked. Qualification cannot be created from an incomplete persisted group stage, equal cross-group metrics require an audited order, highest seeds retain BYEs, and first-round opponents move only within an equivalent lower rank tier. A started run cannot be redrawn; a qualifier-changing correction explicitly removes the complete knockout before returning to group play. The Phase 6 Rules are deployed and production-tested. Phase 7 now normalizes this runtime's projected awards; private/protected later features remain unauthorized.
+
+### AD-13 — Phase 7 deterministic championship sources and split bonus visibility
+
+**Decision:** Persist `/championshipLedger/competitionSources/{competitionId}` as a complete normalized snapshot derived from the authoritative runtime. Use deterministic entry IDs and a canonical source fingerprint, and replace/remove the full source atomically with application runtime mutations. Store manual bonus history under organizer-only `/manualBonuses` and publish active sanitized records under `/manualBonusesPublic`.
+
+**Reason:** Realtime Database cannot securely filter revoked children from a guest-readable collection. Full-source replacement makes retries, corrections, reopen, void/restore, knockout reset, and legacy backfill deterministic without mutable totals or compensating entries.
+
+**Consequences:** Admin-claim Rules authorize only bounded source and bonus writes; guests remain read-only. Championship Desk reconciles legacy runs and removes confirmed orphans. Public clients quarantine malformed data and show a verification warning for uncertain expected sources. Competition-derived entries have no direct edit API. Phase 6 is deployed; Phase 7 still requires an explicit Rules/frontend deployment and production reconciliation.
 
 ## 7. Assumptions currently used by the specification
 

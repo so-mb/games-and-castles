@@ -34,8 +34,9 @@ describe("Games & Castles static shell", () => {
       screen.getByRole("heading", { name: "Live and scheduled games" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Championship preview · sample future presentation/),
+      screen.getByRole("heading", { name: "Weekend championship" }),
     ).toBeInTheDocument();
+    expect(screen.queryByText(/sample leaderboard/i)).not.toBeInTheDocument();
   });
 
   it("shows all three weekend days while keeping Friday unscheduled", () => {

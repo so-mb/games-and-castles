@@ -1466,8 +1466,9 @@ export function AllHandsControlRoom({
           Projected weekend points
         </h4>
         <p className="mt-1 text-sm text-white/48">
-          These itemized All Hands awards rank this competition and preview its
-          future Phase 7 contribution. No global leaderboard is live yet.
+          These itemized All Hands awards rank this competition and feed its
+          current ledger source. The global championship rebuilds from that
+          source.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
           {pointBreakdown.map((breakdown) => (

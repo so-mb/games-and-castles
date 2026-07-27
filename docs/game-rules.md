@@ -242,7 +242,7 @@ All non-voided completed sessions contribute to a cumulative standing ordered by
 
 Completion persists the final participant order, competition points, win/placement summary, zero completion awards when none are configured, completion metadata, and runtime revision. The competition record and run move to `completed` atomically. Reopening preserves every session/result, clears final placement/completion/tie metadata, and returns to active sessions.
 
-`deriveAllHandsCompetitionPointBreakdown` itemizes each participant's session/source/reason/points. These same derived points rank the All Hands competition and preview its future contribution to the Phase 7 weekend ledger. Phase 5 does not persist a score ledger or present a global leaderboard.
+`deriveAllHandsCompetitionPointBreakdown` itemizes each participant's session/source/reason/points. These same derived points rank All Hands and, through the Phase 7 normalizer, populate its complete weekend-ledger source. The Phase 5 runtime itself still stores no ledger field or mutable total.
 
 ## 6. `group-knockout` (Group Format)
 
@@ -302,28 +302,25 @@ If a correction changes a qualifier after downstream knockout play began, the sy
 
 ## 7. Championship ledger
 
-This section remains the Phase 7 target. Phases 4–6 do not persist ledger entries or a global leaderboard: each implemented format applies its configured award semantics through an itemized pure projection scoped to one competition run. Corrections recompute that projection from source results, qualification, and placements.
+Phase 7 persists one normalized, replaceable source for every valid active or completed competition run. Each format still owns its scoring semantics through the existing pure point projection; the ledger adapter normalizes those itemized awards without reimplementing the rules.
 
 The ledger is the sole source for overall points. A displayed total is always:
 
 ```text
-participantTotal = sum(active score entries for participantId)
+participantTotal = sum(valid competition entries + active manual bonuses for participantId)
 ```
 
-Recommended source types are `match-win`, `round-win`, `placement`, `qualification`, `competition-win`, `prediction`, `participation`, `admin-bonus`, and `correction`. An administrative bonus still requires a reason and audit entry; it does not authorize editing a stored total.
+The implemented generic award union distinguishes match wins, round wins, match participation, session wins/placements/participation/custom awards, qualification, and competition podium places. Manual bonuses are a separate revisioned source. Prediction awards are explicitly deferred.
 
 ### 7.1 Deterministic keys
 
 Derived awards use stable keys, for example:
 
 ```text
-match-win:{competitionId}:{matchId}:{participantId}
-round-win:{competitionId}:{matchId}:{roundIndex}:{participantId}
-placement:{competitionId}:{sessionId}:{participantId}:{ruleId}
-prediction:{eventId}:{participantId}
+hash(competitionId, participantId, awardType, sourceEntityId, discriminator)
 ```
 
-The exact path-safe encoding is an implementation detail, but the logical key must be unique. Re-running derivation upserts the same intended entries and removes/voids entries no longer supported by the authoritative result.
+The path-safe implementation uses a stable canonical hash and never includes display names. Re-running derivation produces the same complete entry map. Each runtime mutation replaces that competition's entire source, so entries no longer supported by the authoritative result disappear.
 
 ### 7.2 Correction behavior
 
@@ -336,19 +333,20 @@ flowchart LR
     D --> E["Expected deterministic score-entry set"]
     X["Existing entries for source entity"] --> C["Transactional compare"]
     E --> C
-    C -->|"upsert expected"| L["Active ledger"]
-    C -->|"void/remove obsolete"| L
+    C -->|"replace complete source"| L["Current ledger"]
     L --> T["Sum by participant"]
     L --> B["Break down by reason/competition"]
     L --> A["Recent activity"]
     T --> Q["Leaderboard with tied ranks"]
 ```
 
-A corrected result is applied as a new source revision with a reason. The system computes the full expected ledger set for that source, compares it with existing entries, and atomically upserts expected entries plus voids or archives obsolete entries. It must not add a compensating mystery total. Audit history preserves who changed what and when. Given the same authoritative results and configs, a clean rebuild must produce the same active ledger.
+A corrected result advances the runtime revision and atomically replaces the full competition source. It must not add a compensating mystery total. Audit history records safe correction metadata; the public current-award view does not pretend to be immutable history. Given the same authoritative results and configs, a clean rebuild produces the same entry identities, fingerprint, and total.
 
 ### 7.3 Ranking the overall leaderboard
 
 Rank by total championship points descending. Equal totals share the same displayed rank; the next rank uses competition ranking (for example `1, 1, 3`). No unapproved hidden tiebreak breaks weekend ties. Optional titles and achievements are display metadata and must be fun, kind, and unrelated to authorization or scoring.
+
+Active participants with zero points remain visible. Inactive participants with historical awards remain ranked, and missing participant records use a safe unavailable label rather than losing attributed points. Current achievements are derived and score-neutral.
 
 ## 8. Validation and test matrix
 

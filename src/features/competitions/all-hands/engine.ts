@@ -783,7 +783,7 @@ export function deriveAllHandsSessionAwards(
   const awards: DerivedSessionAward[] = [];
   const add = (
     entityId: string,
-    source: DerivedSessionAward["source"],
+    source: DerivedSessionAward["awardKind"],
     points: number,
     label: string,
   ) => {
@@ -797,6 +797,7 @@ export function deriveAllHandsSessionAwards(
         sessionLabel: session.title,
         participantId,
         source: entity.kind === "team" ? "team-result" : source,
+        awardKind: source,
         points,
         label:
           entity.kind === "team"

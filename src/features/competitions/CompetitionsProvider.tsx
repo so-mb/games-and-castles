@@ -100,6 +100,7 @@ interface CompetitionsContextValue {
   publicMalformedCount: number;
   organizerMalformedCount: number;
   runtimeMalformedCount: number;
+  runtimeInvalidIds: string[];
   errorMessage: string | null;
   canMutate: boolean;
   saveDraft: (
@@ -290,6 +291,7 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
   const [draftMalformedCount, setDraftMalformedCount] = useState(0);
   const [publishedMalformedCount, setPublishedMalformedCount] = useState(0);
   const [runtimeMalformedCount, setRuntimeMalformedCount] = useState(0);
+  const [runtimeInvalidIds, setRuntimeInvalidIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -319,6 +321,7 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
       (result) => {
         setRuns(result.runs);
         setRuntimeMalformedCount(result.invalidIds.length);
+        setRuntimeInvalidIds(result.invalidIds);
       },
       () => {
         setErrorMessage("Live competition runtime data could not be loaded.");
@@ -456,6 +459,7 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
           : organizerState,
       organizerMalformedCount: draftMalformedCount + publishedMalformedCount,
       runtimeMalformedCount,
+      runtimeInvalidIds,
       errorMessage,
       canMutate:
         connection === "online" && auth.organizer.status === "authorized",
@@ -792,6 +796,7 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
       saveDraftAction,
       runs,
       runtimeMalformedCount,
+      runtimeInvalidIds,
       scheduled,
     ],
   );

@@ -177,7 +177,7 @@ describe("scheduled competition card", () => {
     expect(screen.getByText("Live competition")).toBeInTheDocument();
     expect(screen.getByText("Round-robin standings")).toBeInTheDocument();
     expect(
-      screen.getByText(/weekend-wide aggregation arrives in Phase 7/i),
+      screen.getByText(/championship table rebuilds from/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /record result/i })).toBeNull();
   });
@@ -246,7 +246,7 @@ describe("scheduled competition card", () => {
 
     fireEvent.click(screen.getByRole("tab", { name: "Points" }));
     expect(
-      screen.getByText(/global weekend ledger begins in Phase 7/i),
+      screen.getByText(/championship table rebuilds from/i),
     ).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(
       /submit result|organizer control/i,

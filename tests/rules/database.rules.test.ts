@@ -56,6 +56,8 @@ import {
 } from "../../src/features/competitions/group-knockout/engine";
 import { deriveCrossGroupSeeds } from "../../src/features/competitions/group-knockout/standings";
 import type { GroupKnockoutRun } from "../../src/features/competitions/group-knockout/types";
+import { deriveCompetitionLedgerSnapshot } from "../../src/features/championship/ledger/snapshot";
+import type { ManualChampionshipBonus } from "../../src/features/championship/domain/types";
 
 const projectId = "demo-games-and-castles";
 let environment: RulesTestEnvironment;
@@ -174,6 +176,12 @@ async function seed(data: Record<string, unknown>) {
   });
 }
 
+async function seedAt(path: string, data: unknown) {
+  await environment.withSecurityRulesDisabled(async (context) => {
+    await set(ref(context.database(), path), data);
+  });
+}
+
 function phaseFourFixture(
   id = "merry-runtime",
   competitionOverrides: Record<string, unknown> = {},
@@ -191,6 +199,51 @@ function activeCompetition(competition: PublishedCompetition) {
     status: "active" as const,
     revision: competition.revision + 1,
     updatedAt: Date.now(),
+  };
+}
+
+function phaseSevenSource(
+  competition: PublishedCompetition,
+  run: CompetitionRun | AllHandsCompetitionRun | GroupKnockoutRun,
+) {
+  return deriveCompetitionLedgerSnapshot({
+    competition,
+    run,
+    generatedAt: Date.now(),
+  });
+}
+
+function manualBonus(id = "bonus-1"): ManualChampionshipBonus {
+  const now = Date.now();
+  return {
+    id,
+    participantId: "guest-1",
+    points: 5,
+    label: "Brilliant bonus challenge",
+    note: null,
+    status: "active",
+    createdAt: now,
+    createdByUid: "admin",
+    updatedAt: now,
+    updatedByUid: "admin",
+    revokedAt: null,
+    revokedByUid: null,
+    revision: 1,
+    schemaVersion: 1,
+  };
+}
+
+function publicManualBonus(bonus: ManualChampionshipBonus) {
+  return {
+    id: bonus.id,
+    participantId: bonus.participantId,
+    points: bonus.points,
+    label: bonus.label,
+    status: "active",
+    createdAt: bonus.createdAt,
+    updatedAt: bonus.updatedAt,
+    revision: bonus.revision,
+    schemaVersion: 1,
   };
 }
 
@@ -508,14 +561,14 @@ describe("Realtime Database security rules", () => {
     );
   });
 
-  it("denies an unfiltered participant collection read to a guest", async () => {
+  it("allows an authenticated guest to read the championship participant roster", async () => {
     const database = environment.authenticatedContext("guest").database();
-    await assertFails(get(ref(database, "participants")));
+    await assertSucceeds(get(ref(database, "participants")));
   });
 
-  it("denies an inactive-roster query to a guest", async () => {
+  it("allows an inactive-roster query for historical championship attribution", async () => {
     const database = environment.authenticatedContext("guest").database();
-    await assertFails(
+    await assertSucceeds(
       get(
         query(
           ref(database, "participants"),
@@ -532,14 +585,14 @@ describe("Realtime Database security rules", () => {
     await assertSucceeds(get(ref(database, "participants/active")));
   });
 
-  it("denies a non-owner from reading an inactive participant", async () => {
+  it("allows a guest to read an inactive participant for historical standings", async () => {
     await seed({
       participants: {
         hidden: participant("hidden", "owner-a", { status: "inactive" }),
       },
     });
     const database = environment.authenticatedContext("guest").database();
-    await assertFails(get(ref(database, "participants/hidden")));
+    await assertSucceeds(get(ref(database, "participants/hidden")));
   });
 
   it("allows an owner to read their inactive participant", async () => {
@@ -2605,5 +2658,542 @@ describe("Realtime Database security rules", () => {
       set(ref(admin, "reveals/example"), { payload: "private" }),
     );
     await assertFails(get(ref(guest, "fixtures")));
+  });
+
+  describe("Phase 7 championship ledger", () => {
+    function contexts() {
+      return {
+        admin: environment
+          .authenticatedContext("admin", { admin: true })
+          .database(),
+        guest: environment.authenticatedContext("guest").database(),
+        anonymous: environment.unauthenticatedContext().database(),
+      };
+    }
+
+    async function activeSourceFixture(id = "ledger-cup") {
+      const base = phaseFourFixture(id);
+      const competition = activeCompetition(base.competition);
+      const source = phaseSevenSource(competition, base.run);
+      await seed({
+        participants: {
+          "guest-1": participant("guest-1", "guest-1"),
+          "guest-2": participant("guest-2", "guest-2"),
+          "guest-3": participant("guest-3", "guest-3"),
+          "guest-4": participant("guest-4", "guest-4"),
+        },
+        competitions: { [competition.id]: competition },
+        competitionRuns: { [competition.id]: base.run },
+      });
+      return { competition, run: base.run, source };
+    }
+
+    it("denies unauthenticated competition-source reads", async () => {
+      const { anonymous } = contexts();
+      await assertFails(
+        get(ref(anonymous, "championshipLedger/competitionSources")),
+      );
+    });
+
+    it("allows authenticated competition-source reads", async () => {
+      const { guest } = contexts();
+      await assertSucceeds(
+        get(ref(guest, "championshipLedger/competitionSources")),
+      );
+    });
+
+    it("denies guest create, replace, and delete operations", async () => {
+      const { guest } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      const path = `championshipLedger/competitionSources/${competition.id}`;
+      await assertFails(set(ref(guest, path), source));
+      await seedAt(path, source);
+      await assertFails(set(ref(guest, path), { ...source }));
+      await assertFails(remove(ref(guest, path)));
+    });
+
+    it("allows an admin to create a valid source for an active run", async () => {
+      const { admin } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      await assertSucceeds(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          source,
+        ),
+      );
+    });
+
+    it("allows an admin to create a valid source for a completed competition", async () => {
+      const { admin } = contexts();
+      const fixture = await activeSourceFixture("completed-ledger");
+      const competition = {
+        ...fixture.competition,
+        status: "completed" as const,
+      };
+      const source = {
+        ...fixture.source,
+        meta: {
+          ...fixture.source.meta,
+          competitionStatus: "completed" as const,
+        },
+      };
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+        competitions: { [competition.id]: competition },
+        competitionRuns: { [competition.id]: fixture.run },
+      });
+      await assertSucceeds(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          source,
+        ),
+      );
+    });
+
+    it("rejects a source whose path competition ID does not match", async () => {
+      const { admin } = contexts();
+      const { source } = await activeSourceFixture();
+      await assertFails(
+        set(
+          ref(admin, "championshipLedger/competitionSources/wrong-id"),
+          source,
+        ),
+      );
+    });
+
+    it("rejects a source with the wrong format", async () => {
+      const { admin } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      await assertFails(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          {
+            ...source,
+            meta: { ...source.meta, competitionFormat: "all-hands" },
+          },
+        ),
+      );
+    });
+
+    it("rejects a source with a mismatched run revision", async () => {
+      const { admin } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      await assertFails(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          { ...source, meta: { ...source.meta, runRevision: 99 } },
+        ),
+      );
+    });
+
+    it("rejects sources for a missing run and a scheduled competition", async () => {
+      const { admin } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      await seed({ competitions: { [competition.id]: competition } });
+      await assertFails(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          source,
+        ),
+      );
+      await seed({
+        competitions: {
+          [competition.id]: { ...competition, status: "scheduled" },
+        },
+      });
+      await assertFails(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          source,
+        ),
+      );
+    });
+
+    it("rejects unknown award types", async () => {
+      const { admin } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      const entry = {
+        id: "bad-award",
+        participantId: "guest-1",
+        sourceNamespace: "competition",
+        sourceId: competition.id,
+        sourceEntityId: "match-1",
+        sourceType: "prediction",
+        points: 2,
+        label: "Invalid award",
+        competitionId: competition.id,
+        competitionFormat: competition.format,
+        stage: "round-robin",
+        awardedAt: Date.now(),
+        sourceRevision: 1,
+        schemaVersion: 1,
+      };
+      await assertFails(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          {
+            ...source,
+            meta: { ...source.meta, entryCount: 1 },
+            entries: { "bad-award": entry },
+          },
+        ),
+      );
+    });
+
+    it("rejects negative, fractional, and excessive competition points", async () => {
+      const { admin } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      const baseEntry = {
+        id: "test-entry",
+        participantId: "guest-1",
+        sourceNamespace: "competition",
+        sourceId: competition.id,
+        sourceEntityId: "match-1",
+        sourceType: "match-win",
+        points: 2,
+        label: "Match win",
+        competitionId: competition.id,
+        competitionFormat: competition.format,
+        stage: "round-robin",
+        awardedAt: Date.now(),
+        sourceRevision: 1,
+        schemaVersion: 1,
+      };
+      for (const points of [-1, 1.5, 10001]) {
+        await assertFails(
+          set(
+            ref(
+              admin,
+              `championshipLedger/competitionSources/${competition.id}`,
+            ),
+            {
+              ...source,
+              meta: { ...source.meta, entryCount: 1 },
+              entries: { "test-entry": { ...baseEntry, points } },
+            },
+          ),
+        );
+      }
+    });
+
+    it("rejects an invalid entry ID and unexpected privileged fields", async () => {
+      const { admin } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      const entry = {
+        id: "different-id",
+        participantId: "guest-1",
+        sourceNamespace: "competition",
+        sourceId: competition.id,
+        sourceEntityId: "match-1",
+        sourceType: "match-win",
+        points: 2,
+        label: "Match win",
+        competitionId: competition.id,
+        competitionFormat: competition.format,
+        awardedAt: Date.now(),
+        sourceRevision: 1,
+        schemaVersion: 1,
+      };
+      await assertFails(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          {
+            ...source,
+            meta: { ...source.meta, entryCount: 1 },
+            entries: { "entry-id": entry },
+            secret: true,
+          },
+        ),
+      );
+    });
+
+    it("allows full replacement of a stale valid source", async () => {
+      const { admin } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+        competitions: { [competition.id]: competition },
+        competitionRuns: {
+          [competition.id]: (await activeSourceFixture()).run,
+        },
+        championshipLedger: {
+          competitionSources: {
+            [competition.id]: {
+              ...source,
+              meta: { ...source.meta, sourceFingerprint: "0000000000000000" },
+            },
+          },
+        },
+      });
+      await assertSucceeds(
+        set(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+          source,
+        ),
+      );
+    });
+
+    it("allows admin orphan removal but denies guest removal", async () => {
+      const { admin, guest } = contexts();
+      const { competition, source } = await activeSourceFixture();
+      await seed({
+        competitions: {
+          [competition.id]: { ...competition, status: "scheduled" },
+        },
+        championshipLedger: {
+          competitionSources: { [competition.id]: source },
+        },
+      });
+      await assertFails(
+        remove(
+          ref(guest, `championshipLedger/competitionSources/${competition.id}`),
+        ),
+      );
+      await assertSucceeds(
+        remove(
+          ref(admin, `championshipLedger/competitionSources/${competition.id}`),
+        ),
+      );
+    });
+
+    it("allows guests to read only the public active bonus collection", async () => {
+      const { guest } = contexts();
+      await assertSucceeds(
+        get(ref(guest, "championshipLedger/manualBonusesPublic")),
+      );
+      await assertFails(get(ref(guest, "championshipLedger/manualBonuses")));
+    });
+
+    it("denies guest creation in both bonus collections", async () => {
+      const { guest } = contexts();
+      const bonus = manualBonus();
+      await assertFails(
+        set(ref(guest, `championshipLedger/manualBonuses/${bonus.id}`), bonus),
+      );
+      await assertFails(
+        set(
+          ref(guest, `championshipLedger/manualBonusesPublic/${bonus.id}`),
+          publicManualBonus(bonus),
+        ),
+      );
+    });
+
+    it("allows an admin to create a valid bonus atomically", async () => {
+      const { admin } = contexts();
+      const bonus = manualBonus();
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+      });
+      await assertSucceeds(
+        update(ref(admin), {
+          [`championshipLedger/manualBonuses/${bonus.id}`]: bonus,
+          [`championshipLedger/manualBonusesPublic/${bonus.id}`]:
+            publicManualBonus(bonus),
+        }),
+      );
+    });
+
+    it("rejects zero, negative, fractional, and excessive bonuses", async () => {
+      const { admin } = contexts();
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+      });
+      for (const [index, points] of [0, -1, 1.5, 101].entries()) {
+        const bonus = { ...manualBonus(`bonus-invalid-${index}`), points };
+        await assertFails(
+          update(ref(admin), {
+            [`championshipLedger/manualBonuses/${bonus.id}`]: bonus,
+            [`championshipLedger/manualBonusesPublic/${bonus.id}`]:
+              publicManualBonus(bonus),
+          }),
+        );
+      }
+    });
+
+    it("rejects an overlong manual bonus label", async () => {
+      const { admin } = contexts();
+      const bonus = { ...manualBonus(), label: "x".repeat(81) };
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+      });
+      await assertFails(
+        update(ref(admin), {
+          [`championshipLedger/manualBonuses/${bonus.id}`]: bonus,
+          [`championshipLedger/manualBonusesPublic/${bonus.id}`]:
+            publicManualBonus(bonus),
+        }),
+      );
+    });
+
+    it("allows valid admin revocation and denies guest revocation", async () => {
+      const { admin, guest } = contexts();
+      const bonus = manualBonus();
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+        championshipLedger: {
+          manualBonuses: { [bonus.id]: bonus },
+          manualBonusesPublic: { [bonus.id]: publicManualBonus(bonus) },
+        },
+      });
+      const revoked = {
+        ...bonus,
+        status: "revoked",
+        revokedAt: Date.now(),
+        revokedByUid: "admin",
+        updatedAt: Date.now(),
+        revision: 2,
+      };
+      await assertFails(
+        update(ref(guest), {
+          [`championshipLedger/manualBonuses/${bonus.id}`]: revoked,
+          [`championshipLedger/manualBonusesPublic/${bonus.id}`]: null,
+        }),
+      );
+      await assertSucceeds(
+        update(ref(admin), {
+          [`championshipLedger/manualBonuses/${bonus.id}`]: revoked,
+          [`championshipLedger/manualBonusesPublic/${bonus.id}`]: null,
+        }),
+      );
+    });
+
+    it("rejects stale bonus revisions", async () => {
+      const { admin } = contexts();
+      const bonus = manualBonus();
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+        championshipLedger: {
+          manualBonuses: { [bonus.id]: bonus },
+          manualBonusesPublic: { [bonus.id]: publicManualBonus(bonus) },
+        },
+      });
+      await assertFails(
+        update(ref(admin), {
+          [`championshipLedger/manualBonuses/${bonus.id}`]: {
+            ...bonus,
+            status: "revoked",
+            revokedAt: Date.now(),
+            revokedByUid: "admin",
+            revision: 1,
+          },
+          [`championshipLedger/manualBonusesPublic/${bonus.id}`]: null,
+        }),
+      );
+    });
+
+    it("allows restoration with the next revision", async () => {
+      const { admin } = contexts();
+      const base = manualBonus();
+      const revoked = {
+        ...base,
+        status: "revoked" as const,
+        revokedAt: Date.now(),
+        revokedByUid: "admin",
+        revision: 2,
+      };
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+        championshipLedger: { manualBonuses: { [base.id]: revoked } },
+      });
+      const restored = {
+        ...revoked,
+        status: "active" as const,
+        revokedAt: null,
+        revokedByUid: null,
+        updatedAt: Date.now(),
+        revision: 3,
+      };
+      await assertSucceeds(
+        update(ref(admin), {
+          [`championshipLedger/manualBonuses/${base.id}`]: restored,
+          [`championshipLedger/manualBonusesPublic/${base.id}`]:
+            publicManualBonus(restored),
+        }),
+      );
+    });
+
+    it("rejects invalid same-state transitions", async () => {
+      const { admin } = contexts();
+      const bonus = manualBonus();
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+        championshipLedger: {
+          manualBonuses: { [bonus.id]: bonus },
+          manualBonusesPublic: { [bonus.id]: publicManualBonus(bonus) },
+        },
+      });
+      const changed = { ...bonus, revision: 2, updatedAt: Date.now() };
+      await assertFails(
+        update(ref(admin), {
+          [`championshipLedger/manualBonuses/${bonus.id}`]: changed,
+          [`championshipLedger/manualBonusesPublic/${bonus.id}`]:
+            publicManualBonus(changed),
+        }),
+      );
+    });
+
+    it("prevents changing bonus creation metadata", async () => {
+      const { admin } = contexts();
+      const bonus = manualBonus();
+      await seed({
+        participants: { "guest-1": participant("guest-1", "guest-1") },
+        championshipLedger: {
+          manualBonuses: { [bonus.id]: bonus },
+          manualBonusesPublic: { [bonus.id]: publicManualBonus(bonus) },
+        },
+      });
+      await assertFails(
+        update(ref(admin), {
+          [`championshipLedger/manualBonuses/${bonus.id}`]: {
+            ...bonus,
+            status: "revoked",
+            createdAt: bonus.createdAt - 1,
+            revokedAt: Date.now(),
+            revokedByUid: "admin",
+            revision: 2,
+          },
+          [`championshipLedger/manualBonusesPublic/${bonus.id}`]: null,
+        }),
+      );
+    });
+
+    it("denies hard deletion of a private bonus", async () => {
+      const { admin } = contexts();
+      const bonus = manualBonus();
+      await seed({
+        championshipLedger: { manualBonuses: { [bonus.id]: bonus } },
+      });
+      await assertFails(
+        remove(ref(admin, `championshipLedger/manualBonuses/${bonus.id}`)),
+      );
+    });
+
+    it("accepts Phase 7 audit actions once and remains append-only", async () => {
+      const { admin } = contexts();
+      const entry = auditEntry("phase-7-audit", "bonus-1", {
+        action: "manual-bonus-created",
+        entityType: "manual-bonus",
+        summary: "Manual championship bonus created.",
+      });
+      await assertSucceeds(set(ref(admin, "audit/phase-7-audit"), entry));
+      await assertFails(
+        set(ref(admin, "audit/phase-7-audit"), {
+          ...entry,
+          summary: "Changed audit entry.",
+        }),
+      );
+    });
+
+    it("keeps future birthday, prediction, and reveal paths denied", async () => {
+      const { admin, guest } = contexts();
+      for (const path of [
+        "birthdayMessages/new",
+        "predictions/new",
+        "reveals/new",
+      ]) {
+        await assertFails(set(ref(admin, path), { value: "not implemented" }));
+        await assertFails(set(ref(guest, path), { value: "not implemented" }));
+      }
+    });
   });
 });

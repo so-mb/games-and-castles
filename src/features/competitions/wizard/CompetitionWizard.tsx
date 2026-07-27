@@ -632,8 +632,8 @@ function FormatStep({
         </label>
         <p className="rounded-xl border border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-white/55">
           All Hands freezes these settings at activation. Team awards give the
-          full configured award to every member; the global weekend ledger is
-          still deferred.
+          full configured award to every member; the championship ledger later
+          derives the matching itemized awards.
         </p>
       </div>
     );
@@ -813,8 +813,8 @@ function ScoringStep({
             Overall championship awards
           </h3>
           <p className="mt-1 text-sm text-white/52">
-            These values rank this competition and show its projected future
-            weekend contribution. They do not write the global ledger.
+            These values rank this competition and define its itemized
+            championship contribution after activation.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <NumberField

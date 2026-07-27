@@ -29,6 +29,7 @@ import {
   parseCompetitionRunCollection,
 } from "../engine/runtime";
 import type { AnyCompetitionRun, CompetitionRun } from "../engine/types";
+import { deriveCompetitionLedgerSnapshot } from "../../championship/ledger/snapshot";
 
 export class CompetitionRunConflictError extends Error {
   constructor() {
@@ -149,6 +150,15 @@ async function writeRunMutation(
   summary: string,
   additionalAudit: Array<{ action: string; summary: string }> = [],
 ) {
+  const competition = await readCompetition(database, source.competitionId);
+  if (!competition || competition.status !== "active") {
+    throw new CompetitionRunConflictError();
+  }
+  const ledger = deriveCompetitionLedgerSnapshot({
+    competition,
+    run: next,
+    generatedAt: next.updatedAt,
+  });
   const auditId = createAuditKey(database);
   const additionalEntries = additionalAudit.map((entry) => ({
     ...entry,
@@ -157,6 +167,7 @@ async function writeRunMutation(
   try {
     await update(ref(database), {
       [`competitionRuns/${source.competitionId}`]: next,
+      [`championshipLedger/competitionSources/${source.competitionId}`]: ledger,
       [`audit/${auditId}`]: auditValue(
         auditId,
         action,
@@ -240,12 +251,18 @@ export async function activateCompetition(
     updatedByUid: uid,
     revision: competition.revision + 1,
   };
+  const ledger = deriveCompetitionLedgerSnapshot({
+    competition: activeCompetition,
+    run,
+    generatedAt: now,
+  });
   const auditId = createAuditKey(database);
   const fixtureAuditId = createAuditKey(database);
   try {
     await update(ref(database), {
       [`competitionRuns/${competition.id}`]: run,
       [`competitions/${competition.id}`]: activeCompetition,
+      [`championshipLedger/competitionSources/${competition.id}`]: ledger,
       [`audit/${auditId}`]: auditValue(
         auditId,
         "competition-activated",
@@ -455,10 +472,16 @@ export async function completeRunCompetition(
     revision: competition.revision + 1,
   };
   const auditId = createAuditKey(database);
+  const ledger = deriveCompetitionLedgerSnapshot({
+    competition: nextCompetition,
+    run: nextRun,
+    generatedAt: now,
+  });
   try {
     await update(ref(database), {
       [`competitionRuns/${competition.id}`]: nextRun,
       [`competitions/${competition.id}`]: nextCompetition,
+      [`championshipLedger/competitionSources/${competition.id}`]: ledger,
       [`audit/${auditId}`]: auditValue(
         auditId,
         "competition-completed",
@@ -494,10 +517,16 @@ export async function reopenRunCompetition(
     revision: competition.revision + 1,
   };
   const auditId = createAuditKey(database);
+  const ledger = deriveCompetitionLedgerSnapshot({
+    competition: nextCompetition,
+    run: nextRun,
+    generatedAt: now,
+  });
   try {
     await update(ref(database), {
       [`competitionRuns/${competition.id}`]: nextRun,
       [`competitions/${competition.id}`]: nextCompetition,
+      [`championshipLedger/competitionSources/${competition.id}`]: ledger,
       [`audit/${auditId}`]: auditValue(
         auditId,
         "competition-reopened",
@@ -536,6 +565,7 @@ export async function resetCompetitionRun(
     await update(ref(database), {
       [`competitionRuns/${competition.id}`]: null,
       [`competitions/${competition.id}`]: nextCompetition,
+      [`championshipLedger/competitionSources/${competition.id}`]: null,
       [`audit/${auditId}`]: auditValue(
         auditId,
         "competition-run-reset",

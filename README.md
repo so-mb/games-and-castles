@@ -2,7 +2,7 @@
 
 Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and Sunday departure and onward travel. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
 
-> **Status:** Phase 6 repository implementation complete — Merry-Go-Round, All Hands, and Group Format now have format-discriminated runtimes, revision-safe organizer controls, realtime guest presentation, derived projected points, completion/reopen workflows, audit activity, and default-deny runtime Rules. Phases 2–5 are deployed and production-tested, and the production Pages site remains connected to Firebase. The Phase 6 Rules must still be deployed separately before production Group Format data can be written; repository setup and Pages deployment do not change remote Firebase resources.
+> **Status:** Phase 7 repository implementation complete — Phase 6 is deployed and production-tested, and all three live engines now feed a deterministic, itemized championship ledger. The public site derives its realtime podium, shared-rank leaderboard, contributions, latest awards, participant explanations, and achievements from current ledger entries. Organizer Mode adds Championship Sync and revisioned manual bonuses. The Phase 7 Rules and frontend still require deliberate deployment, followed by one organizer reconciliation of existing production runs; this repository change did not modify remote Firebase resources.
 
 ## Technology
 
@@ -19,7 +19,7 @@ Games & Castles is a private, mobile-first companion for 31 July–2 August 2026
 - Generic competition configuration plus complete live Merry-Go-Round, All Hands, and Group Format engines
 - Birthday Vault guestbook and presentation
 - Prediction event and protected special reveal
-- Organizer controls, realtime synchronization, and audit history
+- Organizer controls, Championship Sync, revisioned manual bonuses, and audit history
 - Protected trip information
 
 ## Prerequisites
@@ -70,12 +70,13 @@ Generated `dist/` output is ignored and must not be committed.
 
 The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. The production repository uses **GitHub Actions** as its Pages source and has all six `VITE_FIREBASE_*` public values configured as repository **Actions variables**, not secrets; the workflow maps them only into the build. Production assets use Vite's `/games-and-castles/` base path, the app uses anchor navigation rather than server-side routes, and the deployed site is successfully connected to Firebase.
 
-Phase 6 adds complete `group-knockout` execution alongside the deployed Merry-Go-Round and All Hands engines. Authorized organizers can preview and confirm a secure balanced draw, control single/double group round robins, resolve sporting ties, freeze qualification, review cross-group seeds and BYEs, generate/correct the knockout, and complete or reopen the run. Authenticated guests receive the persisted draw, fixtures, standings, qualification, bracket, results, and itemized projected points in realtime. The Phase 7 cross-competition score ledger, message submission, predictions, protected reveal operations, Cloud Functions, and App Check remain later phases according to the [implementation roadmap](docs/implementation-roadmap.md).
+Phase 6 is deployed and production-tested. Phase 7 adds `/championshipLedger/competitionSources`, a public active-bonus projection, a restricted bonus history, deterministic full-source replacement alongside runtime mutations, strict client validation, and organizer-only reconciliation for runs created before the ledger existed. No mutable participant total or persisted leaderboard cache exists. See the [championship ledger](docs/championship-ledger.md) for the production backfill sequence. Birthday submissions, predictions, protected reveal operations, Cloud Functions, and App Check remain later phases according to the [implementation roadmap](docs/implementation-roadmap.md).
 
 ## Documentation
 
 - [Product specification](docs/product-spec.md)
 - [Competition and scoring rules](docs/game-rules.md)
+- [Championship ledger and reconciliation](docs/championship-ledger.md)
 - [Domain and Firebase data model](docs/data-model.md)
 - [Authentication and security model](docs/security-model.md)
 - [Firebase setup and operations](docs/firebase-setup.md)
@@ -86,8 +87,8 @@ Phase 6 adds complete `group-knockout` execution alongside the deployed Merry-Go
 ## Development phases
 
 - **Phase 0:** frozen product and architecture documentation.
-- **Phases 1–6:** repository implementation complete — static shell, Firebase participant foundation, generic Competition Studio, and live Merry-Go-Round, All Hands, and Group Format execution.
-- **Phase 7:** ledger-derived overall championship.
+- **Phases 1–6:** implemented, deployed, and production-tested — static shell, Firebase participant foundation, Competition Studio, and all three competition engines.
+- **Phase 7:** repository implementation complete — ledger-derived championship, reconciliation, and manual bonuses; deployment/backfill remains an operator action.
 - **Phases 8–9:** Birthday Vault, prediction event, and protected reveal flow.
 - **Phases 10–11:** security hardening, accessibility, animation, multi-device rehearsal, and production deployment.
 

@@ -4,8 +4,10 @@ import { tripMetadata } from "../../data/trip";
 import { Container } from "../../components/layout/Container";
 import { Button } from "../../components/ui/Button";
 import { StatusBadge } from "../../components/ui/StatusBadge";
+import { useChampionship } from "../championship/ChampionshipProvider";
 
 export function HeroSection() {
+  const championship = useChampionship();
   const reduceMotion = useReducedMotion();
   const entrance = (delay: number) => ({
     initial: reduceMotion ? false : { opacity: 0, y: 18 },
@@ -16,6 +18,27 @@ export function HeroSection() {
       ease: [0.2, 0.75, 0.2, 1] as const,
     },
   });
+  const leaders = championship.standings.filter(
+    (standing) =>
+      standing.totalPoints > 0 &&
+      standing.rank === championship.standings[0]?.rank,
+  );
+  const championshipSummary =
+    championship.state === "error"
+      ? "Championship connection unavailable · trip details remain ready"
+      : championship.reconciliation.some((item) =>
+            ["missing", "stale", "malformed-run", "malformed-source"].includes(
+              item.status,
+            ),
+          )
+        ? "Championship points are awaiting organizer verification"
+        : leaders.length > 1
+          ? `${leaders.map((leader) => leader.displayName).join(" & ")} share the lead on ${leaders[0]!.totalPoints} points`
+          : leaders.length === 1
+            ? `${leaders[0]!.displayName} leads the championship on ${leaders[0]!.totalPoints} points`
+            : championship.standings.length > 0
+              ? `${championship.standings.length} players are ready · first result opens the table`
+              : "The championship table opens when players join";
 
   return (
     <section
@@ -70,8 +93,18 @@ export function HeroSection() {
             {tripMetadata.birthdayNote}
           </motion.p>
 
+          <motion.p
+            {...entrance(0.31)}
+            className="mt-4 max-w-lg rounded-xl border border-white/10 bg-white/[0.045] px-4 py-3 text-sm font-semibold text-white/68"
+          >
+            <span className="text-[var(--color-electric-cyan-400)]">
+              Championship
+            </span>{" "}
+            · {championshipSummary}
+          </motion.p>
+
           <motion.div
-            {...entrance(0.34)}
+            {...entrance(0.36)}
             className="mt-5 flex flex-wrap gap-3 sm:mt-8"
           >
             <Button href="#weekend" showArrow variant="dark">

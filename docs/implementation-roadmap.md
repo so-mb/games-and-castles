@@ -261,7 +261,7 @@ Cross-cutting rules:
 
 ### Phase 6 — `group-knockout` engine
 
-**Implementation status:** Complete in the repository. Group Format now has a frozen format-discriminated runtime, secure local draw preview and exact confirmation, balanced persisted groups, interleaved single/double round-robin fixtures, group standings and explicit tie decisions, frozen qualification, normalized cross-group seeding, deterministic rematch avoidance, next-power-of-two knockout generation with highest-seed BYEs, revision-safe correction/reset/completion/reopen workflows, itemized projected points, organizer Group Arena controls, authenticated realtime guest presentation, strict runtime quarantine, append-only audit activity, and default-deny Rules. Production use requires the separately authorized Phase 6 Rules deployment described in [Firebase setup](firebase-setup.md); this implementation did not deploy Rules or modify remote Firebase data.
+**Implementation status:** Complete, deployed, and production-tested. Group Format has a frozen format-discriminated runtime, secure draw confirmation, group/seed decisions, qualification, knockout, correction/reset/completion/reopen workflows, realtime guest presentation, audit activity, and default-deny Rules. Phase 7 now consumes its existing itemized point projection without changing Group Format scoring.
 
 **Goal:** Add balanced randomized groups, group round robins, qualification, and cross-group knockout.
 
@@ -277,7 +277,7 @@ Cross-cutting rules:
 - Explicit pre-result reset, complete knockout invalidation after qualifier-changing corrections, and branch-safe knockout correction flow.
 - Mobile-friendly organizer/public draw, fixture, standings, qualification, bracket, completion, and itemized projected-point views.
 
-**Dependencies:** Phase 4 pairing, standings, bracket, revision, reset, and point-derivation foundations. The persisted global ledger remains Phase 7 work.
+**Dependencies:** Phase 4 pairing, standings, bracket, revision, reset, and point-derivation foundations. Phase 7 reuses the completed point projection.
 
 **Acceptance criteria**
 
@@ -294,13 +294,15 @@ Cross-cutting rules:
 
 **Implemented tests/review:** Pure tests cover all automatic group-count boundaries, valid/invalid manual counts, injected deterministic shuffle, balanced assignments, group sizes 2–6 across one/two legs, reversed second-leg sides, interleaving, standings and exact-two head-to-head handling, explicit fingerprinted group/cross-group ties, qualification snapshots, normalized rank tiers, deterministic lower-tier rematch avoidance, golden A1–B2/B1–A2 pairings, BYEs, corrections, full-knockout invalidation, completion/reopen, points, and strict parser quarantine. Frontend tests cover the exact activation-preview handoff, Group Arena routing, persisted public draw/fixture/standings/points views, and guest read-only behavior. The 73-case emulator Rules matrix preserves all Phase 2–5 cases and adds Group activation/draw/group/result/qualification/seed/bracket/completion/reopen/reset, stale-write, malformed-field, and guest-write denial cases. Broader cross-device and production Group Format rehearsal remains Phase 11 hardening work.
 
-**Phase boundary:** All three competition formats now execute. The Phase 7 global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
+**Phase boundary:** All three competition formats execute in production. Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain outside Phase 6.
 
 ---
 
 ### Phase 7 — Overall championship ledger and leaderboard
 
-**Goal:** Turn the Phase 4 per-run point projection into the first persisted, weekend-wide, explainable scoring ledger for all competitions and prediction events.
+**Implementation status:** Complete in the repository. Deployment of the Phase 7 Rules/frontend and one production reconciliation remain operator actions; no remote Firebase resource was changed by this implementation.
+
+**Goal:** Turn the Phase 4–6 per-run point projections into a persisted, weekend-wide, explainable scoring ledger for all three competition formats. Prediction scoring remains deferred.
 
 **Inputs**
 
@@ -308,10 +310,10 @@ Cross-cutting rules:
 
 **Outputs**
 
-- Trusted derivation registry for all source types.
-- Authoritative active/void score-entry ledger; rebuild/reconciliation administrative operation.
-- Derived leaderboard cache/index, tied ranks, podium, full ranking, recent activity, per-participant and per-competition breakdown.
-- Admin bonus/correction workflow with mandatory reason and audit.
+- Exact-format normalization registry that reuses all three engine projections.
+- Full-source replacement ledger with deterministic identities/fingerprints and organizer reconciliation.
+- Pure leaderboard (no persisted cache), shared ranks, podium, current awards, participant explanations, contributions, and score-neutral achievements.
+- Positive, revisioned admin bonuses with active-only public projection, revoke/restore, and audit.
 - Presentation-safe score reasons and empty/loading/offline states.
 
 **Dependencies:** Phase 4 result and point-derivation foundation; Phases 5–6 result adapters for complete coverage.
@@ -321,7 +323,7 @@ Cross-cutting rules:
 1. Every displayed total equals the sum of active ledger entries and no total is client editable.
 2. Every point shown has participant, source type/entity, points, reason, timestamp, and deterministic key where required.
 3. Replaying any derivation or rebuilding from sources produces no duplicate and the same totals.
-4. Result correction removes/voids obsolete entries and adds/upserts expected ones; recent activity does not misrepresent a duplicate award.
+4. Result correction replaces the complete source and removes obsolete entries; latest-award presentation does not claim immutable history.
 5. Equal totals display tied rankings consistently; podium and full list have accessible alternatives.
 6. Queries remain scoped/bounded and update two connected clients in realtime.
 7. Reconciliation reports missing, extra, or revision-stale entries before applying an audited repair.

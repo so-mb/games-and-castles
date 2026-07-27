@@ -4,7 +4,7 @@
     ".write": false,
     "participants": {
       ".indexOn": ["status", "ownerUid"],
-      ".read": "auth != null && (auth.token.admin === true || (query.orderByChild == 'status' && query.equalTo == 'active'))",
+      ".read": "auth != null",
       "$participantId": {
         ".read": "auth != null && (auth.token.admin === true || data.child('ownerUid').val() == auth.uid || data.child('status').val() == 'active')",
         ".write": "auth != null && newData.exists() && ((auth.token.admin === true && ((!data.exists() && !newData.child('ownerUid').exists()) || (data.exists() && newData.child('ownerUid').val() == data.child('ownerUid').val() && newData.child('id').val() == data.child('id').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdByUid').val() == data.child('createdByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val()))) || ($participantId == auth.uid && ((!data.exists() && newData.child('ownerUid').val() == auth.uid && newData.child('status').val() == 'active') || (data.exists() && data.child('ownerUid').val() == auth.uid && newData.child('ownerUid').val() == auth.uid && newData.child('id').val() == data.child('id').val() && newData.child('status').val() == data.child('status').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdByUid').val() == data.child('createdByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val()))))",
@@ -1192,6 +1192,165 @@
         "$other": { ".validate": false }
       }
     },
+    "championshipLedger": {
+      "competitionSources": {
+        ".read": "auth != null",
+        "$competitionId": {
+          ".write": "auth != null && auth.token.admin === true && ((newData.exists() && newData.parent().parent().parent().child('competitionRuns').child($competitionId).exists() && newData.parent().parent().parent().child('competitions').child($competitionId).child('status').val().matches(/^(active|completed)$/)) || (!newData.exists() && (!newData.parent().parent().parent().child('competitionRuns').child($competitionId).exists() || !newData.parent().parent().parent().child('competitions').child($competitionId).child('status').val().matches(/^(active|completed)$/))))",
+          ".validate": "newData.hasChildren(['meta']) && newData.child('meta').child('competitionId').val() == $competitionId && newData.child('meta').child('runRevision').val() == newData.parent().parent().parent().child('competitionRuns').child($competitionId).child('revision').val() && newData.child('meta').child('competitionFormat').val() == newData.parent().parent().parent().child('competitionRuns').child($competitionId).child('format').val() && newData.child('meta').child('competitionStatus').val() == newData.parent().parent().parent().child('competitions').child($competitionId).child('status').val()",
+          "meta": {
+            ".validate": "newData.hasChildren(['competitionId', 'competitionFormat', 'competitionStatus', 'competitionTitle', 'runRevision', 'sourceFingerprint', 'generatedAt', 'generatedBy', 'entryCount', 'schemaVersion'])",
+            "competitionId": {
+              ".validate": "newData.isString() && newData.val() == $competitionId"
+            },
+            "competitionFormat": {
+              ".validate": "newData.val().matches(/^(round-robin-knockout|all-hands|group-knockout)$/)"
+            },
+            "competitionStatus": {
+              ".validate": "newData.val() == 'active' || newData.val() == 'completed'"
+            },
+            "competitionTitle": {
+              ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 60"
+            },
+            "runRevision": {
+              ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+            },
+            "sourceFingerprint": {
+              ".validate": "newData.isString() && newData.val().matches(/^[a-f0-9]{16}$/)"
+            },
+            "generatedAt": {
+              ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+            },
+            "generatedBy": { ".validate": "newData.val() == 'organizer'" },
+            "entryCount": {
+              ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 10000 && newData.val() % 1 == 0"
+            },
+            "schemaVersion": { ".validate": "newData.val() == 1" },
+            "$other": { ".validate": false }
+          },
+          "entries": {
+            "$entryId": {
+              ".validate": "newData.hasChildren(['id', 'participantId', 'sourceNamespace', 'sourceId', 'sourceEntityId', 'sourceType', 'points', 'label', 'competitionId', 'competitionFormat', 'awardedAt', 'sourceRevision', 'schemaVersion']) && newData.child('id').val() == $entryId && newData.child('competitionId').val() == $competitionId && newData.child('sourceId').val() == $competitionId && newData.child('competitionFormat').val() == newData.parent().parent().child('meta').child('competitionFormat').val()",
+              "id": {
+                ".validate": "newData.isString() && newData.val() == $entryId && newData.val().length <= 80"
+              },
+              "participantId": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+              },
+              "sourceNamespace": {
+                ".validate": "newData.val() == 'competition'"
+              },
+              "sourceId": { ".validate": "newData.val() == $competitionId" },
+              "sourceEntityId": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+              },
+              "sourceType": {
+                ".validate": "newData.isString() && newData.val().matches(/^(match-win|round-win|match-participation|session-win|session-placement|session-participation|custom-session|qualification|competition-winner|competition-runner-up|competition-third-place)$/)"
+              },
+              "points": {
+                ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 10000 && newData.val() % 1 == 0"
+              },
+              "label": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 280"
+              },
+              "competitionId": {
+                ".validate": "newData.val() == $competitionId"
+              },
+              "competitionFormat": {
+                ".validate": "newData.val() == newData.parent().parent().child('meta').child('competitionFormat').val()"
+              },
+              "stage": {
+                ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 64"
+              },
+              "awardedAt": {
+                ".validate": "newData.isNumber() && newData.val() <= now"
+              },
+              "sourceRevision": {
+                ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+              },
+              "schemaVersion": { ".validate": "newData.val() == 1" },
+              "$other": { ".validate": false }
+            }
+          },
+          "$other": { ".validate": false }
+        }
+      },
+      "manualBonusesPublic": {
+        ".read": "auth != null",
+        "$bonusId": {
+          ".write": "auth != null && auth.token.admin === true && ((newData.exists() && newData.parent().parent().child('manualBonuses').child($bonusId).child('status').val() == 'active' && newData.child('revision').val() == newData.parent().parent().child('manualBonuses').child($bonusId).child('revision').val()) || (!newData.exists() && (!newData.parent().parent().child('manualBonuses').child($bonusId).exists() || newData.parent().parent().child('manualBonuses').child($bonusId).child('status').val() == 'revoked'))) ",
+          ".validate": "newData.hasChildren(['id', 'participantId', 'points', 'label', 'status', 'createdAt', 'updatedAt', 'revision', 'schemaVersion']) && newData.child('id').val() == $bonusId && newData.child('status').val() == 'active'",
+          "id": { ".validate": "newData.val() == $bonusId" },
+          "participantId": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
+          },
+          "points": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 100 && newData.val() % 1 == 0"
+          },
+          "label": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+          },
+          "note": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 280"
+          },
+          "status": { ".validate": "newData.val() == 'active'" },
+          "createdAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "schemaVersion": { ".validate": "newData.val() == 1" },
+          "$other": { ".validate": false }
+        }
+      },
+      "manualBonuses": {
+        ".read": "auth != null && auth.token.admin === true",
+        "$bonusId": {
+          ".write": "auth != null && auth.token.admin === true && newData.exists() && ((!data.exists() && newData.child('revision').val() == 1 && newData.child('status').val() == 'active' && newData.child('createdByUid').val() == auth.uid) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('id').val() == data.child('id').val() && newData.child('participantId').val() == data.child('participantId').val() && newData.child('points').val() == data.child('points').val() && newData.child('label').val() == data.child('label').val() && newData.child('note').val() == data.child('note').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdByUid').val() == data.child('createdByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val() && ((data.child('status').val() == 'active' && newData.child('status').val() == 'revoked') || (data.child('status').val() == 'revoked' && newData.child('status').val() == 'active')))) && ((newData.child('status').val() == 'active' && newData.parent().parent().child('manualBonusesPublic').child($bonusId).child('revision').val() == newData.child('revision').val()) || (newData.child('status').val() == 'revoked' && !newData.parent().parent().child('manualBonusesPublic').child($bonusId).exists()))",
+          ".validate": "newData.hasChildren(['id', 'participantId', 'points', 'label', 'status', 'createdAt', 'createdByUid', 'updatedAt', 'updatedByUid', 'revision', 'schemaVersion']) && newData.child('id').val() == $bonusId && ((newData.child('status').val() == 'active' && !newData.child('revokedAt').exists() && !newData.child('revokedByUid').exists()) || (newData.child('status').val() == 'revoked' && newData.hasChildren(['revokedAt', 'revokedByUid'])))",
+          "id": { ".validate": "newData.val() == $bonusId" },
+          "participantId": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128 && root.child('participants').child(newData.val()).exists()"
+          },
+          "points": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 100 && newData.val() % 1 == 0"
+          },
+          "label": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80"
+          },
+          "note": {
+            ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 280"
+          },
+          "status": {
+            ".validate": "newData.val() == 'active' || newData.val() == 'revoked'"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
+          },
+          "createdByUid": {
+            ".validate": "newData.isString() && ((!data.exists() && newData.val() == auth.uid) || (data.exists() && newData.val() == data.val()))"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          },
+          "updatedByUid": { ".validate": "newData.val() == auth.uid" },
+          "revokedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          },
+          "revokedByUid": { ".validate": "newData.val() == auth.uid" },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "schemaVersion": { ".validate": "newData.val() == 1" },
+          "$other": { ".validate": false }
+        }
+      },
+      "$other": { ".validate": false }
+    },
     "audit": {
       ".read": "auth != null && auth.token.admin === true",
       "$auditId": {
@@ -1201,9 +1360,11 @@
           ".validate": "newData.isString() && newData.val() == $auditId"
         },
         "action": {
-          ".validate": "newData.isString() && newData.val().matches(/^(draft-created|draft-updated|draft-deleted|draft-duplicated|competition-published|competition-updated|competition-archived|competition-restored|competition-reordered|competition-activated|draw-fixtures-generated|group-draw-generated|group-stage-completed|qualification-snapshot-confirmed|cross-group-seed-resolved|competition-run-reset|match-started|match-returned-to-pending|match-result-recorded|match-result-corrected|session-created|session-started|session-returned-to-pending|session-result-recorded|session-result-corrected|session-voided|session-restored|session-deleted|completion-review-opened|tie-resolved|tie-resolution-invalidated|knockout-generated|knockout-reset|downstream-results-cascaded|competition-completed|competition-reopened)$/)"
+          ".validate": "newData.isString() && newData.val().matches(/^(draft-created|draft-updated|draft-deleted|draft-duplicated|competition-published|competition-updated|competition-archived|competition-restored|competition-reordered|competition-activated|draw-fixtures-generated|group-draw-generated|group-stage-completed|qualification-snapshot-confirmed|cross-group-seed-resolved|competition-run-reset|match-started|match-returned-to-pending|match-result-recorded|match-result-corrected|session-created|session-started|session-returned-to-pending|session-result-recorded|session-result-corrected|session-voided|session-restored|session-deleted|completion-review-opened|tie-resolved|tie-resolution-invalidated|knockout-generated|knockout-reset|downstream-results-cascaded|competition-completed|competition-reopened|championship-source-reconciled|championship-source-backfilled|championship-source-orphan-removed|manual-bonus-created|manual-bonus-revoked|manual-bonus-restored)$/)"
         },
-        "entityType": { ".validate": "newData.val() == 'competition'" },
+        "entityType": {
+          ".validate": "newData.val() == 'competition' || newData.val() == 'championship-source' || newData.val() == 'manual-bonus'"
+        },
         "entityId": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"
         },

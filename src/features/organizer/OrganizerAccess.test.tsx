@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OrganizerAccess } from "./OrganizerAccess";
 
 const organizerState = vi.hoisted(() => ({
@@ -39,8 +39,37 @@ vi.mock("../competitions/organizer/CompetitionStudio", () => ({
   ),
 }));
 
+vi.mock("../championship/organizer/ChampionshipDesk", () => ({
+  ChampionshipDesk: () => (
+    <section aria-label="Championship Desk content">
+      Championship Desk content
+    </section>
+  ),
+}));
+
 describe("OrganizerAccess", () => {
-  it("opens Competition Studio for an authorized organizer and exposes both tool tabs", () => {
+  beforeEach(() => {
+    organizerState.auth.organizer.status = "authorized";
+  });
+
+  it("does not expose Championship Desk before organizer authentication", () => {
+    organizerState.auth.organizer.status = "signed-out";
+    render(<OrganizerAccess />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open Organizer Mode" }),
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Organizer access" });
+    expect(
+      within(dialog).getByRole("button", { name: "Sign in as organizer" }),
+    ).toBeInTheDocument();
+    expect(
+      within(dialog).queryByRole("tab", { name: "Championship Desk" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens all three authorized organizer workspaces including Championship Desk", async () => {
     render(<OrganizerAccess />);
 
     const trigger = screen.getByRole("button", {
@@ -55,6 +84,9 @@ describe("OrganizerAccess", () => {
     });
     const participantTab = within(dialog).getByRole("tab", {
       name: "Participant Control",
+    });
+    const championshipTab = within(dialog).getByRole("tab", {
+      name: "Championship Desk",
     });
 
     expect(studioTab).toHaveAttribute("aria-selected", "true");
@@ -81,6 +113,17 @@ describe("OrganizerAccess", () => {
     fireEvent.click(studioTab);
     expect(
       within(dialog).getByText("Competition Studio content"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(championshipTab);
+    expect(championshipTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      await within(dialog).findByRole("tabpanel", {
+        name: "Championship Desk",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText("Championship Desk content"),
     ).toBeInTheDocument();
   });
 });

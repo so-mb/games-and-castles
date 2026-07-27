@@ -242,8 +242,8 @@ function ProjectedPoints({
         Projected championship points
       </h5>
       <p className="mt-1 text-xs leading-5 text-white/45">
-        Competition-only projection. Weekend-wide aggregation arrives in Phase
-        7.
+        Competition-only awards. The championship table rebuilds from this
+        competition’s current ledger source.
       </p>
       <ul className="mt-3 grid gap-3 sm:grid-cols-2">
         {breakdown.map((entry) => (

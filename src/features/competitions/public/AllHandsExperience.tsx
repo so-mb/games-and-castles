@@ -379,8 +379,8 @@ export function AllHandsExperience({
               Projected points
             </h5>
             <p className="mt-1 text-xs leading-5 text-white/42">
-              Itemized competition awards only. Weekend-wide aggregation arrives
-              in Phase 7.
+              Itemized competition awards. The championship table rebuilds from
+              this competition’s current ledger source.
             </p>
             <div className="mt-3 space-y-2">
               {breakdown.map((item) => (

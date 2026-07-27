@@ -11,7 +11,6 @@ import {
   createGuestParticipant,
   createOrganizerParticipant,
   setParticipantStatus,
-  subscribeToActiveParticipants,
   subscribeToAllParticipants,
   subscribeToParticipant,
   subscribeToUserProfile,
@@ -25,6 +24,7 @@ import type { LoadState, Participant, ParticipantInput } from "./types";
 
 interface ParticipantsContextValue {
   activeParticipants: Participant[];
+  championshipParticipants: Participant[];
   activeState: LoadState;
   ownParticipant: Participant | null;
   ownState: LoadState;
@@ -56,6 +56,9 @@ export function ParticipantsProvider({ children }: { children: ReactNode }) {
   const [activeParticipants, setActiveParticipants] = useState<Participant[]>(
     [],
   );
+  const [championshipParticipants, setChampionshipParticipants] = useState<
+    Participant[]
+  >([]);
   const [activeState, setActiveState] = useState<LoadState>("loading");
   const [ownParticipant, setOwnParticipant] = useState<Participant | null>(
     null,
@@ -71,10 +74,13 @@ export function ParticipantsProvider({ children }: { children: ReactNode }) {
     if (firebase.status !== "ready" || auth.guest.status !== "ready") {
       return;
     }
-    return subscribeToActiveParticipants(
+    return subscribeToAllParticipants(
       firebase.clients.guestDatabase,
       (participants) => {
-        setActiveParticipants(participants);
+        setChampionshipParticipants(participants);
+        setActiveParticipants(
+          participants.filter((participant) => participant.status === "active"),
+        );
         setActiveState("ready");
         setErrorMessage(null);
       },
@@ -245,6 +251,8 @@ export function ParticipantsProvider({ children }: { children: ReactNode }) {
     () => ({
       activeParticipants:
         auth.guest.status === "ready" ? activeParticipants : [],
+      championshipParticipants:
+        auth.guest.status === "ready" ? championshipParticipants : [],
       activeState:
         firebase.status !== "ready"
           ? "idle"
@@ -272,6 +280,7 @@ export function ParticipantsProvider({ children }: { children: ReactNode }) {
     }),
     [
       activeParticipants,
+      championshipParticipants,
       activeState,
       auth.guest.status,
       auth.organizer.status,

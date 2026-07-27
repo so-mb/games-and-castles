@@ -664,8 +664,8 @@ export function GroupFormatExperience({
           {tab === "points" ? (
             <div>
               <p className="mb-4 text-sm text-white/52">
-                Projected, itemized Group Format points only. The global weekend
-                ledger begins in Phase 7.
+                Projected, itemized Group Format points. The championship table
+                rebuilds from this competition’s current ledger source.
               </p>
               <div className="space-y-2">
                 {points.map((entry, index) => (

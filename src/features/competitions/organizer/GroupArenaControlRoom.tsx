@@ -854,8 +854,8 @@ export function GroupArenaControlRoom({
         {tab === "points" ? (
           <div className="space-y-3">
             <p className="text-sm text-white/55">
-              Projected, itemized competition points only. No global weekend
-              ledger is written in Phase 6.
+              Projected, itemized competition points. The matching championship
+              source is synchronized with each valid runtime mutation.
             </p>
             {points.map((entry, index) => (
               <details

@@ -38,11 +38,11 @@ auth != null && auth.token.admin === true
 - No database field such as `isAdmin`, email comparison in client code, URL parameter, or local-storage flag can grant access.
 - Guest and organizer sessions use separate Firebase Auth instances so organizer sign-in/out cannot replace the same browser's anonymous UID.
 
-### Phase 2–6 implemented boundary
+### Phase 2–7 implemented boundary
 
 Phase 2 permits narrowly scoped direct Realtime Database writes for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Phase 3 additionally permits claim-authorized organizer writes to `/competitionDrafts`, `/competitions`, and append-only `/audit`. Phases 4–6 open authenticated read-only access to `/competitionRuns` and claim-authorized organizer writes for exact `round-robin-knockout`, `all-hands`, and `group-knockout` runtimes. The guest UI selects `scheduled`, `active`, and `completed` records; archived records contain no private payload and remain omitted.
 
-Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Activation, completion, reopen, reset, result/dependency updates, and audit use atomic multi-location writes whose existing revisions are enforced by Rules as compare-and-set preconditions. Merry-Go-Round fixture identities, All Hands eligibility/configuration/session membership, and Group Format draw/group/configuration snapshots are frozen at the appropriate lifecycle boundary. Group qualification and cross-group seed decisions bind to persisted fingerprints, bracket generation preserves explicit dependencies and BYEs, and completed runs reject ordinary mutation until reopen. Runtime parsers recheck format-specific membership, fixture uniqueness, result shapes, tie/qualification/seed decisions, bracket dependencies, completion state, and source references before presentation. Direct client writes still do not extend to persisted standings, score ledgers, private messages, predictions, reveals, protected trip data, or any unspecified path.
+Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Phase 7 adds a bounded admin-claim client exception for complete competition-ledger sources and manual bonuses. Competition source validation binds the path ID, format, status, and run revision to the post-write competition/runtime; entries use an allowlisted schema and award union. Guests have authenticated read-only access. The private bonus branch is organizer-only, while guests read a sanitized active-only projection. All runtime/ledger application writes are root-level atomic updates; malformed client reads are quarantined. Direct writes remain denied for persisted totals, private messages, predictions, reveals, protected trip data, and every unspecified path.
 
 Organizer accounts and custom claims are provisioned out of band with the Admin SDK utility documented in [Firebase setup](firebase-setup.md). That utility preserves unrelated custom claims, supports grant/revoke by email or UID, requires an explicit non-demo project ID, and never exposes credentials to Vite.
 
@@ -80,7 +80,8 @@ flowchart TD
 | Create/configure competition drafts and scheduled records | No | Yes, Phase 3 Rules validated | Yes |
 | Generate/confirm fixtures, groups, or sessions | No | Yes for Merry-Go-Round, All Hands, and Group Format under format-specific Rules/revisions | Yes |
 | Enter, correct, complete, or reopen results | No | Yes for all three implemented formats under format-specific Rules/revisions | Yes |
-| Write or modify score ledger | No | No direct client write | Yes |
+| Replace/reconcile a complete competition source | No | Yes, bounded Phase 7 Rules; no individual-entry edit | Yes |
+| Create/revoke/restore manual bonus | No | Yes, bounded Phase 7 Rules/revisions | Yes |
 | Submit birthday message | Yes, own validated submission | Yes | Yes |
 | Read own private birthday submission | Optional own-only | Yes | Yes |
 | Read another guest's private birthday submission | No | Yes | Yes |
@@ -153,7 +154,7 @@ Conceptual Rules structure (illustrative, not a deployable complete ruleset):
 
 The recommended production design routes participant creation, birthday submission, prediction upsert, result mutation, publication, and resolution through callable functions. This enables cross-path checks, reliable server timestamps, rate limiting, audit, content-size validation, and idempotency. Semantic ownership remains reflected under `guestOwned`, but direct writes to high-risk branches are denied. If a low-risk direct-write implementation is temporarily used in development, it needs equivalent ownership, immutable-owner, event-status, field allowlist, size, and transition validation and must be replaced or explicitly threat-reviewed before production.
 
-Phases 4–6 make a bounded exception for public-safe competition execution data. The organizer client calculates a deterministic next format-discriminated runtime, then submits the entire revisioned mutation plus compact audit entries atomically. Realtime Database Rules require the admin custom claim, exact engine/schema/status values, legal competition transitions, existing run/match/session/result revisions, immutable activation snapshots and play identities, valid participant/team/group/draw/qualification/seed/bracket/result/placement shapes, and an append-only audit. Completion and reopening atomically change both competition and run state; ordinary writes remain denied while completed. A failed stale write is re-read and surfaced as a conflict. This does not authorize direct client writes to the Phase 7 global ledger or any private/protected feature; later Cloud Functions may replace the mutation boundary without changing the pure engines.
+Phases 4–6 make a bounded exception for public-safe competition execution data. Phase 7 extends the same authorized organizer mutation boundary to one complete derived ledger source per run. The client derives the next runtime and full source, then submits them with status changes and compact audit metadata in one root update. Source reconciliation separately rechecks competition/run revisions before replacing a legacy or stale source. No repository method edits one competition entry or participant total. Manual bonuses are the only direct scoring operation; stale revisions fail, revoked records are retained privately, and the public mirror is added/removed atomically.
 
 ### 4.2 Validation rules
 
@@ -167,7 +168,7 @@ Every writable field is allowlisted. Validation includes:
 - prediction value is exactly `option-a` or `option-b` and event status is `open`;
 - status transitions follow the lifecycle, not arbitrary strings;
 - guests cannot set moderation, resolution, organizer, ledger, audit, or publication fields;
-- organizer direct writes cannot reach `public`, `backend`, or ledger branches unless a narrowly scoped design explicitly allows it.
+- organizer direct writes reach only the exact Phase 3–7 branches and transitions explicitly allowlisted by Rules.
 
 Rules must use `newData` and existing `data` to block ownership changes and deletes that evade validation. Indexes (`.indexOn`) are declared for supported bounded queries; the client never reads a whole private collection expecting to filter locally.
 
@@ -294,7 +295,7 @@ Rules are version-controlled and tested in the Firebase Emulator Suite before de
 |---|---|
 | Unauthenticated read of any default path | Denied |
 | Guest read of safe public itinerary/competition/leaderboard | Allowed |
-| Guest write to public competition/result/ledger/audit | Denied |
+| Guest write to public competition/result/ledger/bonus/audit | Denied |
 | Guest create/update another UID's profile/submission/prediction | Denied |
 | Guest enumerate private birthday submissions or predictions | Denied |
 | Guest submit invalid enum, oversized content, forged owner, moderation/outcome field | Denied/rejected by callable |
@@ -310,7 +311,7 @@ Rules are version-controlled and tested in the Firebase Emulator Suite before de
 
 Tests also cover deletes, partial updates, unknown child fields, null transitions, query indexes, archived records, token claim absence/false/true, claim revocation after token refresh, and concurrent emulator transactions.
 
-The implemented 73-case Phase 2–6 matrix covers unauthenticated/guest/admin access, participant and configuration behavior, format/status gating, Merry-Go-Round snapshot/permutation/match/result behavior, All Hands frozen snapshots, sessions, teams, five bounded result shapes, and Group Format activation/draw/group/result/qualification/seed/bracket/completion/reopen/reset behavior. It also covers corrections, void/restore, immutable activation/play data, stale revisions, append-only audit, arbitrary-field denial, and default denial of ledger, birthday-message, prediction, reveal, and future paths. Production Rules deployment remains a separately authorized operator action and is never performed by the Pages workflow.
+The expanded Phase 2–7 emulator matrix preserves participant/configuration and all three runtime suites, then adds authenticated ledger reads; guest mutation denial; valid active/completed source writes; path/format/revision/run/schema/award/point validation; full replacement and orphan removal; split bonus visibility; positive bounds; revisioned revoke/restore; creation-metadata immutability; hard-delete denial; Phase 7 append-only audit actions; and continued denial of birthday, prediction, reveal, and future paths. Production Rules deployment remains a separately authorized operator action and is never performed by the Pages workflow.
 
 ## 13. Hardening checklist
 

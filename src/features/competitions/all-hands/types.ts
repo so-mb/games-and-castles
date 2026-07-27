@@ -189,6 +189,7 @@ export interface DerivedSessionAward {
   sessionLabel: string;
   participantId: string;
   source: AllHandsAwardSource;
+  awardKind: Exclude<AllHandsAwardSource, "team-result">;
   points: number;
   label: string;
 }

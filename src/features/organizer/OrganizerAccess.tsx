@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import {
   LogOut,
   Settings2,
   ShieldCheck,
   Trophy,
+  Award,
   UserPlus,
   UsersRound,
 } from "lucide-react";
@@ -17,6 +18,12 @@ import { ParticipantForm } from "../participants/ParticipantForm";
 import { useParticipants } from "../participants/ParticipantsProvider";
 import type { Participant } from "../participants/types";
 import { CompetitionStudio } from "../competitions/organizer/CompetitionStudio";
+
+const ChampionshipDesk = lazy(() =>
+  import("../championship/organizer/ChampionshipDesk").then((module) => ({
+    default: module.ChampionshipDesk,
+  })),
+);
 
 function initials(name: string) {
   return name
@@ -39,9 +46,9 @@ export function OrganizerAccess() {
   const [editor, setEditor] = useState<"add" | Participant | null>(null);
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [activeTool, setActiveTool] = useState<"participants" | "competitions">(
-    "competitions",
-  );
+  const [activeTool, setActiveTool] = useState<
+    "participants" | "competitions" | "championship"
+  >("competitions");
 
   if (firebase.status !== "ready") return null;
 
@@ -154,6 +161,21 @@ export function OrganizerAccess() {
                 role="tablist"
               >
                 <button
+                  aria-controls="organizer-panel-championship"
+                  aria-selected={activeTool === "championship"}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "championship" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
+                  id="organizer-tab-championship"
+                  onClick={() => {
+                    setEditor(null);
+                    setActiveTool("championship");
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  <Award aria-hidden="true" size={17} />
+                  Championship Desk
+                </button>
+                <button
                   aria-controls="organizer-panel-competitions"
                   aria-selected={activeTool === "competitions"}
                   className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "competitions" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
@@ -197,6 +219,25 @@ export function OrganizerAccess() {
                 role="tabpanel"
               >
                 <CompetitionStudio />
+              </div>
+            ) : activeTool === "championship" ? (
+              <div
+                aria-labelledby="organizer-tab-championship"
+                id="organizer-panel-championship"
+                role="tabpanel"
+              >
+                <Suspense
+                  fallback={
+                    <p
+                      className="py-12 text-center text-sm text-white/55"
+                      role="status"
+                    >
+                      Opening Championship Desk…
+                    </p>
+                  }
+                >
+                  <ChampionshipDesk />
+                </Suspense>
               </div>
             ) : (
               <div

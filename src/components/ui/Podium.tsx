@@ -6,14 +6,19 @@ import { ParticipantAvatar } from "./ParticipantAvatar";
 interface PodiumProps {
   entries: LeaderboardEntry[];
   className?: string;
+  ariaLabel?: string;
 }
 
-export function Podium({ entries, className }: PodiumProps) {
+export function Podium({
+  entries,
+  className,
+  ariaLabel = "Top-three podium",
+}: PodiumProps) {
   const topThree = entries.slice(0, 3);
 
   return (
     <ol
-      aria-label="Sample top-three podium"
+      aria-label={ariaLabel}
       className={cn(
         "podium-grid grid grid-cols-3 items-end gap-2 sm:gap-3",
         className,

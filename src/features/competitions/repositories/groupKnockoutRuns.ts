@@ -22,6 +22,7 @@ import { reviewGroupActivation } from "../group-knockout/generation";
 import { parseGroupKnockoutRun } from "../group-knockout/runtime";
 import type { GroupKnockoutRun } from "../group-knockout/types";
 import { CompetitionRunConflictError } from "./runs";
+import { deriveCompetitionLedgerSnapshot } from "../../championship/ledger/snapshot";
 
 function auditValue(
   id: string,
@@ -73,6 +74,15 @@ async function writeMutation(
   summary: string,
   additionalAudit: Array<{ action: string; summary: string }> = [],
 ) {
+  const competition = await readCompetition(database, source.competitionId);
+  if (!competition || competition.status !== "active") {
+    throw new CompetitionRunConflictError();
+  }
+  const ledger = deriveCompetitionLedgerSnapshot({
+    competition,
+    run: next,
+    generatedAt: next.updatedAt,
+  });
   const entries = [
     { id: auditKey(database), action, summary },
     ...additionalAudit.map((entry) => ({ ...entry, id: auditKey(database) })),
@@ -80,6 +90,7 @@ async function writeMutation(
   try {
     await update(ref(database), {
       [`competitionRuns/${source.competitionId}`]: next,
+      [`championshipLedger/competitionSources/${source.competitionId}`]: ledger,
       ...Object.fromEntries(
         entries.map((entry) => [
           `audit/${entry.id}`,
@@ -189,10 +200,16 @@ export async function activateGroupCompetition(
   };
   const activationId = auditKey(database);
   const drawId = auditKey(database);
+  const ledger = deriveCompetitionLedgerSnapshot({
+    competition: activeCompetition,
+    run: persistedRun,
+    generatedAt: persistedRun.updatedAt,
+  });
   try {
     await update(ref(database), {
       [`competitionRuns/${competition.id}`]: persistedRun,
       [`competitions/${competition.id}`]: activeCompetition,
+      [`championshipLedger/competitionSources/${competition.id}`]: ledger,
       [`audit/${activationId}`]: auditValue(
         activationId,
         "competition-activated",
@@ -457,10 +474,16 @@ export async function completeStoredGroupCompetition(
     revision: competition.revision + 1,
   };
   const id = auditKey(database);
+  const ledger = deriveCompetitionLedgerSnapshot({
+    competition: nextCompetition,
+    run: nextRun,
+    generatedAt: now,
+  });
   try {
     await update(ref(database), {
       [`competitionRuns/${competition.id}`]: nextRun,
       [`competitions/${competition.id}`]: nextCompetition,
+      [`championshipLedger/competitionSources/${competition.id}`]: ledger,
       [`audit/${id}`]: auditValue(
         id,
         "competition-completed",
@@ -495,10 +518,16 @@ export async function reopenStoredGroupCompetition(
     revision: competition.revision + 1,
   };
   const id = auditKey(database);
+  const ledger = deriveCompetitionLedgerSnapshot({
+    competition: nextCompetition,
+    run: nextRun,
+    generatedAt: now,
+  });
   try {
     await update(ref(database), {
       [`competitionRuns/${competition.id}`]: nextRun,
       [`competitions/${competition.id}`]: nextCompetition,
+      [`championshipLedger/competitionSources/${competition.id}`]: ledger,
       [`audit/${id}`]: auditValue(
         id,
         "competition-reopened",
@@ -537,6 +566,7 @@ export async function resetStoredGroupRun(
     await update(ref(database), {
       [`competitionRuns/${competition.id}`]: null,
       [`competitions/${competition.id}`]: nextCompetition,
+      [`championshipLedger/competitionSources/${competition.id}`]: null,
       [`audit/${id}`]: auditValue(
         id,
         "competition-run-reset",
