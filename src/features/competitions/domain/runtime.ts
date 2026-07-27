@@ -130,14 +130,29 @@ function parseFormatConfig(value: unknown): FormatConfig | null {
     !hasExactKeys(
       value,
       ["kind", "resultMode", "sessionPlan", "allowTeams", "tieHandling"],
-      ["primaryMetricLabel", "secondaryMetricLabel"],
+      [
+        "primaryMetricLabel",
+        "primaryMetricDirection",
+        "secondaryMetricLabel",
+        "secondaryMetricDirection",
+        "allowNegativeScores",
+      ],
     ) ||
     !allHandsResultModes.includes(
       value.resultMode as (typeof allHandsResultModes)[number],
     ) ||
     !isRecord(value.sessionPlan) ||
     typeof value.allowTeams !== "boolean" ||
-    value.tieHandling !== "shared"
+    !["shared", "shared-placement", "manual-order"].includes(
+      String(value.tieHandling),
+    ) ||
+    (value.primaryMetricDirection !== undefined &&
+      !["higher", "lower"].includes(String(value.primaryMetricDirection))) ||
+    (value.secondaryMetricDirection !== undefined &&
+      value.secondaryMetricDirection !== null &&
+      !["higher", "lower"].includes(String(value.secondaryMetricDirection))) ||
+    (value.allowNegativeScores !== undefined &&
+      typeof value.allowNegativeScores !== "boolean")
   ) {
     return null;
   }
@@ -171,6 +186,25 @@ function parseFormatConfig(value: unknown): FormatConfig | null {
       typeof value.secondaryMetricLabel === "string"
         ? value.secondaryMetricLabel
         : null,
+    primaryMetricDirection:
+      value.primaryMetricDirection === "lower"
+        ? "lower"
+        : value.primaryMetricDirection === "higher"
+          ? "higher"
+          : value.resultMode === "lowest-score"
+            ? "lower"
+            : "higher",
+    secondaryMetricDirection:
+      typeof value.secondaryMetricLabel === "string"
+        ? value.secondaryMetricDirection === "higher"
+          ? "higher"
+          : "lower"
+        : null,
+    allowNegativeScores: value.allowNegativeScores === true,
+    tieHandling:
+      value.tieHandling === "manual-order"
+        ? "manual-order"
+        : "shared-placement",
   } as AllHandsConfig;
 }
 

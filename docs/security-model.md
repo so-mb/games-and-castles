@@ -38,11 +38,11 @@ auth != null && auth.token.admin === true
 - No database field such as `isAdmin`, email comparison in client code, URL parameter, or local-storage flag can grant access.
 - Guest and organizer sessions use separate Firebase Auth instances so organizer sign-in/out cannot replace the same browser's anonymous UID.
 
-### Phase 2–4 implemented boundary
+### Phase 2–5 implemented boundary
 
-Phase 2 permits narrowly scoped direct Realtime Database writes for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Phase 3 additionally permits claim-authorized organizer writes to `/competitionDrafts`, `/competitions`, and append-only `/audit`. Phase 4 opens authenticated read-only access to `/competitionRuns` and claim-authorized organizer writes only for the `round-robin-knockout` runtime. The guest UI selects `scheduled`, `active`, and `completed` records; archived records contain no private payload and remain omitted.
+Phase 2 permits narrowly scoped direct Realtime Database writes for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Phase 3 additionally permits claim-authorized organizer writes to `/competitionDrafts`, `/competitions`, and append-only `/audit`. Phases 4–5 open authenticated read-only access to `/competitionRuns` and claim-authorized organizer writes for exact `round-robin-knockout` and `all-hands` runtimes. The guest UI selects `scheduled`, `active`, and `completed` records; archived records contain no private payload and remain omitted.
 
-Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/result revisions. Phase 4 activation, completion, reopen, reset, dependency updates, and audit use atomic multi-location writes whose existing revisions are enforced by Rules as compare-and-set preconditions. Match participants and fixture identities are frozen where generated; source-linked knockout slots may change only through a revisioned runtime mutation. Runtime parsers recheck permutations, pairings, results, dependencies, completion state, and source membership before presentation. Direct client writes still do not extend to All Hands/Group Format runtime, persisted standings, score ledgers, private messages, predictions, reveals, protected trip data, or any unspecified path.
+Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Activation, completion, reopen, reset, result/dependency updates, and audit use atomic multi-location writes whose existing revisions are enforced by Rules as compare-and-set preconditions. Merry-Go-Round fixture identities and All Hands eligibility/configuration/session membership are frozen at the appropriate lifecycle boundary. Runtime parsers recheck format-specific membership, result shapes, tie decisions, completion state, and source references before presentation. Direct client writes still do not extend to Group Format runtime, persisted standings, score ledgers, private messages, predictions, reveals, protected trip data, or any unspecified path.
 
 Organizer accounts and custom claims are provisioned out of band with the Admin SDK utility documented in [Firebase setup](firebase-setup.md). That utility preserves unrelated custom claims, supports grant/revoke by email or UID, requires an explicit non-demo project ID, and never exposes credentials to Vite.
 
@@ -78,8 +78,8 @@ flowchart TD
 | Create own participant profile | Yes, validated | Yes | Yes |
 | Manage other participants | No | Yes | Yes |
 | Create/configure competition drafts and scheduled records | No | Yes, Phase 3 Rules validated | Yes |
-| Generate/confirm fixtures, groups, or sessions | No | Yes for Phase 4 Merry-Go-Round only; later trusted operation for other formats | Yes |
-| Enter, correct, complete, or reopen results | No | Yes for Phase 4 Merry-Go-Round under Rules/revisions | Yes |
+| Generate/confirm fixtures, groups, or sessions | No | Yes for Phase 4 Merry-Go-Round fixtures and Phase 5 All Hands sessions; Group Format remains denied | Yes |
+| Enter, correct, complete, or reopen results | No | Yes for Merry-Go-Round and All Hands under format-specific Rules/revisions | Yes |
 | Write or modify score ledger | No | No direct client write | Yes |
 | Submit birthday message | Yes, own validated submission | Yes | Yes |
 | Read own private birthday submission | Optional own-only | Yes | Yes |
@@ -153,7 +153,7 @@ Conceptual Rules structure (illustrative, not a deployable complete ruleset):
 
 The recommended production design routes participant creation, birthday submission, prediction upsert, result mutation, publication, and resolution through callable functions. This enables cross-path checks, reliable server timestamps, rate limiting, audit, content-size validation, and idempotency. Semantic ownership remains reflected under `guestOwned`, but direct writes to high-risk branches are denied. If a low-risk direct-write implementation is temporarily used in development, it needs equivalent ownership, immutable-owner, event-status, field allowlist, size, and transition validation and must be replaced or explicitly threat-reviewed before production.
 
-Phase 4 makes a bounded exception for public-safe Merry-Go-Round execution data. The organizer client calculates a deterministic next runtime, then submits the entire revisioned mutation plus compact audit entries atomically. Realtime Database Rules require the admin custom claim, exact engine/schema/status values, legal competition transitions, existing run/match/result revisions, immutable activation and fixture fields, valid participant/result/placement shapes, and an append-only audit. A failed stale write is re-read and surfaced as a conflict. This does not authorize direct client writes to the Phase 7 global ledger or any private/protected feature; later Cloud Functions may replace the mutation boundary without changing the pure engine.
+Phases 4–5 make a bounded exception for public-safe competition execution data. The organizer client calculates a deterministic next format-discriminated runtime, then submits the entire revisioned mutation plus compact audit entries atomically. Realtime Database Rules require the admin custom claim, exact engine/schema/status values, legal competition transitions, existing run/match/session/result revisions, immutable activation snapshots and play identities, valid participant/team/result/placement shapes, and an append-only audit. All Hands completion and reopening atomically change both competition and run state; ordinary writes remain denied while completed. A failed stale write is re-read and surfaced as a conflict. This does not authorize direct client writes to the Phase 7 global ledger or any private/protected feature; later Cloud Functions may replace the mutation boundary without changing the pure engines.
 
 ### 4.2 Validation rules
 
@@ -187,7 +187,7 @@ The `/public` branch is readable by every authenticated guest. It may contain pu
 
 ### 6.1 Competition/result operations
 
-The following remains the later trusted-backend pattern. Phase 4 currently implements its bounded Merry-Go-Round subset with equivalent admin claim checks, structural/state validation, revision compare-and-set, atomic fan-out, and audit in Realtime Database Rules as described in section 4.
+The following remains the later trusted-backend pattern. Phases 4–5 currently implement bounded Merry-Go-Round and All Hands subsets with equivalent admin claim checks, structural/state validation, revision compare-and-set, atomic fan-out, and audit in Realtime Database Rules as described in section 4.
 
 Sensitive multi-record organizer actions use callable functions or equally trusted backend endpoints:
 
@@ -310,7 +310,7 @@ Rules are version-controlled and tested in the Firebase Emulator Suite before de
 
 Tests also cover deletes, partial updates, unknown child fields, null transitions, query indexes, archived records, token claim absence/false/true, claim revocation after token refresh, and concurrent emulator transactions.
 
-The implemented 58-case Phase 2–4 matrix covers unauthenticated/guest/admin access, participant and configuration behavior, runtime activation and reads, format/status gating, snapshot/permutation/match/result validation, immutable activation/fixture data, stale runtime/match/result revisions, result corrections, tie/bracket writes, completion/reopen, pre-result reset, append-only audit, arbitrary-field denial, and default denial of All Hands, Group Format, ledger, birthday-message, prediction, and reveal paths. Production Rules deployment remains a separately authorized operator action and is never performed by the Pages workflow.
+The implemented 65-case Phase 2–5 matrix covers unauthenticated/guest/admin access, participant and configuration behavior, format/status gating, Merry-Go-Round snapshot/permutation/match/result behavior, All Hands frozen snapshots, sessions, teams, five bounded result shapes, corrections, void/restore, immutable activation/play data, stale revisions, tie/completion/reopen/reset transitions, append-only audit, arbitrary-field denial, and default denial of Group Format, ledger, birthday-message, prediction, and reveal paths. Production Rules deployment remains a separately authorized operator action and is never performed by the Pages workflow.
 
 ## 13. Hardening checklist
 

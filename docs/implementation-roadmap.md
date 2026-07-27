@@ -179,7 +179,7 @@ Cross-cutting rules:
 
 ### Phase 4 — `round-robin-knockout` engine
 
-**Implementation status:** Complete in the repository. The Merry-Go-Round runtime, organizer Control Room, authenticated realtime guest experience, pure derivations, append-only audit activity, runtime validation, default-deny Rules, domain/frontend tests, and expanded emulator matrix are implemented. Production use requires the separately authorized Phase 4 Rules deployment described in [Firebase setup](firebase-setup.md); this implementation did not deploy Rules or modify remote Firebase data.
+**Implementation status:** Complete, deployed, and production-tested. The Merry-Go-Round runtime, organizer Control Room, authenticated realtime guest experience, pure derivations, append-only audit activity, runtime validation, default-deny Rules, domain/frontend tests, and expanded emulator matrix are implemented. Phase 4 Rules were deployed through the separately authorized operator process described in [Firebase setup](firebase-setup.md).
 
 **Goal:** Deliver the first complete live competition vertical slice, including series results, standings, knockout progression, and round-based weekend points.
 
@@ -216,11 +216,13 @@ Cross-cutting rules:
 
 **Implemented tests/review:** Pure tests cover secure-random injection, participant counts 2/3/4/5/6/7/8/10/16, circle-method invariants, rest-aware ordering, single/best-of/first-to results, standings and unresolved ties, 2/4/6/8-seed brackets, byes, correction cascades, revisions, points, completion, reopen, and Realtime Database serialization normalization. Frontend tests cover activation gating, Control Room access, round-by-round entry, read-only live presentation, odd-field byes, offline/unconfigured/malformed states, and strong reopen confirmation. The 58-case Rules matrix covers runtime read/write roles, activation formats/states, snapshot and match validation, revisions, immutable fixtures, results/corrections, tie/bracket/completion/reopen/reset operations, append-only audit, and denial of deferred paths. Full cross-device rehearsal remains a Phase 11 hardening task.
 
-**Phase boundary:** Only `round-robin-knockout` executes. All Hands, Group Format, the global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
+**Phase 4 boundary at completion:** Only `round-robin-knockout` executed at this gate. Phase 5 subsequently adds All Hands; Group Format, the global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
 
 ---
 
 ### Phase 5 — `all-hands` engine
+
+**Implementation status:** Complete in the repository. The format-discriminated All Hands runtime, frozen activation snapshot, organizer All Hands Table, authenticated realtime guest experience, five result modes, individual/team sessions, pure standings and projected-point derivation, corrections, void/restore, final tie resolution, completion/reopen/reset workflows, append-only audit activity, runtime quarantine, default-deny Rules, domain/frontend tests, and expanded emulator matrix are implemented. Production use requires the separately authorized Phase 5 Rules deployment described in [Firebase setup](firebase-setup.md); this implementation did not deploy Rules or modify remote Firebase data.
 
 **Goal:** Support simultaneous individual/team sessions with configurable result interpretation and scoring.
 
@@ -232,8 +234,9 @@ Cross-cutting rules:
 
 - Session creator/history with different participant lists per session.
 - `winner-only`, `placement`, `highest-score`, `lowest-score`, and `custom` result modes.
-- Placement/winner/participation awards, numeric tiebreaks, custom fields, teams and award-distribution policy.
-- Correction/recalculation and format-appropriate standings/session presentation.
+- Placement/winner/participation awards, generic primary/secondary metric tiebreaks, bounded custom point allocation, teams, and `each-member` award distribution.
+- Fixed and open-ended session plans, accessible final tie ordering, final placement snapshots, correction/recalculation, void/restore, and format-appropriate standings/session presentation.
+- Revision-safe atomic writes with audit entries and authenticated guest subscriptions to the same `/competitionRuns/{competitionId}` source of truth.
 
 **Dependencies:** Phases 3–4 shared revision, point derivation, audit, and score-entry presentation foundations. Phase 5 must not create the cross-competition ledger reserved for Phase 7.
 
@@ -249,6 +252,10 @@ Cross-cutting rules:
 **Main technical risks:** Arbitrary custom mode becoming unvalidateable; tied placement semantics; team point multiplication; treating numeric game scores as championship points accidentally.
 
 **Recommended tests:** Result-schema unit matrix; team membership property tests; highest/lowest/tie golden cases; variable roster integration; repeated session/idempotency tests; correction rebuild equality; accessible result-entry tests.
+
+**Implemented tests/review:** Pure tests cover activation/config freezing, participant subsets, team membership and award expansion, all five result modes, shared/manual placements, opposite metric directions, secondary tiebreaks, decimals, permitted negative scores, custom bounds, repeated sessions, corrections, void/restore, fixed/open-ended completion, final tie ordering, completion/reopen, point breakdowns, and RTDB serialization quarantine. Frontend tests cover activation routing and frozen configuration while the shared competition regressions cover offline, malformed-runtime, public-read-only, Merry-Go-Round, and Group Format boundaries. The 65-case Rules matrix adds All Hands activation, session/result validation, correction, void/restore, atomic completion/reopen, immutable snapshots, and guest-write denial while preserving the complete Merry-Go-Round matrix. Full cross-device and production All Hands rehearsal remains a Phase 11 hardening task.
+
+**Phase boundary:** Only `round-robin-knockout` and `all-hands` execute. Group Format, the global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
 
 ---
 

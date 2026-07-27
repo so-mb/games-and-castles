@@ -272,7 +272,7 @@ interface Phase3PublishedCompetition extends Phase3CompetitionBase {
 }
 ```
 
-`Phase3FormatConfig` is the implemented discriminated union for Merry-Go-Round settings (`series`, draws toggle, qualifier count, third-place toggle), All Hands settings (result mode, planned/open-ended sessions, teams toggle, optional metric labels, shared ties), and Group Format settings (automatic/manual group count, qualifiers per group, one/two legs, series, draws, third place). `Phase3ScoringConfig` separates head-to-head table points from championship-preview awards, or stores All Hands placement/winner/participation awards. These values are validated and explained in Phase 3, but are not processed into results or points.
+`Phase3FormatConfig` is the implemented discriminated union for Merry-Go-Round settings (`series`, draws toggle, qualifier count, third-place toggle), All Hands settings (result mode, planned/open-ended sessions, teams toggle, generic metric labels/directions, negative-score toggle, and tie policy), and Group Format settings (automatic/manual group count, qualifiers per group, one/two legs, series, draws, third place). `Phase3ScoringConfig` separates head-to-head table points from championship-preview awards, or stores All Hands placement/winner/participation awards. Phase 4 freezes and executes Merry-Go-Round values; Phase 5 freezes and executes All Hands values. Group Format remains configuration-only.
 
 The implemented paths are `/competitionDrafts/{competitionId}`, `/competitions/{competitionId}`, and `/audit/{auditId}`. Publishing is one multi-location write: create the `scheduled` record at the same ID, remove the draft, and append compact audit metadata. Published edits, archive/restore, and reorders increment revisions; reordering increments every changed record because `displayOrder` is versioned state. Optional null metric labels are omitted by Realtime Database and normalized back to `null` by the runtime adapter. Participant membership stores IDs only, so display profile changes can render without rewriting the selected membership.
 
@@ -436,38 +436,131 @@ On confirmation, `shuffledParticipantIds`, groups, mappings, and fixtures are on
 ## 7. All Hands sessions
 
 ```ts
-interface TeamEntry {
-  teamId: EntityId;
+interface AllHandsConfigSnapshot {
+  format: 'all-hands';
+  resultMode: 'winner-only' | 'placement' | 'highest-score' | 'lowest-score' | 'custom';
+  sessionPlan:
+    | { kind: 'fixed'; plannedSessionCount: number }
+    | { kind: 'open-ended' };
+  allowTeams: boolean;
+  teamAwardPolicy: 'each-member';
+  metrics: {
+    primaryLabel: string | null;
+    primaryDirection: 'higher' | 'lower';
+    secondaryLabel: string | null;
+    secondaryDirection: 'higher' | 'lower' | null;
+    allowNegativeScores: boolean;
+  };
+  tieHandling: 'shared-placement' | 'manual-order';
+  winnerBonus: number;
+  participationPoints: number;
+  placementPoints: Array<{ place: number; points: number }>;
+}
+
+interface AllHandsTeam {
+  id: EntityId;
   name: string;
   participantIds: ParticipantId[];
 }
 
-interface SessionEntrantResult {
-  entrantId: ParticipantId | EntityId; // participantId or session-local teamId
-  place?: number;
-  numericScore?: number;
-  isWinner?: boolean;
-  customValues?: Record<string, number | string | boolean>;
+type AllHandsSessionResult =
+  | { kind: 'winner-only'; winnerEntityId: EntityId; /* common metadata */ }
+  | { kind: 'placement'; entries: Array<{ entityId: EntityId; placement: number }>; /* metadata */ }
+  | {
+      kind: 'numeric';
+      mode: 'highest-score' | 'lowest-score';
+      entries: Array<{
+        entityId: EntityId;
+        primaryScore: number;
+        secondaryScore: number | null;
+      }>;
+      manualOrderEntityIds: EntityId[] | null;
+      /* metadata */
+    }
+  | {
+      kind: 'custom';
+      entries: Array<{ entityId: EntityId; points: number; note: string | null }>;
+      /* metadata */
+    };
+
+interface AllHandsCompetitionRun {
+  competitionId: CompetitionId;
+  format: 'all-hands';
+  stage: 'sessions' | 'completion-review' | 'completed';
+  competitionRevision: number;
+  eligibleParticipantIds: ParticipantId[];
+  eligibleParticipantIndex: Record<ParticipantId, true>;
+  configSnapshot: AllHandsConfigSnapshot;
+  sessions: Record<SessionId, AllHandsSession>;
+  tieResolutions: Record<EntityId, AllHandsTieResolution>;
+  placements: AllHandsPlacementSnapshot | null;
+  currentSessionId: SessionId | null;
+  sessionCount: number;
+  resultCount: number;
+  createdAt: UnixMs;
+  updatedAt: UnixMs;
+  activatedAt: UnixMs;
+  activatedByUid: UserId;
+  completedAt: UnixMs | null;
+  completedByUid: UserId | null;
+  revision: number;
+  schemaVersion: 1;
 }
 
-interface AllHandsSession extends AuditFields {
+interface AllHandsSession {
   id: SessionId;
   competitionId: CompetitionId;
   sequence: number;
-  name?: string;
+  title: string;
+  mode: 'individual' | 'team';
   participantIds: ParticipantId[];
-  teams?: TeamEntry[];
-  resultMode: AllHandsResultMode;
-  scoringConfig: ScoringConfig; // frozen session override or competition copy
-  status: PlayStatus;
-  results?: SessionEntrantResult[];
-  resultRevision: number;
-  completedAt?: UnixMs;
-  correctionReason?: string;
+  participantIndex: Record<ParticipantId, true>;
+  teams: Record<EntityId, AllHandsTeam>;
+  teamAssignments: Record<ParticipantId, EntityId>;
+  entityIds: EntityId[];
+  entityIndex: Record<EntityId, true>;
+  status: 'pending' | 'in-progress' | 'completed' | 'voided';
+  result: AllHandsSessionResult | null;
+  revision: number;
+  schemaVersion: 1;
+  // creation/start/completion/void metadata is stored explicitly
+}
+
+interface AllHandsTieResolution {
+  id: EntityId;
+  participantIds: ParticipantId[];
+  orderedParticipantIds: ParticipantId[];
+  reason: string | null;
+  standingsFingerprint: string;
+  resolvedAt: UnixMs;
+  resolvedByUid: UserId;
+  schemaVersion: 1;
+}
+
+interface AllHandsPlacementSnapshot {
+  entries: Array<{
+    participantId: ParticipantId;
+    place: number;
+    totalCompetitionPoints: number;
+    sessionWins: number;
+    secondPlaceFinishes: number;
+    thirdPlaceFinishes: number;
+    completionAwards: number;
+  }>;
+  completedAt: UnixMs;
+  completedByUid: UserId;
+  runtimeRevision: number;
+  schemaVersion: 1;
 }
 ```
 
-For team sessions, all participant IDs appear in exactly one team and `entrantId` references a session-local `teamId`. The derivation expands team awards according to the frozen policy.
+The common result metadata contains the complete `entityIndex`, `completedAt`, `completedByUid`, and `resultRevision`. Realtime Database omits null properties and empty maps; the runtime adapter restores those optional values before validating the whole run. It rejects unknown keys, invalid stages/statuses, duplicate or outside participants, invalid/overlapping teams, incomplete result coverage, malformed numeric/custom values, stale completion snapshots, and invalid tie resolutions. One malformed runtime is quarantined without crashing other competition cards.
+
+For team sessions, every selected participant appears in exactly one non-empty session-local team and result entity IDs reference those stable team IDs. The pure derivation expands each team award in full to every member under `teamAwardPolicy: 'each-member'`. Individual sessions map entity IDs directly to participant IDs.
+
+Persisted All Hands sources of truth are the frozen snapshot and eligibility, session definitions/membership, raw result inputs and revisions, void metadata, explicit final tie orders with standings fingerprints, final placement snapshot, and audit events. Session awards, standings, placement/win counts, average placement, progress, and itemized projected competition points are rebuilt from that source. No independently mutable total and no Phase 7 score-ledger entry is written.
+
+Fixed plans may enter completion review only after the configured number of non-voided completed sessions; open-ended plans require at least one. Completion atomically moves both competition and run to `completed`. Reopen preserves sessions/results, removes final placement/completion/tie metadata, and returns the run to `sessions`. Before any result, reset may remove the runtime and return the unchanged competition to `scheduled`.
 
 ## 8. Standings and championship ledger
 
@@ -725,7 +818,7 @@ The tree below remains the target for later execution, private-content, and back
 
 “Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
-In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. Phase 3 instead uses the flat paths documented above and Rules-authorized atomic client publication because it contains public-safe configuration only. Phase 4 adds the bounded, admin-claim-authorized `/competitionRuns` exception documented above for public-safe Merry-Go-Round execution. Other formats, a persisted score ledger, and protected publication still require their later trusted-operation designs.
+In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. Phase 3 instead uses the flat paths documented above and Rules-authorized atomic client publication because it contains public-safe configuration only. Phases 4–5 add the bounded, admin-claim-authorized `/competitionRuns` exception documented above for public-safe Merry-Go-Round and All Hands execution. Group Format, a persisted score ledger, and protected publication still require their later trusted-operation designs.
 
 ## 13. Source of truth, derivation, and denormalization
 
@@ -734,8 +827,8 @@ In the future target, competition drafts live under `organizer`, while confirmed
 | Participant identity/profile | Yes | Owner for limited fields; organizer for management | Participant ID is stable reference |
 | Competition/config snapshot | Yes | Organizer | Authoritative after start |
 | Confirmed shuffle/groups/fixture order | Yes | Organizer confirmation/backend operation | Generated once, then authoritative |
-| Match/session result | Yes | Organizer | Authoritative versioned source |
-| Standings | Optional persisted cache | Trusted derivation | Rebuildable from results/config |
+| Match/session result | Yes | Organizer under format-specific Rules | Authoritative versioned source |
+| Standings | No for Phases 4–5 | Pure client derivation | Rebuildable from results/config; no independently mutable total |
 | Championship score entries | Yes | Backend/trusted admin operation | Authoritative ledger, deterministic |
 | Leaderboard totals/recent list | Optional persisted cache | Trusted derivation | Rebuildable from active ledger |
 | Private birthday submission | Yes | Guest create/limited own update; organizer moderate | Never in guest-readable collection |

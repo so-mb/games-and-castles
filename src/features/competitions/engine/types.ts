@@ -5,6 +5,7 @@ import type {
   RoundRobinKnockoutConfig,
   SeriesConfig,
 } from "../domain/types";
+import type { AllHandsCompetitionRun } from "../all-hands/types";
 
 export type CompetitionRunStage =
   "round-robin" | "qualification-review" | "knockout" | "completed";
@@ -143,6 +144,8 @@ export interface CompetitionRun {
   revision: number;
   schemaVersion: 1;
 }
+
+export type AnyCompetitionRun = CompetitionRun | AllHandsCompetitionRun;
 
 export interface FixtureGeneration {
   rounds: RoundRobinRound[];

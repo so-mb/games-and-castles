@@ -19,6 +19,7 @@ import { formatPresentation } from "../domain/config";
 import { resolveParticipants } from "../domain/transforms";
 import type { PublishedCompetition } from "../domain/types";
 import { MerryGoRoundExperience } from "./MerryGoRoundExperience";
+import { AllHandsExperience } from "./AllHandsExperience";
 
 function initials(name: string) {
   return name
@@ -149,8 +150,8 @@ export function PublicCompetitionList() {
             Live and scheduled games
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-            Follow Merry-Go-Round fixtures and results live. Friday remains
-            flexible—competition cards never assign a fixed start time.
+            Follow Merry-Go-Round matches and All Hands sessions live. Friday
+            remains flexible—competition cards never assign a fixed start time.
           </p>
         </div>
         {firebase.status === "ready" ? (
@@ -215,8 +216,19 @@ export function PublicCompetitionList() {
                 const run = competitions.runs.find(
                   (candidate) => candidate.competitionId === competition.id,
                 );
-                return run && competition.format === "round-robin-knockout" ? (
+                return run &&
+                  run.format === "round-robin-knockout" &&
+                  competition.format === "round-robin-knockout" ? (
                   <MerryGoRoundExperience
+                    competition={competition}
+                    key={competition.id}
+                    participants={participants.activeParticipants}
+                    run={run}
+                  />
+                ) : run &&
+                  run.format === "all-hands" &&
+                  competition.format === "all-hands" ? (
+                  <AllHandsExperience
                     competition={competition}
                     key={competition.id}
                     participants={participants.activeParticipants}
@@ -267,8 +279,8 @@ export function PublicCompetitionList() {
       )}
       <p className="mt-4 flex items-center gap-2 text-xs text-white/42">
         <CalendarClock aria-hidden="true" size={15} />
-        Merry-Go-Round can run live. All Hands and Group Format engines arrive
-        in later phases.
+        Merry-Go-Round and All Hands can run live. Group Format arrives in Phase
+        6.
       </p>
     </section>
   );

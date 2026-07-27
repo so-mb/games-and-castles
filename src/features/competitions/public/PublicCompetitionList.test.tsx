@@ -1,9 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCompetitionRun } from "../engine/activation";
+import {
+  createAllHandsRun,
+  createAllHandsSession,
+  recordAllHandsResult,
+} from "../all-hands/engine";
 import { createCompetitionFormValues } from "../domain/config";
 import { createDraftRecord, publishDraftRecord } from "../domain/transforms";
 import type { Participant } from "../../participants/types";
+import type { AnyCompetitionRun } from "../engine/types";
 import {
   PublicCompetitionList,
   ScheduledCompetitionCard,
@@ -16,7 +22,7 @@ const hookState = vi.hoisted(() => ({
     scheduled: [] as ReturnType<typeof publishDraftRecord>[],
     active: [] as ReturnType<typeof publishDraftRecord>[],
     completed: [] as ReturnType<typeof publishDraftRecord>[],
-    runs: [] as ReturnType<typeof createCompetitionRun>[],
+    runs: [] as AnyCompetitionRun[],
     publicState: "ready",
     publicMalformedCount: 0,
     runtimeMalformedCount: 0,
@@ -161,6 +167,74 @@ describe("scheduled competition card", () => {
       screen.getByText(/weekend-wide aggregation arrives in Phase 7/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /record result/i })).toBeNull();
+  });
+
+  it("renders realtime All Hands sessions, standings, and projected points without organizer controls", () => {
+    const values = createCompetitionFormValues("all-hands");
+    values.title = "Shared Castle Table";
+    values.gameName = "Party Challenge";
+    values.participantIds = participants.map((participant) => participant.id);
+    if (values.formatConfig.kind === "all-hands") {
+      values.formatConfig = {
+        ...values.formatConfig,
+        resultMode: "winner-only",
+      };
+    }
+    const draft = createDraftRecord(values, {
+      id: "shared-castle-table",
+      uid: "admin",
+      now: 100,
+    });
+    const scheduled = publishDraftRecord(draft, "admin", 200, 100);
+    const active = {
+      ...scheduled,
+      status: "active" as const,
+      revision: scheduled.revision + 1,
+      updatedAt: 300,
+    };
+    let run = createAllHandsRun(scheduled, "admin", 300);
+    run = createAllHandsSession(run, {
+      id: "session-1",
+      title: "Opening table",
+      mode: "individual",
+      participantIds: participants.map((participant) => participant.id),
+      teams: [],
+      startImmediately: true,
+      organizerUid: "admin",
+      now: 400,
+    });
+    const session = run.sessions["session-1"]!;
+    run = recordAllHandsResult(
+      run,
+      session.id,
+      session.revision,
+      { kind: "winner-only", winnerEntityId: participants[0]!.id },
+      "admin",
+      500,
+    );
+    hookState.firebase = { status: "ready" };
+    hookState.participants.activeParticipants = participants;
+    hookState.competitions.active = [active];
+    hookState.competitions.runs = [run];
+
+    render(<PublicCompetitionList />);
+
+    expect(
+      screen.getByRole("heading", { name: "Shared Castle Table" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("All Hands · realtime table")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Session history" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Winner: Ada Castle")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Standings" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Projected points" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(/global leaderboard/i);
   });
 
   it("surfaces offline and quarantined-runtime states without exposing controls", () => {

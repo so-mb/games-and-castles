@@ -74,14 +74,20 @@ export type AllHandsResultMode =
 export type SessionPlan =
   { kind: "open-ended" } | { kind: "planned"; sessionCount: number };
 
+export type AllHandsTieHandling = "shared-placement" | "manual-order";
+export type MetricDirection = "higher" | "lower";
+
 export interface AllHandsConfig {
   kind: "all-hands";
   resultMode: AllHandsResultMode;
   sessionPlan: SessionPlan;
   allowTeams: boolean;
   primaryMetricLabel: string | null;
+  primaryMetricDirection: MetricDirection;
   secondaryMetricLabel: string | null;
-  tieHandling: "shared";
+  secondaryMetricDirection: MetricDirection | null;
+  allowNegativeScores: boolean;
+  tieHandling: AllHandsTieHandling;
 }
 
 export interface GroupKnockoutConfig {
@@ -151,6 +157,15 @@ export interface CompetitionAuditEntry {
     | "match-returned-to-pending"
     | "match-result-recorded"
     | "match-result-corrected"
+    | "session-created"
+    | "session-started"
+    | "session-returned-to-pending"
+    | "session-result-recorded"
+    | "session-result-corrected"
+    | "session-voided"
+    | "session-restored"
+    | "session-deleted"
+    | "completion-review-opened"
     | "tie-resolved"
     | "tie-resolution-invalidated"
     | "knockout-generated"

@@ -44,6 +44,12 @@ This document records decisions without describing, naming, or inferring protect
 | CR-29 | Phase 4 blocks activation when draws are enabled. | Phase 3 stores the toggle, but no terminal series-draw rule is approved. Decisive single/best-of/first-to results are supported; draw execution remains open rather than inferred. |
 | CR-30 | Phase 4 derives itemized projected points per Merry-Go-Round run but persists no score ledger. | Match wins, individual rounds, participation, qualification, and final placement awards recalculate from authoritative results. Phase 7 owns cross-competition persistence and the global leaderboard. |
 | CR-31 | A configured third-place match must be completed before competition completion. | This makes third and fourth place deterministic in the placement snapshot; without it, only champion and runner-up receive exact final places. |
+| CR-32 | Phase 5 All Hands uses the same `scheduled → active → completed` lifecycle, with strong confirmed reopen and pre-result-only reset. | Activation freezes eligibility and configuration; sessions/results are preserved through completion and reopen; a run with any result cannot be casually deleted. |
+| CR-33 | All Hands session awards use the frozen competition placement table, winner bonus, and participation points; custom mode stores bounded direct points. | One explainable award model ranks the competition and previews its future Phase 7 contribution without persisting a global ledger. |
+| CR-34 | All Hands team awards use `each-member` distribution only. | Every team member receives the full derived team award. Persistent teams and split/rounding policies remain outside Phase 5. |
+| CR-35 | Shared All Hands placement uses competition ranking (`1, 1, 3`); manual ordering requires unique positions. | Shared entities receive the configured points for the shared declared place. No name, ID, creation order, or randomness resolves a sporting tie. |
+| CR-36 | Numeric All Hands results use generic primary and optional secondary metric labels/directions. | Raw scores remain session-local and are never summed as a universal competition tiebreak. Equal configured metrics remain shared or require the frozen manual order policy. |
+| CR-37 | All Hands custom results accept one non-negative integer point value from 0–100 and an optional plain-text note up to 160 characters per entity. | This resolves OD-10 with a Rules-verifiable shape and excludes executable formulas, arbitrary objects, and rich text. |
 
 ## 3. Required terminology
 
@@ -88,7 +94,6 @@ These items require confirmation; recommendations indicate the least-risk starti
 |---|---|---|---|
 | OD-05 | Set remaining maximum active-participant/competition record counts, message lengths/counts, and later custom-field counts. Phase 3 per-record configuration bounds are confirmed in CR-24. | Use conservative UI/rules/function limits based on the private group size and load-test at twice expected volume. | Feature-owning later phase |
 | OD-06 | Define a terminal series-result rule before enabling match draws. Phase 4 deliberately blocks draw-enabled activation under CR-29. | Keep draws off until a bounded maximum-round/terminal rule is approved; never infer one from table draw points. | Later draw-support change |
-| OD-10 | Define All Hands custom field limits and whether free text is needed. | Prefer numbers/booleans and short allowlisted labels; avoid arbitrary rich text/scoring formulas. | Phase 5 |
 | OD-11 | Choose automatic group policy outside 4–16 participants and whether snake assignment is used. | Require a validated manual group count outside the specified range; use deterministic round-robin assignment after secure shuffle. | Phase 6 |
 | OD-12 | Decide voided/corrected ledger visibility to guests. | Show clear correction activity and current breakdown; keep detailed before-values organizer-only if confusing/private. | Phase 7 |
 | OD-13 | Set Birthday Vault per-UID message count, edit window, moderation/edit policy, anonymous display wording, and retention/deletion period. | One editable submission per UID until closed; organizer hides but does not rewrite guest text; publish a sanitized snapshot; decide deletion after the event. | Phase 8 |
@@ -101,7 +106,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-The Phase 2 production baseline, including initial organizer-account ownership and provisioning, is complete, and Phase 3 is deployed and production-verified. The Phase 4 repository implementation is complete; its runtime Rules deployment remains an explicit operator action. OD-06 now blocks only future draw support. OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness. Other decisions block only the named feature or phase.
+The Phase 2 production baseline, including initial organizer-account ownership and provisioning, is complete, and Phases 3–4 are deployed and production-verified. The Phase 5 repository implementation is complete; its runtime Rules deployment remains an explicit operator action. OD-06 now blocks only future draw support, and CR-37 resolves former OD-10 for the Phase 5 custom result shape. OD-13, OD-15, OD-16, OD-18, and OD-19 remain blockers for their named later features and final full-product production readiness. Other decisions block only the named feature or phase.
 
 ## 6. Technical architecture decisions
 
@@ -151,7 +156,7 @@ The Phase 2 production baseline, including initial organizer-account ownership a
 
 **Reason:** Last-write-wins can erase another organizer's result or lock state.
 
-**Consequences:** Conflicts require explicit UI. Phase 3 configuration writes and Phase 4 Merry-Go-Round runtime writes use Rules-enforced revision increments, atomic multi-path updates, and audit records. Phase 4 is compare-and-set rather than last-write-wins: stale runtime, match, or result revisions are denied and reloaded. Later ledger/private operations add backend idempotent request handling where retries could create cross-path awards or protected publication.
+**Consequences:** Conflicts require explicit UI. Phase 3 configuration writes and Phase 4–5 competition runtime writes use Rules-enforced revision increments, atomic multi-path updates, and audit records. Merry-Go-Round and All Hands are compare-and-set rather than last-write-wins: stale runtime, match, session, or result revisions are denied and reloaded. Later ledger/private operations add backend idempotent request handling where retries could create cross-path awards or protected publication.
 
 ### AD-07 — Phase 1 is a typed, anchor-based static shell
 
@@ -183,7 +188,15 @@ The Phase 2 production baseline, including initial organizer-account ownership a
 
 **Reason:** The Phase 4 data is public-safe to authenticated trip participants, deterministic, bounded to one competition, and fully verifiable through version/state/shape Rules. A callable would not add hidden knowledge for this slice. Keeping generation, standings, bracket progression, correction, and points derivation pure makes retries, tests, future migration, and Phase 7 reuse explainable.
 
-**Consequences:** Production mutation still depends on deploying the version-controlled Phase 4 Rules separately. Two organizer devices cannot silently overwrite one another; the loser receives an actionable stale-state conflict. Runtime adapters quarantine malformed data and normalize RTDB-omitted nulls. Audit is compact and organizer-authored. No All Hands/Group engine, persisted standings, global ledger, Cloud Function, App Check change, private submission, prediction, reveal, or protected trip-data access is authorized by this decision.
+**Consequences:** Phase 4 production mutation depended on separately deploying its version-controlled Rules; that deployment is now complete. Two organizer devices cannot silently overwrite one another; the loser receives an actionable stale-state conflict. Runtime adapters quarantine malformed data and normalize RTDB-omitted nulls. Audit is compact and organizer-authored. AD-11 subsequently authorizes the All Hands runtime; Group Format, persisted standings, the global ledger, Cloud Functions, App Check changes, private submissions, predictions, reveals, and protected trip-data access remain unauthorized.
+
+### AD-11 — Phase 5 format-discriminated All Hands runtime
+
+**Decision:** Extend `/competitionRuns/{competitionId}` with an exact `format: 'all-hands'` branch. Activation freezes eligible participant IDs and the normalized Phase 3 configuration. Pure TypeScript functions create and validate session-local individual/team entities, derive awards/standings/final placements, and produce revisioned next states. The organizer client submits runtime, competition status when needed, and compact audit entries atomically; authenticated guests subscribe through the isolated guest client.
+
+**Reason:** All Hands execution data is public-safe to authenticated trip participants, bounded to one competition, and deterministic from frozen configuration plus raw session results. A discriminated runtime preserves the deployed Merry-Go-Round path and avoids a duplicate public copy or prematurely introducing the Phase 7 ledger.
+
+**Consequences:** Team awards are `each-member`; shared places use competition ranking; numeric labels/directions are generic; custom points are bounded and contain no executable formula. Corrections replace source results and rederive all totals, while void/restore and new results invalidate stale final tie decisions. Completed runs reject ordinary session mutations until an explicit atomic reopen. Production mutation depends on separately deploying the version-controlled Phase 5 Rules. Group Format, global ledger persistence, Cloud Functions, App Check changes, private submissions, predictions, reveals, and protected trip data remain unauthorized.
 
 ## 7. Assumptions currently used by the specification
 

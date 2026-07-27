@@ -18,9 +18,9 @@ All numeric scoring rules are frozen in the competition's `scoringConfig` when p
 
 The following competition lifecycle applies to all three formats.
 
-### Phase 3 configuration and Phase 4 execution lifecycle
+### Phase 3 configuration and Phase 4–5 execution lifecycle
 
-Phase 3 persists private `draft` records and published `scheduled`/`archived` configurations. Phase 4 extends only Merry-Go-Round (`round-robin-knockout`) with `active` and `completed`; All Hands and Group Format remain configuration-only until their later phases. Draw review is an organizer UI confirmation, not a separately persisted `preview`, `ready`, or `locked` status.
+Phase 3 persists private `draft` records and published `scheduled`/`archived` configurations. Phase 4 adds `active` and `completed` execution for Merry-Go-Round (`round-robin-knockout`), and Phase 5 adds those states for All Hands (`all-hands`). Group Format remains configuration-only until Phase 6. Draw and activation reviews are organizer UI confirmations, not separately persisted `preview`, `ready`, or `locked` statuses.
 
 ```mermaid
 stateDiagram-v2
@@ -39,11 +39,11 @@ stateDiagram-v2
 
 - `draft`: configuration may change; no confirmed draw or runtime exists.
 - `scheduled`: guest-readable configuration with fixtures pending; it may be edited, reordered, archived, or activated.
-- `active`: one persisted immutable runtime snapshot and draw exist; source format, participants, series, qualification, and scoring are frozen. Only claim-authorized organizer mutations may advance results.
-- `completed`: required final/third-place results and a placement snapshot exist; the run is read-only until a strong confirmed organizer reopen.
+- `active`: one persisted immutable format-specific runtime snapshot exists; source format, participant eligibility, and scoring are frozen. Only claim-authorized organizer mutations may advance results.
+- `completed`: required format-specific results and a placement snapshot exist; the run is read-only until a strong confirmed organizer reopen.
 - `archived`: pre-activation configuration retained outside the public scheduled list. Active/completed runs are never archived or hard-deleted.
 
-Display-name/avatar changes continue resolving by participant ID, but membership and rules never silently change. Reopening preserves fixtures/results, removes completion metadata, returns to knockout, increments revisions, and appends audit.
+Display-name/avatar changes continue resolving by participant ID, but membership and rules never silently change. Reopening preserves fixtures/sessions/results, removes completion metadata and stale final tie decisions, returns to the format's active stage, increments revisions, and appends audit.
 
 ### 2.2 Merry-Go-Round organizer actions
 
@@ -56,6 +56,19 @@ Display-name/avatar changes continue resolving by participant ID, but membership
 | Generate knockout | Qualification review complete; required ties resolved; explicit confirmation | Persist one seeded bracket, highest-seed byes, dependencies, and audit |
 | Complete | Final complete and third-place complete when configured | Atomically persist placements and set competition/runtime `completed` |
 | Reopen | `completed`; strong explicit confirmation | Preserve results, remove completion/placements, return to active knockout, increment revisions, append audit |
+
+### 2.3 All Hands organizer actions
+
+| Action | Preconditions | Effect |
+|---|---|---|
+| Activate | Valid scheduled All Hands; selected profiles exist and are active; valid result/session/tie/scoring configuration | Atomically freeze eligibility/configuration, create the run, set `active`, and append audit |
+| Create/start session | `active`; valid participant subset or complete session-local teams; no missing/inactive selected record | Persist a pending or in-progress session with frozen membership and one-step revisions |
+| Record/correct result | `active`; expected run/session revisions; complete valid result for the frozen mode | Atomically replace raw result, invalidate stale final tie decisions, increment revisions, and append audit; standings/points are re-derived |
+| Void/restore | `active`; completed/voided source session; expected revisions; confirmation | Preserve the raw result while excluding/restoring its derived contributions and append audit |
+| Review/resolve final tie | Session-plan requirement satisfied; no in-progress session; podium tie still matches its fingerprint | Enter completion review and persist an explicit organizer order only where automatic metrics remain equal |
+| Complete | Completion review valid; no required podium tie unresolved | Atomically persist final placements and set competition/runtime `completed` |
+| Reopen | `completed`; strong explicit confirmation | Preserve sessions/results, remove placements/completion/tie decisions, return to active sessions, increment revisions, append audit |
+| Pre-result reset | `active`; zero completed results; explicit confirmation | Delete runtime, return unchanged configuration to `scheduled`, append audit |
 
 ## 3. Match series
 
@@ -197,42 +210,39 @@ flowchart TD
 
 ## 5. `all-hands` (All Hands)
 
-An All Hands competition contains one or more ordered sessions. Each session snapshots its participant or team membership, so later sessions may use different lists without rewriting history.
+An All Hands competition contains one or more ordered sessions. Activation freezes the eligible participant IDs and the complete normalized configuration. Each session then freezes its selected participant subset or session-local teams when play starts, so later sessions may use different lists without rewriting history. Participant names and avatars continue resolving from stable IDs.
 
 ### 5.1 Result modes
 
 | Result mode | Required source data | Winner/ranking interpretation |
 |---|---|---|
-| `winner-only` | One winning participant/team, or explicitly supported co-winners | Winner only; no invented order for others |
-| `placement` | Complete or configured partial placement with tie groups | Ascending place; tied placements share the declared place |
+| `winner-only` | Exactly one winning participant/team | Winner only; no invented order for others |
+| `placement` | One entry for every result entity | Ascending place; configured shared ties use competition ranking (`1, 1, 3`) |
 | `highest-score` | Numeric value per entrant | Higher value ranks first; configured secondary tiebreak or tied result |
 | `lowest-score` | Numeric value per entrant | Lower value ranks first; configured secondary tiebreak or tied result |
-| `custom` | Organizer-defined typed fields and explicit award mapping | No inference beyond the frozen custom configuration |
+| `custom` | One bounded non-negative integer point value and optional short note per entity | Direct organizer-defined competition points; no placement is inferred |
 
-Supported scoring models include configurable placement points, winner bonuses, participation, numeric score conversion, and explicit custom awards. No engine default may infer that a game score is itself a championship point value.
+Placement and numeric modes map derived places through the frozen placement-point table. Winner-only uses the frozen winner bonus. Configured participation points apply explicitly to participating entities, including custom mode when non-zero. Team awards expand in full to every member under the frozen `each-member` policy. Raw numeric scores are never treated as championship points.
 
 ### 5.2 Session requirements
 
-- Validate every entrant appears once as an individual or once within one team.
-- Team membership and the rule for distributing team awards are frozen before the session begins. Supported distribution policies are `each-member` (each member receives the configured award) or `split` (the configured total is divided using the documented rounding/remainder rule). Recommended default: `each-member`.
+- Validate every selected participant appears once as an individual or exactly once within one team; require at least two individuals or two non-empty teams.
+- Team IDs/names are session-local and stable, names are unique case-insensitively, and the only Phase 5 distribution policy is `each-member`.
 - Multiple sessions may repeat the same entrants and independently award points.
-- Numeric scores retain the original submitted value and direction (`highest-score` or `lowest-score`) for explainability.
-- Placement ties use a configured policy chosen before start: shared points, averaged occupied-place points, or organizer tiebreak. Recommended default: shared points for the declared place.
-- A correction replaces the session result and all score entries deterministically derived from that session.
-- Session history shows revision, status, result summary, and correction reason without exposing deleted sensitive input.
-
-To support progress-and-penalty style play generically, `custom` or `lowest-score` sessions may capture optional `progressLevel`, `penaltyScore`, and `placement`. A frozen tiebreak can sort progress descending, penalty ascending, then display a tie. For repeated winner-only play, model each round as its own session.
-
-Configuration examples—not engine switches—include:
-
-- A Phase 10-style event can use progress/phase reached, penalty score, placement, and lowest penalty as a declared tiebreak.
-- A Monopoly Deal-style event can use winner-only or placement sessions and represent repeated rounds as multiple sessions.
-
-These names remain organizer-entered display data. The engine selects behavior only from `resultMode`, typed fields, and frozen scoring/tiebreak configuration.
+- Numeric results retain each submitted primary score, optional secondary score, metric labels, and higher/lower directions for explainability. Decimal values are valid; negative values require the frozen allow-negative setting.
+- Shared placement awards the configured points for the shared declared place. `manual-order` requires a complete explicit entity order for otherwise equal numeric results and prohibits duplicate placement numbers.
+- Custom points are whole numbers from 0–100. Notes are optional plain text up to 160 characters; arbitrary fields, rich text, and executable formulas are rejected.
+- A correction replaces the raw session result, increments result/session/run revisions, invalidates stale final tie decisions, and deterministically recalculates standings and projected points.
+- Voiding preserves the result and reason but excludes the session; restoration revalidates and restores it. Pending sessions may be deleted, but completed sessions are never hard-deleted.
+- Session history shows current revision/status and public-safe result details. Fixed plans count only non-voided completed sessions; open-ended plans require at least one completed session.
 
 ### 5.3 Completion
 
-An All Hands competition may compute a cumulative internal standing from session awards or remain a session history only. The choice must be explicit in `formatConfig`. Competition-win or qualification bonuses are created only if configured; they are never inferred merely from the largest weekend point contribution.
+All non-voided completed sessions contribute to a cumulative standing ordered by competition points, session wins, second-place finishes, third-place finishes, and comparable average placement. Remaining equality is displayed honestly; a podium-affecting tie requires an organizer order tied to the current standings fingerprint. Names, IDs, join dates, session order, and randomness never break a sporting tie.
+
+Completion persists the final participant order, competition points, win/placement summary, zero completion awards when none are configured, completion metadata, and runtime revision. The competition record and run move to `completed` atomically. Reopening preserves every session/result, clears final placement/completion/tie metadata, and returns to active sessions.
+
+`deriveAllHandsCompetitionPointBreakdown` itemizes each participant's session/source/reason/points. These same derived points rank the All Hands competition and preview its future contribution to the Phase 7 weekend ledger. Phase 5 does not persist a score ledger or present a global leaderboard.
 
 ## 6. `group-knockout` (Group Format)
 

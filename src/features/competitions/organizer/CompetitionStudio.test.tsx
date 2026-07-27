@@ -10,6 +10,7 @@ import type { Participant } from "../../participants/types";
 import { createCompetitionFormValues } from "../domain/config";
 import { createDraftRecord, publishDraftRecord } from "../domain/transforms";
 import type { PublishedCompetition } from "../domain/types";
+import { createAllHandsRun, createAllHandsSession } from "../all-hands/engine";
 import { createCompetitionRun } from "../engine/activation";
 import {
   generateRunKnockout,
@@ -18,7 +19,7 @@ import {
   setMatchInProgress,
 } from "../engine/lifecycle";
 import { deriveStandings } from "../engine/standings";
-import type { CompetitionRun } from "../engine/types";
+import type { AnyCompetitionRun, CompetitionRun } from "../engine/types";
 import { CompetitionStudio } from "./CompetitionStudio";
 import { MerryGoRoundControlRoom } from "./MerryGoRoundControlRoom";
 
@@ -53,6 +54,28 @@ function activeCompetition(competition: PublishedCompetition) {
   };
 }
 
+function scheduledAllHandsCompetition(
+  resultMode: "winner-only" | "placement" = "winner-only",
+) {
+  const values = createCompetitionFormValues("all-hands");
+  values.title = "All Hands Table";
+  values.gameName = "Party Challenge";
+  values.participantIds = participants.map((participant) => participant.id);
+  if (values.formatConfig.kind === "all-hands") {
+    values.formatConfig = {
+      ...values.formatConfig,
+      resultMode,
+      allowTeams: true,
+    };
+  }
+  const draft = createDraftRecord(values, {
+    id: `all-hands-${resultMode}`,
+    uid: "admin",
+    now: 100,
+  });
+  return publishDraftRecord(draft, "admin", 200, 100);
+}
+
 const hookState = vi.hoisted(() => ({
   participants: {
     organizerParticipants: [] as Participant[],
@@ -63,7 +86,7 @@ const hookState = vi.hoisted(() => ({
     completed: [] as PublishedCompetition[],
     archived: [] as PublishedCompetition[],
     drafts: [],
-    runs: [] as CompetitionRun[],
+    runs: [] as AnyCompetitionRun[],
     auditEntries: [],
     publicState: "ready",
     organizerState: "ready",
@@ -89,6 +112,18 @@ const hookState = vi.hoisted(() => ({
     complete: vi.fn().mockResolvedValue(undefined),
     reopen: vi.fn().mockResolvedValue(undefined),
     resetRun: vi.fn().mockResolvedValue(undefined),
+    createAllHandsSession: vi.fn().mockResolvedValue(undefined),
+    startAllHandsSession: vi.fn().mockResolvedValue(undefined),
+    returnAllHandsSessionToPending: vi.fn().mockResolvedValue(undefined),
+    recordAllHandsResult: vi.fn().mockResolvedValue(undefined),
+    voidAllHandsSession: vi.fn().mockResolvedValue(undefined),
+    restoreAllHandsSession: vi.fn().mockResolvedValue(undefined),
+    deleteAllHandsSession: vi.fn().mockResolvedValue(undefined),
+    reviewAllHandsCompletion: vi.fn().mockResolvedValue(undefined),
+    resolveAllHandsTie: vi.fn().mockResolvedValue(undefined),
+    completeAllHands: vi.fn().mockResolvedValue(undefined),
+    reopenAllHands: vi.fn().mockResolvedValue(undefined),
+    resetAllHands: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -141,7 +176,7 @@ describe("Phase 4 Competition Studio", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("offers activation only for Merry-Go-Round competitions", () => {
+  it("offers Phase 5 activation for All Hands and shows its frozen review", () => {
     const merry = scheduledCompetition("merry");
     const allHands = {
       ...scheduledCompetition("all-hands"),
@@ -153,8 +188,11 @@ describe("Phase 4 Competition Studio", () => {
         sessionPlan: { kind: "open-ended" as const },
         allowTeams: false,
         primaryMetricLabel: null,
+        primaryMetricDirection: "higher" as const,
         secondaryMetricLabel: null,
-        tieHandling: "shared" as const,
+        secondaryMetricDirection: null,
+        allowNegativeScores: false,
+        tieHandling: "shared-placement" as const,
       },
       scoringConfig: {
         kind: "all-hands" as const,
@@ -168,13 +206,117 @@ describe("Phase 4 Competition Studio", () => {
     render(<CompetitionStudio />);
     fireEvent.click(screen.getByRole("tab", { name: /Scheduled · 2/i }));
 
-    expect(screen.getByRole("button", { name: "Activate" })).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Activate" })).toHaveLength(2);
+    const allHandsCard = screen
+      .getByRole("heading", { name: "All Hands Later" })
+      .closest("article");
+    expect(allHandsCard).not.toBeNull();
+    fireEvent.click(
+      within(allHandsCard!).getByRole("button", { name: "Activate" }),
+    );
+    expect(screen.getByText("All Hands activation review")).toBeInTheDocument();
+    expect(screen.getByText(/Frozen at activation/)).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: /Engine coming later/i }),
-    ).toBeDisabled();
-    fireEvent.click(screen.getByRole("button", { name: "Activate" }));
-    expect(screen.getByText("Activation review")).toBeInTheDocument();
-    expect(screen.getByText("Frozen at activation")).toBeInTheDocument();
+      screen.getByRole("button", { name: "Activate All Hands" }),
+    ).toBeEnabled();
+  });
+
+  it("creates accessible individual and team sessions from the All Hands control room", async () => {
+    const scheduled = scheduledAllHandsCompetition();
+    const active = activeCompetition(scheduled);
+    const run = createAllHandsRun(scheduled, "admin", 300);
+    hookState.competitions.active = [active];
+    hookState.competitions.runs = [run];
+
+    render(<CompetitionStudio />);
+    fireEvent.click(screen.getByRole("tab", { name: /Active · 1/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Open Control Room/i }));
+    expect(
+      screen.getByText("All Hands Table", { selector: "p" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
+    expect(screen.getByRole("dialog")).toHaveAccessibleName(
+      "Create All Hands session",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Review session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save pending" }));
+    await waitFor(() =>
+      expect(hookState.competitions.createAllHandsSession).toHaveBeenCalledWith(
+        run,
+        expect.objectContaining({
+          mode: "individual",
+          participantIds: participants.map((participant) => participant.id),
+          startImmediately: false,
+        }),
+      ),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create session" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Teams" }));
+    const assignments = screen.getAllByRole("combobox");
+    fireEvent.change(assignments[0]!, { target: { value: "team-1" } });
+    fireEvent.change(assignments[1]!, { target: { value: "team-1" } });
+    fireEvent.change(assignments[2]!, { target: { value: "team-2" } });
+    fireEvent.change(assignments[3]!, { target: { value: "team-2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Review session" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start now" }));
+    await waitFor(() =>
+      expect(
+        hookState.competitions.createAllHandsSession,
+      ).toHaveBeenLastCalledWith(
+        run,
+        expect.objectContaining({
+          mode: "team",
+          startImmediately: true,
+          teams: [
+            expect.objectContaining({
+              name: "Team 1",
+              participantIds: ["guest-1", "guest-2"],
+            }),
+            expect.objectContaining({
+              name: "Team 2",
+              participantIds: ["guest-3", "guest-4"],
+            }),
+          ],
+        }),
+      ),
+    );
+  });
+
+  it("records a winner-only All Hands result through the organizer confirmation flow", async () => {
+    const scheduled = scheduledAllHandsCompetition();
+    const active = activeCompetition(scheduled);
+    let run = createAllHandsRun(scheduled, "admin", 300);
+    run = createAllHandsSession(run, {
+      id: "session-1",
+      title: "Opening table",
+      mode: "individual",
+      participantIds: participants.map((participant) => participant.id),
+      teams: [],
+      startImmediately: true,
+      organizerUid: "admin",
+      now: 400,
+    });
+    hookState.competitions.active = [active];
+    hookState.competitions.runs = [run];
+
+    render(<CompetitionStudio />);
+    fireEvent.click(screen.getByRole("tab", { name: /Active · 1/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Open Control Room/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Enter result" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Ada Castle" }));
+    fireEvent.click(screen.getByRole("button", { name: "Review result" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm and save" }));
+
+    await waitFor(() =>
+      expect(hookState.competitions.recordAllHandsResult).toHaveBeenCalledWith(
+        run,
+        "session-1",
+        run.sessions["session-1"]!.revision,
+        { kind: "winner-only", winnerEntityId: "guest-1" },
+      ),
+    );
   });
 
   it("records a best-of-three result round by round", async () => {

@@ -31,6 +31,20 @@ import {
 } from "../../src/features/competitions/engine/standings";
 import type { CompetitionRun } from "../../src/features/competitions/engine/types";
 import type { PublishedCompetition } from "../../src/features/competitions/domain/types";
+import {
+  completeAllHandsRun,
+  createAllHandsRun,
+  createAllHandsSession,
+  recordAllHandsResult,
+  reopenAllHandsRun,
+  requestAllHandsCompletionReview,
+  restoreAllHandsSession,
+  voidAllHandsSession,
+} from "../../src/features/competitions/all-hands/engine";
+import type {
+  AllHandsCompetitionRun,
+  AllHandsResultInput,
+} from "../../src/features/competitions/all-hands/types";
 
 const projectId = "demo-games-and-castles";
 let environment: RulesTestEnvironment;
@@ -167,6 +181,121 @@ function activeCompetition(competition: PublishedCompetition) {
     revision: competition.revision + 1,
     updatedAt: Date.now(),
   };
+}
+
+function allHandsCompetition(
+  id = "all-hands-runtime",
+  overrides: Record<string, unknown> = {},
+) {
+  return publishedCompetition(competitionDraft(id), {
+    format: "all-hands",
+    formatConfig: {
+      kind: "all-hands",
+      resultMode: "winner-only",
+      sessionPlan: { kind: "open-ended" },
+      allowTeams: true,
+      primaryMetricLabel: null,
+      primaryMetricDirection: "higher",
+      secondaryMetricLabel: null,
+      secondaryMetricDirection: null,
+      allowNegativeScores: false,
+      tieHandling: "shared-placement",
+    },
+    scoringConfig: {
+      kind: "all-hands",
+      winnerBonus: 3,
+      participationPoints: 1,
+      placementPoints: [
+        { place: 1, points: 3 },
+        { place: 2, points: 2 },
+        { place: 3, points: 1 },
+      ],
+    },
+    ...overrides,
+  }) as PublishedCompetition;
+}
+
+function phaseFiveFixture(
+  id = "all-hands-runtime",
+  overrides: Record<string, unknown> = {},
+) {
+  const competition = allHandsCompetition(id, overrides);
+  return {
+    competition,
+    run: createAllHandsRun(competition, "admin", Date.now()),
+  };
+}
+
+function withAllHandsSession(
+  run: AllHandsCompetitionRun,
+  options: {
+    id?: string;
+    mode?: "individual" | "team";
+    startImmediately?: boolean;
+  } = {},
+) {
+  const mode = options.mode ?? "individual";
+  return createAllHandsSession(run, {
+    id: options.id ?? "session-1",
+    title: "Opening table",
+    mode,
+    participantIds: run.eligibleParticipantIds,
+    teams:
+      mode === "team"
+        ? [
+            {
+              id: "team-castle",
+              name: "Team Castle",
+              participantIds: ["guest-1", "guest-2"],
+            },
+            {
+              id: "team-dice",
+              name: "Team Dice",
+              participantIds: ["guest-3", "guest-4"],
+            },
+          ]
+        : [],
+    startImmediately: options.startImmediately ?? true,
+    organizerUid: "admin",
+    now: Date.now(),
+  });
+}
+
+function allHandsResultInput(run: AllHandsCompetitionRun): AllHandsResultInput {
+  const session = Object.values(run.sessions)[0]!;
+  switch (run.configSnapshot.resultMode) {
+    case "winner-only":
+      return { kind: "winner-only", winnerEntityId: session.entityIds[0]! };
+    case "placement":
+      return {
+        kind: "placement",
+        entries: session.entityIds.map((entityId, index) => ({
+          entityId,
+          placement: index + 1,
+        })),
+      };
+    case "highest-score":
+    case "lowest-score":
+      return {
+        kind: "numeric",
+        mode: run.configSnapshot.resultMode,
+        entries: session.entityIds.map((entityId, index) => ({
+          entityId,
+          primaryScore: index + 1,
+          secondaryScore: null,
+        })),
+        manualOrderEntityIds: null,
+      };
+    case "custom":
+      return {
+        kind: "custom",
+        entries: session.entityIds.map((entityId, index) => ({
+          entityId,
+          points: index + 1,
+          note: null,
+        })),
+      };
+  }
 }
 
 function finishRoundRobin(source: CompetitionRun) {
@@ -982,6 +1111,9 @@ describe("Realtime Database security rules", () => {
     const { competition, run } = phaseFourFixture();
     const active = activeCompetition(competition);
     await seed({
+      participants: Object.fromEntries(
+        competition.participantIds.map((id) => [id, participant(id, id)]),
+      ),
       competitions: { [competition.id]: active },
       competitionRuns: { [competition.id]: run },
     });
@@ -1444,6 +1576,526 @@ describe("Realtime Database security rules", () => {
     await assertFails(
       update(ref(admin, "audit/phase-four-event"), {
         summary: "Changed history",
+      }),
+    );
+  });
+
+  it("enforces authenticated reads and admin-only atomic All Hands activation", async () => {
+    const { competition, run } = phaseFiveFixture();
+    await seed({
+      participants: Object.fromEntries(
+        competition.participantIds.map((id) => [id, participant(id, id)]),
+      ),
+      competitions: { [competition.id]: competition },
+    });
+    const rootUpdate = {
+      [`competitions/${competition.id}`]: activeCompetition(competition),
+      [`competitionRuns/${competition.id}`]: run,
+    };
+    await assertFails(
+      get(
+        ref(
+          environment.unauthenticatedContext().database(),
+          `competitionRuns/${competition.id}`,
+        ),
+      ),
+    );
+    await assertFails(
+      update(
+        ref(environment.authenticatedContext("guest").database()),
+        rootUpdate,
+      ),
+    );
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await assertSucceeds(update(ref(admin), rootUpdate));
+    await assertSucceeds(
+      get(
+        ref(
+          environment.authenticatedContext("guest").database(),
+          `competitionRuns/${competition.id}`,
+        ),
+      ),
+    );
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), run),
+    );
+  });
+
+  it("rejects invalid All Hands activation sources and frozen snapshots", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFiveFixture();
+    const participants = Object.fromEntries(
+      competition.participantIds.map((id) => [id, participant(id, id)]),
+    );
+    for (const source of [
+      { ...competition, status: "archived" },
+      { ...competition, status: "completed" },
+      { ...competition, format: "round-robin-knockout" },
+      { ...competition, format: "group-knockout" },
+    ]) {
+      await seed({ participants, competitions: { [competition.id]: source } });
+      await assertFails(
+        update(ref(admin), {
+          [`competitions/${competition.id}`]: activeCompetition(competition),
+          [`competitionRuns/${competition.id}`]: run,
+        }),
+      );
+    }
+    await seed({
+      participants,
+      competitions: { [competition.id]: competition },
+    });
+    await assertFails(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: activeCompetition(competition),
+        [`competitionRuns/${competition.id}`]: {
+          ...run,
+          eligibleParticipantIds: ["guest-1", "intruder"],
+          eligibleParticipantIndex: { "guest-1": true, intruder: true },
+        },
+      }),
+    );
+    await assertFails(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: activeCompetition(competition),
+        [`competitionRuns/${competition.id}`]: {
+          ...run,
+          configSnapshot: {
+            ...run.configSnapshot,
+            resultMode: "not-a-mode",
+          },
+        },
+      }),
+    );
+  });
+
+  it("allows valid All Hands sessions while denying guests and malformed membership", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const guest = environment.authenticatedContext("guest").database();
+    const { competition, run } = phaseFiveFixture();
+    const active = activeCompetition(competition);
+    await seed({
+      participants: Object.fromEntries(
+        competition.participantIds.map((id) => [id, participant(id, id)]),
+      ),
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+    const pending = withAllHandsSession(run, { startImmediately: false });
+    await assertFails(
+      set(ref(guest, `competitionRuns/${competition.id}`), pending),
+    );
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), pending),
+    );
+
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+    const invalidSession = pending.sessions["session-1"]!;
+    for (const changed of [
+      {
+        ...invalidSession,
+        participantIds: ["guest-1", "intruder"],
+        participantIndex: { "guest-1": true, intruder: true },
+        entityIds: ["guest-1", "intruder"],
+        entityIndex: { "guest-1": true, intruder: true },
+      },
+      {
+        ...invalidSession,
+        participantIds: ["guest-1", "guest-1"],
+        participantIndex: { "guest-1": true },
+        entityIds: ["guest-1", "guest-1"],
+        entityIndex: { "guest-1": true },
+      },
+      { ...invalidSession, status: "secret" },
+    ]) {
+      await assertFails(
+        set(ref(admin, `competitionRuns/${competition.id}`), {
+          ...pending,
+          sessions: { "session-1": changed },
+        }),
+      );
+    }
+  });
+
+  it("allows valid All Hands teams and rejects empty or overlapping membership", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const { competition, run } = phaseFiveFixture();
+    const active = activeCompetition(competition);
+    await seed({
+      participants: Object.fromEntries(
+        competition.participantIds.map((id) => [id, participant(id, id)]),
+      ),
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+    const teamRun = withAllHandsSession(run, {
+      mode: "team",
+      startImmediately: false,
+    });
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), teamRun),
+    );
+    const session = teamRun.sessions["session-1"]!;
+    for (const teams of [
+      {
+        ...session.teams,
+        "team-castle": {
+          ...session.teams["team-castle"]!,
+          participantIds: [],
+        },
+      },
+      {
+        ...session.teams,
+        "team-dice": {
+          ...session.teams["team-dice"]!,
+          participantIds: ["guest-2", "guest-4"],
+        },
+      },
+    ]) {
+      await seed({
+        participants: Object.fromEntries(
+          competition.participantIds.map((id) => [id, participant(id, id)]),
+        ),
+        competitions: { [competition.id]: active },
+        competitionRuns: { [competition.id]: run },
+      });
+      await assertFails(
+        set(ref(admin, `competitionRuns/${competition.id}`), {
+          ...teamRun,
+          sessions: {
+            "session-1": { ...session, teams },
+          },
+        }),
+      );
+    }
+  });
+
+  it("allows every All Hands result mode, correction, void, and restore for admins only", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const guest = environment.authenticatedContext("guest").database();
+    for (const resultMode of [
+      "winner-only",
+      "placement",
+      "highest-score",
+      "lowest-score",
+      "custom",
+    ] as const) {
+      const id = `all-hands-${resultMode}`;
+      const baseConfig = allHandsCompetition().formatConfig;
+      const { competition, run } = phaseFiveFixture(id, {
+        formatConfig: {
+          ...baseConfig,
+          resultMode,
+          primaryMetricLabel:
+            resultMode === "highest-score" || resultMode === "lowest-score"
+              ? "Score"
+              : null,
+        },
+      });
+      const active = activeCompetition(competition);
+      const started = withAllHandsSession(run);
+      let changed = started;
+      const session = started.sessions["session-1"]!;
+      changed = recordAllHandsResult(
+        changed,
+        session.id,
+        session.revision,
+        allHandsResultInput(changed),
+        "admin",
+        Date.now(),
+      );
+      await seed({
+        participants: Object.fromEntries(
+          competition.participantIds.map((participantId) => [
+            participantId,
+            participant(participantId, participantId),
+          ]),
+        ),
+        competitions: { [id]: active },
+        competitionRuns: { [id]: started },
+      });
+      await assertFails(set(ref(guest, `competitionRuns/${id}`), changed));
+      await assertSucceeds(set(ref(admin, `competitionRuns/${id}`), changed));
+      await assertFails(set(ref(admin, `competitionRuns/${id}`), changed));
+
+      const completedSession = changed.sessions["session-1"]!;
+      const corrected = recordAllHandsResult(
+        changed,
+        completedSession.id,
+        completedSession.revision,
+        allHandsResultInput(changed),
+        "admin",
+        Date.now(),
+      );
+      await assertSucceeds(set(ref(admin, `competitionRuns/${id}`), corrected));
+      const voided = voidAllHandsSession(
+        corrected,
+        completedSession.id,
+        corrected.sessions[completedSession.id]!.revision,
+        "admin",
+        Date.now(),
+        "Duplicate table",
+      );
+      await assertFails(set(ref(guest, `competitionRuns/${id}`), voided));
+      await assertSucceeds(set(ref(admin, `competitionRuns/${id}`), voided));
+      const restored = restoreAllHandsSession(
+        voided,
+        completedSession.id,
+        voided.sessions[completedSession.id]!.revision,
+        Date.now(),
+      );
+      await assertSucceeds(set(ref(admin, `competitionRuns/${id}`), restored));
+    }
+  });
+
+  it("rejects incomplete, duplicate, malformed, negative, and excessive All Hands results", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const scenarios: Array<{
+      mode:
+        | "winner-only"
+        | "placement"
+        | "highest-score"
+        | "lowest-score"
+        | "custom";
+      mutate: (result: Record<string, unknown>) => Record<string, unknown>;
+    }> = [
+      {
+        mode: "winner-only",
+        mutate: (result) => ({ ...result, winnerEntityId: "intruder" }),
+      },
+      {
+        mode: "placement",
+        mutate: (result) => ({
+          ...result,
+          entries: [{ entityId: "guest-1", placement: 1 }],
+        }),
+      },
+      {
+        mode: "placement",
+        mutate: (result) => ({
+          ...result,
+          entries: [
+            { entityId: "guest-1", placement: 1 },
+            { entityId: "guest-1", placement: 1 },
+            { entityId: "guest-3", placement: 2 },
+            { entityId: "guest-4", placement: 4 },
+          ],
+        }),
+      },
+      {
+        mode: "placement",
+        mutate: (result) => ({
+          ...result,
+          entries: [
+            { entityId: "guest-1", placement: 0 },
+            { entityId: "guest-2", placement: 1 },
+            { entityId: "guest-3", placement: 3 },
+            { entityId: "guest-4", placement: 4 },
+          ],
+        }),
+      },
+      {
+        mode: "highest-score",
+        mutate: (result) => ({
+          ...result,
+          entries: [
+            { entityId: "guest-1", primaryScore: "many" },
+            { entityId: "guest-2", primaryScore: 2 },
+            { entityId: "guest-3", primaryScore: 3 },
+            { entityId: "guest-4", primaryScore: 4 },
+          ],
+        }),
+      },
+      {
+        mode: "lowest-score",
+        mutate: (result) => ({
+          ...result,
+          entries: [
+            { entityId: "guest-1", primaryScore: -1 },
+            { entityId: "guest-2", primaryScore: 2 },
+            { entityId: "guest-3", primaryScore: 3 },
+            { entityId: "guest-4", primaryScore: 4 },
+          ],
+        }),
+      },
+      {
+        mode: "custom",
+        mutate: (result) => ({
+          ...result,
+          entries: [
+            { entityId: "guest-1", points: -1 },
+            { entityId: "guest-2", points: 2 },
+            { entityId: "guest-3", points: 3 },
+            { entityId: "guest-4", points: 4 },
+          ],
+        }),
+      },
+      {
+        mode: "custom",
+        mutate: (result) => ({
+          ...result,
+          entries: [
+            { entityId: "guest-1", points: 101 },
+            { entityId: "guest-2", points: 2 },
+            { entityId: "guest-3", points: 3 },
+            { entityId: "guest-4", points: 4 },
+          ],
+        }),
+      },
+    ];
+    for (const [index, scenario] of scenarios.entries()) {
+      const id = `invalid-all-hands-${index}`;
+      const baseConfig = allHandsCompetition().formatConfig;
+      const { competition, run } = phaseFiveFixture(id, {
+        formatConfig: {
+          ...baseConfig,
+          resultMode: scenario.mode,
+          primaryMetricLabel:
+            scenario.mode === "highest-score" ||
+            scenario.mode === "lowest-score"
+              ? "Score"
+              : null,
+        },
+      });
+      const started = withAllHandsSession(run);
+      const session = started.sessions["session-1"]!;
+      const valid = recordAllHandsResult(
+        started,
+        session.id,
+        session.revision,
+        allHandsResultInput(started),
+        "admin",
+        Date.now(),
+      );
+      const result = valid.sessions[session.id]!.result as unknown as Record<
+        string,
+        unknown
+      >;
+      await seed({
+        participants: Object.fromEntries(
+          competition.participantIds.map((participantId) => [
+            participantId,
+            participant(participantId, participantId),
+          ]),
+        ),
+        competitions: { [id]: activeCompetition(competition) },
+        competitionRuns: { [id]: started },
+      });
+      await assertFails(
+        set(ref(admin, `competitionRuns/${id}`), {
+          ...valid,
+          sessions: {
+            [session.id]: {
+              ...valid.sessions[session.id],
+              result: scenario.mutate(result),
+            },
+          },
+        }),
+      );
+    }
+  });
+
+  it("requires atomic admin All Hands completion and explicit reopen", async () => {
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    const guest = environment.authenticatedContext("guest").database();
+    const baseConfig = allHandsCompetition().formatConfig;
+    const { competition, run } = phaseFiveFixture("all-hands-completion", {
+      formatConfig: { ...baseConfig, resultMode: "custom" },
+    });
+    const active = activeCompetition(competition);
+    const started = withAllHandsSession(run);
+    const session = started.sessions["session-1"]!;
+    const completedSession = recordAllHandsResult(
+      started,
+      session.id,
+      session.revision,
+      allHandsResultInput(started),
+      "admin",
+      Date.now(),
+    );
+    const review = requestAllHandsCompletionReview(
+      completedSession,
+      Date.now(),
+    );
+    const completedRun = completeAllHandsRun(review, "admin", Date.now());
+    const completedCompetition = {
+      ...active,
+      status: "completed" as const,
+      revision: active.revision + 1,
+      updatedAt: Date.now(),
+    };
+    await seed({
+      participants: Object.fromEntries(
+        competition.participantIds.map((participantId) => [
+          participantId,
+          participant(participantId, participantId),
+        ]),
+      ),
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: completedSession },
+    });
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), review),
+    );
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), completedRun),
+    );
+    await assertFails(
+      update(ref(guest), {
+        [`competitions/${competition.id}`]: completedCompetition,
+        [`competitionRuns/${competition.id}`]: completedRun,
+      }),
+    );
+    await assertSucceeds(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: completedCompetition,
+        [`competitionRuns/${competition.id}`]: completedRun,
+      }),
+    );
+
+    const reopenedRun = reopenAllHandsRun(completedRun, Date.now());
+    const reopenedCompetition = {
+      ...completedCompetition,
+      status: "active" as const,
+      revision: completedCompetition.revision + 1,
+      updatedAt: Date.now(),
+    };
+    await assertFails(
+      set(
+        ref(
+          admin,
+          `competitionRuns/${competition.id}/sessions/session-1/title`,
+        ),
+        "Changed while completed",
+      ),
+    );
+    await assertFails(
+      update(ref(guest), {
+        [`competitions/${competition.id}`]: reopenedCompetition,
+        [`competitionRuns/${competition.id}`]: reopenedRun,
+      }),
+    );
+    await assertSucceeds(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: reopenedCompetition,
+        [`competitionRuns/${competition.id}`]: reopenedRun,
       }),
     );
   });

@@ -500,7 +500,7 @@ function FormatStep({
         ) : null}
         <CheckboxField
           checked={config.allowTeams}
-          label="Allow team results in a later phase"
+          label="Allow team sessions"
           onChange={(allowTeams) =>
             setValues((current) => ({
               ...current,
@@ -525,6 +525,14 @@ function FormatStep({
                       formatConfig: {
                         ...(current.formatConfig as AllHandsConfig),
                         [field]: event.target.value || null,
+                        ...(field === "secondaryMetricLabel"
+                          ? {
+                              secondaryMetricDirection: event.target.value
+                                ? ((current.formatConfig as AllHandsConfig)
+                                    .secondaryMetricDirection ?? "lower")
+                                : null,
+                            }
+                          : {}),
                       },
                     }))
                   }
@@ -535,9 +543,97 @@ function FormatStep({
             ),
           )}
         </div>
+        {config.resultMode === "highest-score" ||
+        config.resultMode === "lowest-score" ? (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className={labelClass}>
+                Primary metric direction
+                <select
+                  className={inputClass}
+                  onChange={(event) =>
+                    setValues((current) => ({
+                      ...current,
+                      formatConfig: {
+                        ...(current.formatConfig as AllHandsConfig),
+                        primaryMetricDirection: event.target
+                          .value as AllHandsConfig["primaryMetricDirection"],
+                      },
+                    }))
+                  }
+                  value={config.primaryMetricDirection}
+                >
+                  <option value="higher">Higher values rank first</option>
+                  <option value="lower">Lower values rank first</option>
+                </select>
+              </label>
+              <label className={labelClass}>
+                Secondary metric direction
+                <select
+                  className={inputClass}
+                  disabled={!config.secondaryMetricLabel}
+                  onChange={(event) =>
+                    setValues((current) => ({
+                      ...current,
+                      formatConfig: {
+                        ...(current.formatConfig as AllHandsConfig),
+                        secondaryMetricDirection: event.target
+                          .value as NonNullable<
+                          AllHandsConfig["secondaryMetricDirection"]
+                        >,
+                      },
+                    }))
+                  }
+                  value={config.secondaryMetricDirection ?? "lower"}
+                >
+                  <option value="higher">Higher values rank first</option>
+                  <option value="lower">Lower values rank first</option>
+                </select>
+              </label>
+            </div>
+            <CheckboxField
+              checked={config.allowNegativeScores}
+              label="Allow negative numeric scores"
+              onChange={(allowNegativeScores) =>
+                setValues((current) => ({
+                  ...current,
+                  formatConfig: {
+                    ...(current.formatConfig as AllHandsConfig),
+                    allowNegativeScores,
+                  },
+                }))
+              }
+            />
+          </>
+        ) : null}
+        <label className={labelClass}>
+          Tie policy
+          <select
+            className={inputClass}
+            onChange={(event) =>
+              setValues((current) => ({
+                ...current,
+                formatConfig: {
+                  ...(current.formatConfig as AllHandsConfig),
+                  tieHandling: event.target
+                    .value as AllHandsConfig["tieHandling"],
+                },
+              }))
+            }
+            value={config.tieHandling}
+          >
+            <option value="shared-placement">
+              Shared placement and shared points
+            </option>
+            <option value="manual-order">
+              Organizer orders remaining ties
+            </option>
+          </select>
+        </label>
         <p className="rounded-xl border border-white/10 bg-white/[0.035] p-4 text-sm leading-6 text-white/55">
-          Tied placements currently use the shared-points preference. Sessions
-          and result entry are not created in this phase.
+          All Hands freezes these settings at activation. Team awards give the
+          full configured award to every member; the global weekend ledger is
+          still deferred.
         </p>
       </div>
     );
@@ -717,7 +813,8 @@ function ScoringStep({
             Overall championship awards
           </h3>
           <p className="mt-1 text-sm text-white/52">
-            These values will create ledger entries only in a later phase.
+            These values rank this competition and show its projected future
+            weekend contribution. They do not write the global ledger.
           </p>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <NumberField

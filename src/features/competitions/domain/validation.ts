@@ -391,6 +391,36 @@ export function validateCompetition(
         );
       }
     });
+    if (!["higher", "lower"].includes(config.primaryMetricDirection)) {
+      issues.push(
+        issue(
+          "formatConfig.primaryMetricDirection",
+          "Choose whether the primary metric ranks higher or lower values first.",
+        ),
+      );
+    }
+    if (config.secondaryMetricLabel && !config.secondaryMetricDirection) {
+      issues.push(
+        issue(
+          "formatConfig.secondaryMetricDirection",
+          "Choose a direction for the secondary metric.",
+        ),
+      );
+    }
+    if (
+      !config.secondaryMetricLabel &&
+      config.secondaryMetricDirection !== null
+    ) {
+      issues.push(
+        issue(
+          "formatConfig.secondaryMetricDirection",
+          "A secondary direction requires a secondary metric label.",
+        ),
+      );
+    }
+    if (!["shared-placement", "manual-order"].includes(config.tieHandling)) {
+      issues.push(issue("formatConfig.tieHandling", "Choose a tie policy."));
+    }
   }
 
   issues.push(...validateScoring(values, mode));

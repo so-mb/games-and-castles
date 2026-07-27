@@ -39,8 +39,28 @@ import {
   subscribeCompetitionRuns,
   subscribePhaseFourAudit,
 } from "./repositories/runs";
-import type { CompetitionRun } from "./engine/types";
+import {
+  addAllHandsSession,
+  beginAllHandsCompletionReview,
+  completeStoredAllHandsCompetition,
+  deleteStoredPendingAllHandsSession,
+  reopenStoredAllHandsCompetition,
+  resetStoredAllHandsRun,
+  restoreStoredAllHandsSession,
+  returnStoredAllHandsSessionToPending,
+  saveAllHandsResult,
+  saveAllHandsTieResolution,
+  startStoredAllHandsSession,
+  voidStoredAllHandsSession,
+  activateAllHandsCompetition,
+} from "./repositories/allHandsRuns";
+import type { AnyCompetitionRun, CompetitionRun } from "./engine/types";
 import type { RecordResultOptions } from "./engine/lifecycle";
+import type {
+  AllHandsCompetitionRun,
+  AllHandsResultInput,
+  AllHandsTeam,
+} from "./all-hands/types";
 import type {
   CompetitionDraft,
   CompetitionAuditEntry,
@@ -57,7 +77,7 @@ interface CompetitionsContextValue {
   completed: PublishedCompetition[];
   archived: PublishedCompetition[];
   drafts: CompetitionDraft[];
-  runs: CompetitionRun[];
+  runs: AnyCompetitionRun[];
   auditEntries: CompetitionAuditEntry[];
   publicState: LoadState;
   organizerState: LoadState;
@@ -121,6 +141,67 @@ interface CompetitionsContextValue {
     competition: PublishedCompetition,
     run: CompetitionRun,
   ) => Promise<void>;
+  createAllHandsSession: (
+    run: AllHandsCompetitionRun,
+    input: {
+      title: string;
+      mode: "individual" | "team";
+      participantIds: string[];
+      teams: AllHandsTeam[];
+      startImmediately: boolean;
+    },
+  ) => Promise<void>;
+  startAllHandsSession: (
+    run: AllHandsCompetitionRun,
+    sessionId: string,
+    expectedRevision: number,
+  ) => Promise<void>;
+  returnAllHandsSessionToPending: (
+    run: AllHandsCompetitionRun,
+    sessionId: string,
+    expectedRevision: number,
+  ) => Promise<void>;
+  recordAllHandsResult: (
+    run: AllHandsCompetitionRun,
+    sessionId: string,
+    expectedRevision: number,
+    input: AllHandsResultInput,
+  ) => Promise<void>;
+  voidAllHandsSession: (
+    run: AllHandsCompetitionRun,
+    sessionId: string,
+    expectedRevision: number,
+    reason: string,
+  ) => Promise<void>;
+  restoreAllHandsSession: (
+    run: AllHandsCompetitionRun,
+    sessionId: string,
+    expectedRevision: number,
+  ) => Promise<void>;
+  deleteAllHandsSession: (
+    run: AllHandsCompetitionRun,
+    sessionId: string,
+    expectedRevision: number,
+  ) => Promise<void>;
+  reviewAllHandsCompletion: (run: AllHandsCompetitionRun) => Promise<void>;
+  resolveAllHandsTie: (
+    run: AllHandsCompetitionRun,
+    participantIds: string[],
+    orderedParticipantIds: string[],
+    reason: string | null,
+  ) => Promise<void>;
+  completeAllHands: (
+    competition: PublishedCompetition,
+    run: AllHandsCompetitionRun,
+  ) => Promise<void>;
+  reopenAllHands: (
+    competition: PublishedCompetition,
+    run: AllHandsCompetitionRun,
+  ) => Promise<void>;
+  resetAllHands: (
+    competition: PublishedCompetition,
+    run: AllHandsCompetitionRun,
+  ) => Promise<void>;
 }
 
 const CompetitionsContext = createContext<CompetitionsContextValue | null>(
@@ -137,7 +218,7 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
   const [completed, setCompleted] = useState<PublishedCompetition[]>([]);
   const [archived, setArchived] = useState<PublishedCompetition[]>([]);
   const [drafts, setDrafts] = useState<CompetitionDraft[]>([]);
-  const [runs, setRuns] = useState<CompetitionRun[]>([]);
+  const [runs, setRuns] = useState<AnyCompetitionRun[]>([]);
   const [auditEntries, setAuditEntries] = useState<CompetitionAuditEntry[]>([]);
   const [publicState, setPublicState] = useState<LoadState>("loading");
   const [organizerState, setOrganizerState] = useState<LoadState>("idle");
@@ -348,12 +429,21 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
       },
       activate: async (competition) => {
         const { database, uid } = requireOrganizer();
-        await activateCompetition(
-          database,
-          uid,
-          competition,
-          participants.organizerParticipants,
-        );
+        if (competition.format === "all-hands") {
+          await activateAllHandsCompetition(
+            database,
+            uid,
+            competition,
+            participants.organizerParticipants,
+          );
+        } else {
+          await activateCompetition(
+            database,
+            uid,
+            competition,
+            participants.organizerParticipants,
+          );
+        }
       },
       startMatch: async (run, matchId, expectedMatchRevision) => {
         const { database, uid } = requireOrganizer();
@@ -404,6 +494,113 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
       resetRun: async (competition, run) => {
         const { database, uid } = requireOrganizer();
         await resetCompetitionRun(database, uid, competition, run);
+      },
+      createAllHandsSession: async (run, input) => {
+        const { database, uid } = requireOrganizer();
+        await addAllHandsSession(database, uid, run, input);
+      },
+      startAllHandsSession: async (run, sessionId, expectedRevision) => {
+        const { database, uid } = requireOrganizer();
+        await startStoredAllHandsSession(
+          database,
+          uid,
+          run,
+          sessionId,
+          expectedRevision,
+        );
+      },
+      returnAllHandsSessionToPending: async (
+        run,
+        sessionId,
+        expectedRevision,
+      ) => {
+        const { database, uid } = requireOrganizer();
+        await returnStoredAllHandsSessionToPending(
+          database,
+          uid,
+          run,
+          sessionId,
+          expectedRevision,
+        );
+      },
+      recordAllHandsResult: async (run, sessionId, expectedRevision, input) => {
+        const { database, uid } = requireOrganizer();
+        await saveAllHandsResult(
+          database,
+          uid,
+          run,
+          sessionId,
+          expectedRevision,
+          input,
+        );
+      },
+      voidAllHandsSession: async (run, sessionId, expectedRevision, reason) => {
+        const { database, uid } = requireOrganizer();
+        await voidStoredAllHandsSession(
+          database,
+          uid,
+          run,
+          sessionId,
+          expectedRevision,
+          reason,
+        );
+      },
+      restoreAllHandsSession: async (run, sessionId, expectedRevision) => {
+        const { database, uid } = requireOrganizer();
+        await restoreStoredAllHandsSession(
+          database,
+          uid,
+          run,
+          sessionId,
+          expectedRevision,
+        );
+      },
+      deleteAllHandsSession: async (run, sessionId, expectedRevision) => {
+        const { database, uid } = requireOrganizer();
+        await deleteStoredPendingAllHandsSession(
+          database,
+          uid,
+          run,
+          sessionId,
+          expectedRevision,
+        );
+      },
+      reviewAllHandsCompletion: async (run) => {
+        const { database, uid } = requireOrganizer();
+        await beginAllHandsCompletionReview(database, uid, run);
+      },
+      resolveAllHandsTie: async (
+        run,
+        participantIds,
+        orderedParticipantIds,
+        reason,
+      ) => {
+        const { database, uid } = requireOrganizer();
+        await saveAllHandsTieResolution(
+          database,
+          uid,
+          run,
+          participantIds,
+          orderedParticipantIds,
+          reason,
+        );
+      },
+      completeAllHands: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await completeStoredAllHandsCompetition(
+          database,
+          uid,
+          competition,
+          run,
+        );
+      },
+      reopenAllHands: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await reopenStoredAllHandsCompetition(database, uid, competition, run);
+      },
+      resetAllHands: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await resetStoredAllHandsRun(database, uid, competition, run);
       },
     }),
     [

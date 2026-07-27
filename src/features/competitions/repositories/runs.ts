@@ -28,7 +28,7 @@ import {
   parseCompetitionRun,
   parseCompetitionRunCollection,
 } from "../engine/runtime";
-import type { CompetitionRun } from "../engine/types";
+import type { AnyCompetitionRun, CompetitionRun } from "../engine/types";
 
 export class CompetitionRunConflictError extends Error {
   constructor() {
@@ -47,6 +47,15 @@ const phaseFourAuditActions = new Set<CompetitionAuditEntry["action"]>([
   "match-returned-to-pending",
   "match-result-recorded",
   "match-result-corrected",
+  "session-created",
+  "session-started",
+  "session-returned-to-pending",
+  "session-result-recorded",
+  "session-result-corrected",
+  "session-voided",
+  "session-restored",
+  "session-deleted",
+  "completion-review-opened",
   "tie-resolved",
   "tie-resolution-invalidated",
   "knockout-generated",
@@ -183,7 +192,7 @@ async function writeRunMutation(
 
 export function subscribeCompetitionRuns(
   database: Database,
-  onData: (result: { runs: CompetitionRun[]; invalidIds: string[] }) => void,
+  onData: (result: { runs: AnyCompetitionRun[]; invalidIds: string[] }) => void,
   onError: (error: Error) => void,
 ): Unsubscribe {
   return onValue(

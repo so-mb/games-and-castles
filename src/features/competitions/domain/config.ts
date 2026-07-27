@@ -43,6 +43,10 @@ export const competitionLimits = {
   firstTo: 10,
   score: 100,
   sessions: 50,
+  sessionTitle: 60,
+  teamName: 40,
+  resultNote: 160,
+  customPoints: 100,
   groups: 8,
 } as const;
 
@@ -137,8 +141,11 @@ export function defaultFormatConfig(format: CompetitionFormat): FormatConfig {
       sessionPlan: { kind: "open-ended" },
       allowTeams: false,
       primaryMetricLabel: null,
+      primaryMetricDirection: "higher",
       secondaryMetricLabel: null,
-      tieHandling: "shared",
+      secondaryMetricDirection: null,
+      allowNegativeScores: false,
+      tieHandling: "shared-placement",
     } satisfies AllHandsConfig;
   }
   if (format === "group-knockout") {

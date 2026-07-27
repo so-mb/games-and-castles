@@ -1,6 +1,7 @@
 import { validateSeries } from "../domain/validation";
 import { competitionLimits } from "../domain/config";
 import { validateMatchResult } from "./series";
+import { parseAllHandsRun } from "../all-hands/runtime";
 import type {
   CompetitionMatch,
   CompetitionRun,
@@ -686,15 +687,21 @@ export function parseCompetitionRun(value: unknown): CompetitionRun | null {
 
 export function parseCompetitionRunCollection(value: unknown) {
   if (value === null || value === undefined) {
-    return { runs: [] as CompetitionRun[], invalidIds: [] as string[] };
+    return {
+      runs: [] as import("./types").AnyCompetitionRun[],
+      invalidIds: [] as string[],
+    };
   }
   if (!isRecord(value)) {
     return { runs: [] as CompetitionRun[], invalidIds: ["collection"] };
   }
-  const runs: CompetitionRun[] = [];
+  const runs: import("./types").AnyCompetitionRun[] = [];
   const invalidIds: string[] = [];
   Object.entries(value).forEach(([id, raw]) => {
-    const run = parseCompetitionRun(raw);
+    const run =
+      isRecord(raw) && raw.format === "all-hands"
+        ? parseAllHandsRun(raw)
+        : parseCompetitionRun(raw);
     if (!run || run.competitionId !== id) invalidIds.push(id);
     else runs.push(run);
   });

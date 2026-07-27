@@ -29,11 +29,15 @@ import type {
   PublishedCompetition,
 } from "../domain/types";
 import { CompetitionWizard } from "../wizard/CompetitionWizard";
-import type { CompetitionRun } from "../engine/types";
+import type { AnyCompetitionRun } from "../engine/types";
 import {
   ActivationReview,
   MerryGoRoundControlRoom,
 } from "./MerryGoRoundControlRoom";
+import {
+  AllHandsActivationReview,
+  AllHandsControlRoom,
+} from "./AllHandsControlRoom";
 
 type StudioTab = "drafts" | "scheduled" | "active" | "completed" | "archived";
 type PendingAction =
@@ -161,7 +165,7 @@ export function CompetitionStudio() {
     editor,
   ]);
 
-  const controlledRun: CompetitionRun | null = controlling
+  const controlledRun: AnyCompetitionRun | null = controlling
     ? (competitions.runs.find((run) => run.competitionId === controlling.id) ??
       null)
     : null;
@@ -170,16 +174,26 @@ export function CompetitionStudio() {
     const latest = competitions.scheduled.find(
       (competition) => competition.id === activating.id,
     );
+    const activated = () => {
+      setActivating(null);
+      setTab("active");
+    };
     return latest ? (
-      <ActivationReview
-        competition={latest}
-        onBack={() => setActivating(null)}
-        onActivated={() => {
-          setActivating(null);
-          setTab("active");
-        }}
-        participants={participants.organizerParticipants}
-      />
+      latest.format === "all-hands" ? (
+        <AllHandsActivationReview
+          competition={latest}
+          onActivated={activated}
+          onBack={() => setActivating(null)}
+          participants={participants.organizerParticipants}
+        />
+      ) : (
+        <ActivationReview
+          competition={latest}
+          onBack={() => setActivating(null)}
+          onActivated={activated}
+          participants={participants.organizerParticipants}
+        />
+      )
     ) : (
       <p role="status">Activation accepted. Loading the Control Room…</p>
     );
@@ -189,7 +203,16 @@ export function CompetitionStudio() {
     const latest = [...competitions.active, ...competitions.completed].find(
       (competition) => competition.id === controlling.id,
     );
-    return latest && controlledRun ? (
+    return latest && controlledRun && controlledRun.format === "all-hands" ? (
+      <AllHandsControlRoom
+        competition={latest}
+        onBack={() => setControlling(null)}
+        participants={participants.organizerParticipants}
+        run={controlledRun}
+      />
+    ) : latest &&
+      controlledRun &&
+      controlledRun.format === "round-robin-knockout" ? (
       <MerryGoRoundControlRoom
         competition={latest}
         onBack={() => setControlling(null)}
@@ -315,8 +338,8 @@ export function CompetitionStudio() {
             Competition Studio
           </h3>
           <p className="mt-2 max-w-xl text-sm leading-6 text-white/55">
-            Configure the flexible Friday order, then activate Merry-Go-Round
-            competitions and control their live results here.
+            Configure the flexible Friday order, then activate Merry-Go-Round or
+            All Hands competitions and control their live results here.
           </p>
         </div>
         <Button
@@ -403,7 +426,7 @@ export function CompetitionStudio() {
               : tab === "scheduled"
                 ? "Published competition configurations appear here."
                 : tab === "active"
-                  ? "Activated Merry-Go-Round competitions appear here."
+                  ? "Activated Merry-Go-Round and All Hands competitions appear here."
                   : tab === "completed"
                     ? "Completed competitions stay available as read-only history."
                     : "Archived competitions stay preserved here."}
@@ -483,15 +506,15 @@ export function CompetitionStudio() {
                     <Button
                       disabled={
                         !competitions.canMutate ||
-                        record.format !== "round-robin-knockout"
+                        record.format === "group-knockout"
                       }
                       onClick={() => setActivating(record)}
                       variant="dark"
                     >
                       <Play aria-hidden="true" size={16} />
-                      {record.format === "round-robin-knockout"
+                      {record.format !== "group-knockout"
                         ? "Activate"
-                        : "Engine coming later"}
+                        : "Group engine coming later"}
                     </Button>
                     <Button
                       disabled={!competitions.canMutate}
