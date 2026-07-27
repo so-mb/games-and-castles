@@ -22,6 +22,7 @@ import { deriveStandings } from "../engine/standings";
 import type { AnyCompetitionRun, CompetitionRun } from "../engine/types";
 import { CompetitionStudio } from "./CompetitionStudio";
 import { MerryGoRoundControlRoom } from "./MerryGoRoundControlRoom";
+import { createGroupDrawPreview } from "../group-knockout/generation";
 
 const participants: Participant[] = Array.from({ length: 4 }, (_, index) => ({
   id: `guest-${index + 1}`,
@@ -76,6 +77,27 @@ function scheduledAllHandsCompetition(
   return publishDraftRecord(draft, "admin", 200, 100);
 }
 
+function scheduledGroupCompetition() {
+  const values = createCompetitionFormValues("group-knockout");
+  values.title = "Group Crown";
+  values.gameName = "Castle Clash";
+  values.participantIds = participants.map((participant) => participant.id);
+  if (values.formatConfig.kind === "group-knockout") {
+    values.formatConfig = {
+      ...values.formatConfig,
+      groupCountMode: "manual",
+      groupCount: 1,
+      qualifiersPerGroup: 2,
+    };
+  }
+  const draft = createDraftRecord(values, {
+    id: "group-crown",
+    uid: "admin",
+    now: 100,
+  });
+  return publishDraftRecord(draft, "admin", 200, 100);
+}
+
 const hookState = vi.hoisted(() => ({
   participants: {
     organizerParticipants: [] as Participant[],
@@ -104,6 +126,7 @@ const hookState = vi.hoisted(() => ({
     restore: vi.fn(),
     reorder: vi.fn(),
     activate: vi.fn().mockResolvedValue(undefined),
+    activateGroup: vi.fn().mockResolvedValue(undefined),
     startMatch: vi.fn().mockResolvedValue(undefined),
     returnMatchToPending: vi.fn().mockResolvedValue(undefined),
     recordResult: vi.fn().mockResolvedValue(undefined),
@@ -124,6 +147,17 @@ const hookState = vi.hoisted(() => ({
     completeAllHands: vi.fn().mockResolvedValue(undefined),
     reopenAllHands: vi.fn().mockResolvedValue(undefined),
     resetAllHands: vi.fn().mockResolvedValue(undefined),
+    startGroupMatch: vi.fn().mockResolvedValue(undefined),
+    returnGroupMatchToPending: vi.fn().mockResolvedValue(undefined),
+    recordGroupResult: vi.fn().mockResolvedValue(undefined),
+    resolveGroupTie: vi.fn().mockResolvedValue(undefined),
+    openQualificationReview: vi.fn().mockResolvedValue(undefined),
+    resolveCrossGroupSeed: vi.fn().mockResolvedValue(undefined),
+    generateGroupKnockout: vi.fn().mockResolvedValue(undefined),
+    resetGroupKnockout: vi.fn().mockResolvedValue(undefined),
+    completeGroup: vi.fn().mockResolvedValue(undefined),
+    reopenGroup: vi.fn().mockResolvedValue(undefined),
+    resetGroup: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -219,6 +253,50 @@ describe("Phase 4 Competition Studio", () => {
     expect(
       screen.getByRole("button", { name: "Activate All Hands" }),
     ).toBeEnabled();
+  });
+
+  it("offers a local Group Format draw preview and an accessible Group Arena route", async () => {
+    const scheduled = scheduledGroupCompetition();
+    hookState.competitions.scheduled = [scheduled];
+    const previewView = render(<CompetitionStudio />);
+    fireEvent.click(screen.getByRole("tab", { name: /Scheduled · 1/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Activate" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Confirm Group Crown" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Still scheduled")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Confirm exact draw & activate/i }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Confirm exact draw & activate/i }),
+    );
+    await waitFor(() =>
+      expect(hookState.competitions.activateGroup).toHaveBeenCalledWith(
+        scheduled,
+        expect.objectContaining({
+          format: "group-knockout",
+          groups: expect.arrayContaining([
+            expect.objectContaining({ id: "group-a", label: "Group A" }),
+          ]),
+          draw: expect.objectContaining({ drawVersion: 1 }),
+        }),
+      ),
+    );
+    previewView.unmount();
+
+    const active = activeCompetition(scheduled);
+    const run = createGroupDrawPreview(scheduled, "admin", 300, () => 0).run;
+    hookState.competitions.scheduled = [];
+    hookState.competitions.active = [active];
+    hookState.competitions.runs = [run];
+    render(<CompetitionStudio />);
+    fireEvent.click(screen.getByRole("tab", { name: /Active · 1/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Open Control Room/i }));
+    expect(screen.getByText("Organizer Group Arena")).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Groups" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Bracket" })).toBeInTheDocument();
   });
 
   it("creates accessible individual and team sessions from the All Hands control room", async () => {

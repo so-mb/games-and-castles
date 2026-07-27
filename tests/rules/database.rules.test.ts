@@ -45,6 +45,17 @@ import type {
   AllHandsCompetitionRun,
   AllHandsResultInput,
 } from "../../src/features/competitions/all-hands/types";
+import { createGroupDrawPreview } from "../../src/features/competitions/group-knockout/generation";
+import {
+  beginQualificationReview,
+  completeGroupCompetition,
+  generateGroupKnockout,
+  recordGroupMatchResult,
+  reopenGroupCompetition,
+  resolveCrossGroupSeedTie,
+} from "../../src/features/competitions/group-knockout/engine";
+import { deriveCrossGroupSeeds } from "../../src/features/competitions/group-knockout/standings";
+import type { GroupKnockoutRun } from "../../src/features/competitions/group-knockout/types";
 
 const projectId = "demo-games-and-castles";
 let environment: RulesTestEnvironment;
@@ -224,6 +235,109 @@ function phaseFiveFixture(
     competition,
     run: createAllHandsRun(competition, "admin", Date.now()),
   };
+}
+
+function groupCompetition(
+  id = "group-runtime",
+  overrides: Record<string, unknown> = {},
+) {
+  return publishedCompetition(competitionDraft(id), {
+    format: "group-knockout",
+    formatConfig: {
+      kind: "group-knockout",
+      groupCountMode: "manual",
+      groupCount: 1,
+      qualifiersPerGroup: 2,
+      roundRobinLegs: 1,
+      series: {
+        kind: "best-of",
+        winsRequired: 2,
+        maximumRounds: 3,
+      },
+      allowDraws: false,
+      includeThirdPlace: false,
+    },
+    ...overrides,
+  }) as PublishedCompetition;
+}
+
+function phaseSixFixture(
+  id = "group-runtime",
+  overrides: Record<string, unknown> = {},
+) {
+  const competition = groupCompetition(id, overrides);
+  return {
+    competition,
+    run: createGroupDrawPreview(competition, "admin", Date.now(), () => 0).run,
+  };
+}
+
+function finishGroupStage(source: GroupKnockoutRun) {
+  let run = source;
+  Object.values(source.matches)
+    .filter((match) => match.stage === "group-stage")
+    .sort((left, right) => left.globalSequence - right.globalSequence)
+    .forEach((match) => {
+      const group = run.groups.find(
+        (candidate) =>
+          candidate.participantIds.includes(match.participantAId!) &&
+          candidate.participantIds.includes(match.participantBId!),
+      )!;
+      const left = group.participantIds.indexOf(match.participantAId!);
+      const right = group.participantIds.indexOf(match.participantBId!);
+      const winner =
+        left < right ? match.participantAId! : match.participantBId!;
+      run = recordGroupMatchResult(run, match.id, {
+        expectedMatchRevision: run.matches[match.id]!.revision,
+        roundWinnerIds: [winner, winner],
+        organizerUid: "admin",
+        now: Date.now(),
+      });
+    });
+  return run;
+}
+
+function confirmGroupSeeds(source: GroupKnockoutRun) {
+  let run = source;
+  const seeds = deriveCrossGroupSeeds(run.qualification!, []);
+  seeds.unresolvedTieGroups.forEach((tie) => {
+    run = resolveCrossGroupSeedTie(
+      run,
+      tie.groupRank,
+      tie.participantIds,
+      tie.participantIds,
+      "admin",
+      Date.now(),
+      "Rules fixture",
+    );
+  });
+  return run;
+}
+
+function finishGroupKnockout(source: GroupKnockoutRun) {
+  let run = source.knockout
+    ? source
+    : generateGroupKnockout(source, "admin", Date.now());
+  while (true) {
+    const match = Object.values(run.matches)
+      .filter(
+        (candidate) =>
+          candidate.stage !== "group-stage" &&
+          !candidate.isBye &&
+          !candidate.result &&
+          candidate.participantAId &&
+          candidate.participantBId,
+      )
+      .sort((left, right) => left.globalSequence - right.globalSequence)[0];
+    if (!match) break;
+    run = recordGroupMatchResult(run, match.id, {
+      expectedMatchRevision: match.revision,
+      roundWinnerIds: [match.participantAId!, match.participantAId!],
+      organizerUid: "admin",
+      now: Date.now(),
+    });
+  }
+  return completeGroupCompetition(run, "admin", Date.now());
 }
 
 function withAllHandsSession(
@@ -2092,6 +2206,366 @@ describe("Realtime Database security rules", () => {
         [`competitionRuns/${competition.id}`]: reopenedRun,
       }),
     );
+    await assertSucceeds(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: reopenedCompetition,
+        [`competitionRuns/${competition.id}`]: reopenedRun,
+      }),
+    );
+  });
+
+  it("allows only an admin to atomically activate the exact Group Format preview", async () => {
+    const { competition, run } = phaseSixFixture("group-activation");
+    await seed({ competitions: { [competition.id]: competition } });
+    const rootUpdate = {
+      [`competitions/${competition.id}`]: activeCompetition(competition),
+      [`competitionRuns/${competition.id}`]: run,
+    };
+    await assertFails(
+      update(
+        ref(environment.authenticatedContext("guest").database()),
+        rootUpdate,
+      ),
+    );
+    await assertSucceeds(
+      update(
+        ref(
+          environment.authenticatedContext("admin", { admin: true }).database(),
+        ),
+        rootUpdate,
+      ),
+    );
+  });
+
+  it("rejects malformed Group Format draws, assignments, groups, and unknown fields", async () => {
+    const { competition, run } = phaseSixFixture("group-malformed");
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await seed({ competitions: { [competition.id]: competition } });
+    const active = activeCompetition(competition);
+    const invalidRuns = [
+      { ...run, privilegedOverride: true },
+      {
+        ...run,
+        draw: {
+          ...run.draw,
+          shuffledParticipantIds: [
+            "intruder",
+            ...run.draw.shuffledParticipantIds.slice(1),
+          ],
+        },
+      },
+      {
+        ...run,
+        groups: [
+          {
+            ...run.groups[0],
+            participantIds: [
+              "intruder",
+              ...run.groups[0]!.participantIds.slice(1),
+            ],
+          },
+        ],
+      },
+      {
+        ...run,
+        draw: {
+          ...run.draw,
+          assignments: run.draw.assignments.map((assignment, index) =>
+            index === 0
+              ? { ...assignment, groupId: "secret-group" }
+              : assignment,
+          ),
+        },
+      },
+    ];
+    for (const invalid of invalidRuns) {
+      await assertFails(
+        update(ref(admin), {
+          [`competitions/${competition.id}`]: active,
+          [`competitionRuns/${competition.id}`]: invalid,
+        }),
+      );
+    }
+  });
+
+  it("allows admin Group Format results and rejects guest, stale, and cross-group match edits", async () => {
+    const { competition, run } = phaseSixFixture("group-results");
+    const active = activeCompetition(competition);
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+    const match = Object.values(run.matches)[0]!;
+    const result = recordGroupMatchResult(run, match.id, {
+      expectedMatchRevision: match.revision,
+      roundWinnerIds: [match.participantAId!, match.participantAId!],
+      organizerUid: "admin",
+      now: Date.now(),
+    });
+    const guest = environment.authenticatedContext("guest").database();
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await assertFails(
+      set(ref(guest, `competitionRuns/${competition.id}`), result),
+    );
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), result),
+    );
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), result),
+    );
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), {
+        ...result,
+        revision: result.revision + 1,
+        updatedAt: Date.now(),
+        matches: {
+          ...result.matches,
+          [match.id]: {
+            ...result.matches[match.id],
+            groupId: "group-b",
+            revision: result.matches[match.id]!.revision + 1,
+          },
+        },
+      }),
+    );
+  });
+
+  it("allows an explicit Group Format qualification snapshot but rejects a premature one", async () => {
+    const { competition, run } = phaseSixFixture("group-qualification");
+    const active = activeCompetition(competition);
+    const completedGroups = finishGroupStage(run);
+    const review = beginQualificationReview(
+      completedGroups,
+      "admin",
+      Date.now(),
+    );
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: completedGroups },
+    });
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), review),
+    );
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), {
+        ...review,
+        revision: run.revision + 1,
+        updatedAt: Date.now(),
+      }),
+    );
+  });
+
+  it("validates Group Format cross-group seed decisions and their qualification fingerprint", async () => {
+    const base = phaseSixFixture("group-seeds", {
+      participantIds: [
+        "guest-1",
+        "guest-2",
+        "guest-3",
+        "guest-4",
+        "guest-5",
+        "guest-6",
+        "guest-7",
+        "guest-8",
+      ],
+      formatConfig: {
+        kind: "group-knockout",
+        groupCountMode: "manual",
+        groupCount: 2,
+        qualifiersPerGroup: 2,
+        roundRobinLegs: 1,
+        series: { kind: "best-of", winsRequired: 2, maximumRounds: 3 },
+        allowDraws: false,
+        includeThirdPlace: false,
+      },
+    });
+    const active = activeCompetition(base.competition);
+    const completed = finishGroupStage(base.run);
+    const review = beginQualificationReview(completed, "admin", Date.now());
+    const tie = deriveCrossGroupSeeds(review.qualification!, [])
+      .unresolvedTieGroups[0]!;
+    const resolved = resolveCrossGroupSeedTie(
+      review,
+      tie.groupRank,
+      tie.participantIds,
+      tie.participantIds,
+      "admin",
+      Date.now(),
+      "Rules decision",
+    );
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await seed({
+      competitions: { [base.competition.id]: active },
+      competitionRuns: { [base.competition.id]: review },
+    });
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${base.competition.id}`), resolved),
+    );
+    const resolutionId = Object.keys(resolved.seedResolutions)[0]!;
+    await assertFails(
+      set(ref(admin, `competitionRuns/${base.competition.id}`), {
+        ...resolved,
+        revision: resolved.revision + 1,
+        updatedAt: Date.now(),
+        seedResolutions: {
+          ...resolved.seedResolutions,
+          [resolutionId]: {
+            ...resolved.seedResolutions[resolutionId],
+            qualificationFingerprint: "forged",
+          },
+        },
+      }),
+    );
+  });
+
+  it("allows persisted Group Format bracket generation and rejects guest or forged seeds", async () => {
+    const { competition, run } = phaseSixFixture("group-bracket");
+    const active = activeCompetition(competition);
+    const review = beginQualificationReview(
+      finishGroupStage(run),
+      "admin",
+      Date.now(),
+    );
+    const bracket = generateGroupKnockout(
+      confirmGroupSeeds(review),
+      "admin",
+      Date.now(),
+    );
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: confirmGroupSeeds(review) },
+    });
+    const guest = environment.authenticatedContext("guest").database();
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await assertFails(
+      set(ref(guest, `competitionRuns/${competition.id}`), bracket),
+    );
+    await assertSucceeds(
+      set(ref(admin, `competitionRuns/${competition.id}`), bracket),
+    );
+    await assertFails(
+      set(ref(admin, `competitionRuns/${competition.id}`), {
+        ...bracket,
+        revision: bracket.revision + 1,
+        updatedAt: Date.now(),
+        knockout: { ...bracket.knockout, qualificationFingerprint: "forged" },
+      }),
+    );
+  });
+
+  it("allows only pre-result Group Format reset to scheduled", async () => {
+    const { competition, run } = phaseSixFixture("group-reset");
+    const active = activeCompetition(competition);
+    const scheduled = {
+      ...active,
+      status: "scheduled" as const,
+      revision: active.revision + 1,
+      updatedAt: Date.now(),
+    };
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: run },
+    });
+    await assertSucceeds(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: scheduled,
+        [`competitionRuns/${competition.id}`]: null,
+      }),
+    );
+    const match = Object.values(run.matches)[0]!;
+    const played = recordGroupMatchResult(run, match.id, {
+      expectedMatchRevision: match.revision,
+      roundWinnerIds: [match.participantAId!, match.participantAId!],
+      organizerUid: "admin",
+      now: Date.now(),
+    });
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: { [competition.id]: played },
+    });
+    await assertFails(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: scheduled,
+        [`competitionRuns/${competition.id}`]: null,
+      }),
+    );
+  });
+
+  it("allows atomic Group Format completion and reopen while preserving results", async () => {
+    const { competition, run } = phaseSixFixture("group-completion");
+    const active = activeCompetition(competition);
+    const review = beginQualificationReview(
+      finishGroupStage(run),
+      "admin",
+      Date.now(),
+    );
+    const ready = confirmGroupSeeds(review);
+    const completedRun = finishGroupKnockout(ready);
+    const completedCompetition = {
+      ...active,
+      status: "completed" as const,
+      revision: active.revision + 1,
+      updatedAt: Date.now(),
+    };
+    const admin = environment
+      .authenticatedContext("admin", { admin: true })
+      .database();
+    await seed({
+      competitions: { [competition.id]: active },
+      competitionRuns: {
+        [competition.id]: {
+          ...completedRun,
+          stage: "knockout",
+          placements: null,
+          completedAt: null,
+          completedByUid: null,
+          revision: completedRun.revision - 1,
+        },
+      },
+    });
+    const source = (
+      await get(ref(admin, `competitionRuns/${competition.id}`))
+    ).val();
+    await assertSucceeds(
+      update(ref(admin), {
+        [`competitions/${competition.id}`]: completedCompetition,
+        [`competitionRuns/${competition.id}`]: {
+          ...completedRun,
+          revision: source.revision + 1,
+          placements: {
+            ...completedRun.placements,
+            runtimeRevision: source.revision + 1,
+          },
+        },
+      }),
+    );
+    const persistedCompleted = (
+      await get(ref(admin, `competitionRuns/${competition.id}`))
+    ).val();
+    const reopenedRun = reopenGroupCompetition(persistedCompleted, Date.now());
+    const reopenedCompetition = {
+      ...completedCompetition,
+      status: "active" as const,
+      revision: completedCompetition.revision + 1,
+      updatedAt: Date.now(),
+    };
     await assertSucceeds(
       update(ref(admin), {
         [`competitions/${competition.id}`]: reopenedCompetition,

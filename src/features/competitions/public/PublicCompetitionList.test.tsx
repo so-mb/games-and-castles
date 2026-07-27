@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCompetitionRun } from "../engine/activation";
 import {
@@ -10,6 +10,7 @@ import { createCompetitionFormValues } from "../domain/config";
 import { createDraftRecord, publishDraftRecord } from "../domain/transforms";
 import type { Participant } from "../../participants/types";
 import type { AnyCompetitionRun } from "../engine/types";
+import { createGroupDrawPreview } from "../group-knockout/generation";
 import {
   PublicCompetitionList,
   ScheduledCompetitionCard,
@@ -68,6 +69,18 @@ const participants: Participant[] = [
     updatedByUid: "admin",
     schemaVersion: 1,
   },
+];
+
+const groupParticipants: Participant[] = [
+  ...participants,
+  ...[3, 4].map((number) => ({
+    ...participants[0]!,
+    id: `guest-${number}`,
+    ownerUid: `guest-${number}`,
+    displayName: number === 3 ? "Cy Crown" : "Dee Route",
+    createdByUid: `guest-${number}`,
+    updatedByUid: `guest-${number}`,
+  })),
 ];
 
 describe("scheduled competition card", () => {
@@ -167,6 +180,77 @@ describe("scheduled competition card", () => {
       screen.getByText(/weekend-wide aggregation arrives in Phase 7/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /record result/i })).toBeNull();
+  });
+
+  it("renders an active Group Format with public live, group, bracket, and points views", () => {
+    const values = createCompetitionFormValues("group-knockout");
+    values.title = "Group Crown";
+    values.gameName = "Castle Clash";
+    values.participantIds = groupParticipants.map(
+      (participant) => participant.id,
+    );
+    if (values.formatConfig.kind === "group-knockout") {
+      values.formatConfig = {
+        ...values.formatConfig,
+        groupCountMode: "manual",
+        groupCount: 1,
+        qualifiersPerGroup: 2,
+      };
+    }
+    const draft = createDraftRecord(values, {
+      id: "group-crown",
+      uid: "admin",
+      now: 100,
+    });
+    const scheduled = publishDraftRecord(draft, "admin", 200, 100);
+    const active = {
+      ...scheduled,
+      status: "active" as const,
+      revision: scheduled.revision + 1,
+    };
+    const run = createGroupDrawPreview(scheduled, "admin", 300, () => 0).run;
+    hookState.firebase = { status: "ready" };
+    hookState.competitions.active = [active];
+    hookState.competitions.runs = [run];
+    hookState.participants.activeParticipants = groupParticipants;
+
+    render(<PublicCompetitionList />);
+
+    expect(
+      screen.getByRole("heading", { name: "Group Crown" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Groups" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Draw" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Fixtures" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Bracket" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Points" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Draw" }));
+    expect(
+      screen.getByText(/persisted assignments confirmed/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Replay draw" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Fixtures" }));
+    expect(
+      screen.getByRole("button", { name: "All groups" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Recommended match 1/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Groups" }));
+    expect(
+      screen.getByRole("columnheader", { name: "RW" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Points" }));
+    expect(
+      screen.getByText(/global weekend ledger begins in Phase 7/i),
+    ).toBeInTheDocument();
+    expect(document.body.textContent).not.toMatch(
+      /submit result|organizer control/i,
+    );
   });
 
   it("renders realtime All Hands sessions, standings, and projected points without organizer controls", () => {

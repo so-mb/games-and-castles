@@ -20,6 +20,7 @@ import { resolveParticipants } from "../domain/transforms";
 import type { PublishedCompetition } from "../domain/types";
 import { MerryGoRoundExperience } from "./MerryGoRoundExperience";
 import { AllHandsExperience } from "./AllHandsExperience";
+import { GroupFormatExperience } from "./GroupFormatExperience";
 
 function initials(name: string) {
   return name
@@ -150,8 +151,9 @@ export function PublicCompetitionList() {
             Live and scheduled games
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
-            Follow Merry-Go-Round matches and All Hands sessions live. Friday
-            remains flexible—competition cards never assign a fixed start time.
+            Follow Merry-Go-Round matches, All Hands sessions, and Group Format
+            live. Friday remains flexible—competition cards never assign a fixed
+            start time.
           </p>
         </div>
         {firebase.status === "ready" ? (
@@ -234,6 +236,15 @@ export function PublicCompetitionList() {
                     participants={participants.activeParticipants}
                     run={run}
                   />
+                ) : run &&
+                  run.format === "group-knockout" &&
+                  competition.format === "group-knockout" ? (
+                  <GroupFormatExperience
+                    competition={competition}
+                    key={competition.id}
+                    participants={participants.activeParticipants}
+                    run={run}
+                  />
                 ) : (
                   <Surface
                     as="article"
@@ -279,8 +290,7 @@ export function PublicCompetitionList() {
       )}
       <p className="mt-4 flex items-center gap-2 text-xs text-white/42">
         <CalendarClock aria-hidden="true" size={15} />
-        Merry-Go-Round and All Hands can run live. Group Format arrives in Phase
-        6.
+        Merry-Go-Round, All Hands, and Group Format can run live.
       </p>
     </section>
   );

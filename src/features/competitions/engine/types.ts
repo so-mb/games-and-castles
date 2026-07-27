@@ -6,11 +6,13 @@ import type {
   SeriesConfig,
 } from "../domain/types";
 import type { AllHandsCompetitionRun } from "../all-hands/types";
+import type { GroupKnockoutRun } from "../group-knockout/types";
 
 export type CompetitionRunStage =
   "round-robin" | "qualification-review" | "knockout" | "completed";
 
-export type MatchStage = "round-robin" | "knockout" | "third-place";
+export type MatchStage =
+  "round-robin" | "group-stage" | "knockout" | "third-place";
 export type MatchStatus = "pending" | "ready" | "in-progress" | "completed";
 
 export interface MatchSource {
@@ -145,7 +147,8 @@ export interface CompetitionRun {
   schemaVersion: 1;
 }
 
-export type AnyCompetitionRun = CompetitionRun | AllHandsCompetitionRun;
+export type AnyCompetitionRun =
+  CompetitionRun | AllHandsCompetitionRun | GroupKnockoutRun;
 
 export interface FixtureGeneration {
   rounds: RoundRobinRound[];

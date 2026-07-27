@@ -2,6 +2,7 @@ import { validateSeries } from "../domain/validation";
 import { competitionLimits } from "../domain/config";
 import { validateMatchResult } from "./series";
 import { parseAllHandsRun } from "../all-hands/runtime";
+import { parseGroupKnockoutRun } from "../group-knockout/runtime";
 import type {
   CompetitionMatch,
   CompetitionRun,
@@ -701,7 +702,9 @@ export function parseCompetitionRunCollection(value: unknown) {
     const run =
       isRecord(raw) && raw.format === "all-hands"
         ? parseAllHandsRun(raw)
-        : parseCompetitionRun(raw);
+        : isRecord(raw) && raw.format === "group-knockout"
+          ? parseGroupKnockoutRun(raw)
+          : parseCompetitionRun(raw);
     if (!run || run.competitionId !== id) invalidIds.push(id);
     else runs.push(run);
   });

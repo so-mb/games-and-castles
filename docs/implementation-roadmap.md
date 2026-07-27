@@ -222,7 +222,7 @@ Cross-cutting rules:
 
 ### Phase 5 — `all-hands` engine
 
-**Implementation status:** Complete in the repository. The format-discriminated All Hands runtime, frozen activation snapshot, organizer All Hands Table, authenticated realtime guest experience, five result modes, individual/team sessions, pure standings and projected-point derivation, corrections, void/restore, final tie resolution, completion/reopen/reset workflows, append-only audit activity, runtime quarantine, default-deny Rules, domain/frontend tests, and expanded emulator matrix are implemented. Production use requires the separately authorized Phase 5 Rules deployment described in [Firebase setup](firebase-setup.md); this implementation did not deploy Rules or modify remote Firebase data.
+**Implementation status:** Complete, deployed, and production-tested. The format-discriminated All Hands runtime, frozen activation snapshot, organizer All Hands Table, authenticated realtime guest experience, five result modes, individual/team sessions, pure standings and projected-point derivation, corrections, void/restore, final tie resolution, completion/reopen/reset workflows, append-only audit activity, runtime quarantine, default-deny Rules, domain/frontend tests, and expanded emulator matrix are implemented. Phase 5 Rules were deployed through the separately authorized operator process described in [Firebase setup](firebase-setup.md).
 
 **Goal:** Support simultaneous individual/team sessions with configurable result interpretation and scoring.
 
@@ -255,11 +255,13 @@ Cross-cutting rules:
 
 **Implemented tests/review:** Pure tests cover activation/config freezing, participant subsets, team membership and award expansion, all five result modes, shared/manual placements, opposite metric directions, secondary tiebreaks, decimals, permitted negative scores, custom bounds, repeated sessions, corrections, void/restore, fixed/open-ended completion, final tie ordering, completion/reopen, point breakdowns, and RTDB serialization quarantine. Frontend tests cover activation routing and frozen configuration while the shared competition regressions cover offline, malformed-runtime, public-read-only, Merry-Go-Round, and Group Format boundaries. The 65-case Rules matrix adds All Hands activation, session/result validation, correction, void/restore, atomic completion/reopen, immutable snapshots, and guest-write denial while preserving the complete Merry-Go-Round matrix. Full cross-device and production All Hands rehearsal remains a Phase 11 hardening task.
 
-**Phase boundary:** Only `round-robin-knockout` and `all-hands` execute. Group Format, the global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
+**Phase 5 boundary at completion:** `round-robin-knockout` and `all-hands` executed at this gate. Phase 6 subsequently adds Group Format; the global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
 
 ---
 
 ### Phase 6 — `group-knockout` engine
+
+**Implementation status:** Complete in the repository. Group Format now has a frozen format-discriminated runtime, secure local draw preview and exact confirmation, balanced persisted groups, interleaved single/double round-robin fixtures, group standings and explicit tie decisions, frozen qualification, normalized cross-group seeding, deterministic rematch avoidance, next-power-of-two knockout generation with highest-seed BYEs, revision-safe correction/reset/completion/reopen workflows, itemized projected points, organizer Group Arena controls, authenticated realtime guest presentation, strict runtime quarantine, append-only audit activity, and default-deny Rules. Production use requires the separately authorized Phase 6 Rules deployment described in [Firebase setup](firebase-setup.md); this implementation did not deploy Rules or modify remote Firebase data.
 
 **Goal:** Add balanced randomized groups, group round robins, qualification, and cross-group knockout.
 
@@ -272,7 +274,8 @@ Cross-cutting rules:
 - Automatic recommended and validated manual group counts.
 - Secure balanced group draw, organizer preview/confirmation, persisted draw and fixtures.
 - Single/double group round robins, group standings/tiebreaks, qualification mapping, cross-group bracket.
-- Explicit destructive reset and downstream invalidation/reseeding flow.
+- Explicit pre-result reset, complete knockout invalidation after qualifier-changing corrections, and branch-safe knockout correction flow.
+- Mobile-friendly organizer/public draw, fixture, standings, qualification, bracket, completion, and itemized projected-point views.
 
 **Dependencies:** Phase 4 pairing, standings, bracket, revision, reset, and point-derivation foundations. The persisted global ledger remains Phase 7 work.
 
@@ -282,12 +285,16 @@ Cross-cutting rules:
 2. Recommended 4–16 participant group counts match the specification; manual invalid counts are rejected.
 3. Each group has exact internal pairings once or twice according to leg count; draw persists only after confirmation.
 4. Six participants default to two groups of three, top two qualify, and semifinals cross A1–B2/B1–A2.
-5. Changing a confirmed draw requires impact review and clears/archives all affected group, knockout, standing, and ledger data.
+5. A confirmed draw can be replaced only through the pre-result reset; the runtime and its derived standings/projected points are removed atomically while the Phase 3 configuration returns to scheduled.
 6. A qualifier-changing correction presents and safely invalidates dependent bracket results.
 
 **Main technical risks:** Uneven/empty group edge cases; double-round duplicate identity; cross-group seed mapping; correction after knockout start; over-reusing round-robin assumptions.
 
 **Recommended tests:** Assignment property tests across counts/groups; fixture properties per group/leg; golden six-player flow; preview persistence test; qualification/tie tests; destructive reset and downstream correction integration; multi-device group draw presentation.
+
+**Implemented tests/review:** Pure tests cover all automatic group-count boundaries, valid/invalid manual counts, injected deterministic shuffle, balanced assignments, group sizes 2–6 across one/two legs, reversed second-leg sides, interleaving, standings and exact-two head-to-head handling, explicit fingerprinted group/cross-group ties, qualification snapshots, normalized rank tiers, deterministic lower-tier rematch avoidance, golden A1–B2/B1–A2 pairings, BYEs, corrections, full-knockout invalidation, completion/reopen, points, and strict parser quarantine. Frontend tests cover the exact activation-preview handoff, Group Arena routing, persisted public draw/fixture/standings/points views, and guest read-only behavior. The 73-case emulator Rules matrix preserves all Phase 2–5 cases and adds Group activation/draw/group/result/qualification/seed/bracket/completion/reopen/reset, stale-write, malformed-field, and guest-write denial cases. Broader cross-device and production Group Format rehearsal remains Phase 11 hardening work.
+
+**Phase boundary:** All three competition formats now execute. The Phase 7 global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
 
 ---
 

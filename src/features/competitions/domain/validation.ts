@@ -340,7 +340,7 @@ export function validateCompetition(
       config.qualifiersPerGroup < 1 ||
       (required &&
         config.qualifiersPerGroup >=
-          Math.ceil(values.participantIds.length / groupCount))
+          Math.floor(values.participantIds.length / groupCount))
     ) {
       issues.push(
         issue(
@@ -350,11 +350,11 @@ export function validateCompetition(
       );
     }
     const qualifierTotal = groupCount * config.qualifiersPerGroup;
-    if (required && (qualifierTotal < 2 || qualifierTotal % 2 !== 0)) {
+    if (required && qualifierTotal < 2) {
       issues.push(
         issue(
           "formatConfig.qualifiersPerGroup",
-          "The total qualifier field must be an even number of at least 2.",
+          "The total qualifier field must contain at least 2 players.",
         ),
       );
     }

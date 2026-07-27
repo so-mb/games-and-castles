@@ -54,6 +54,20 @@ import {
   voidStoredAllHandsSession,
   activateAllHandsCompetition,
 } from "./repositories/allHandsRuns";
+import {
+  activateGroupCompetition,
+  completeStoredGroupCompetition,
+  generateStoredGroupKnockout,
+  openStoredQualificationReview,
+  reopenStoredGroupCompetition,
+  resetStoredGroupKnockout,
+  resetStoredGroupRun,
+  returnStoredGroupMatchToPending,
+  saveStoredCrossGroupSeedResolution,
+  saveStoredGroupResult,
+  saveStoredGroupTieResolution,
+  startStoredGroupMatch,
+} from "./repositories/groupKnockoutRuns";
 import type { AnyCompetitionRun, CompetitionRun } from "./engine/types";
 import type { RecordResultOptions } from "./engine/lifecycle";
 import type {
@@ -61,6 +75,8 @@ import type {
   AllHandsResultInput,
   AllHandsTeam,
 } from "./all-hands/types";
+import type { GroupKnockoutRun } from "./group-knockout/types";
+import type { GroupRecordResultOptions } from "./group-knockout/engine";
 import type {
   CompetitionDraft,
   CompetitionAuditEntry,
@@ -107,6 +123,10 @@ interface CompetitionsContextValue {
     direction: "earlier" | "later",
   ) => Promise<void>;
   activate: (competition: PublishedCompetition) => Promise<void>;
+  activateGroup: (
+    competition: PublishedCompetition,
+    previewRun: GroupKnockoutRun,
+  ) => Promise<void>;
   startMatch: (
     run: CompetitionRun,
     matchId: string,
@@ -201,6 +221,50 @@ interface CompetitionsContextValue {
   resetAllHands: (
     competition: PublishedCompetition,
     run: AllHandsCompetitionRun,
+  ) => Promise<void>;
+  startGroupMatch: (
+    run: GroupKnockoutRun,
+    matchId: string,
+    expectedMatchRevision: number,
+  ) => Promise<void>;
+  returnGroupMatchToPending: (
+    run: GroupKnockoutRun,
+    matchId: string,
+    expectedMatchRevision: number,
+  ) => Promise<void>;
+  recordGroupResult: (
+    run: GroupKnockoutRun,
+    matchId: string,
+    options: Omit<GroupRecordResultOptions, "organizerUid" | "now">,
+  ) => Promise<void>;
+  resolveGroupTie: (
+    run: GroupKnockoutRun,
+    groupId: string,
+    participantIds: string[],
+    orderedParticipantIds: string[],
+    reason: string,
+  ) => Promise<void>;
+  openQualificationReview: (run: GroupKnockoutRun) => Promise<void>;
+  resolveCrossGroupSeed: (
+    run: GroupKnockoutRun,
+    groupRank: number,
+    participantIds: string[],
+    orderedParticipantIds: string[],
+    reason: string,
+  ) => Promise<void>;
+  generateGroupKnockout: (run: GroupKnockoutRun) => Promise<void>;
+  resetGroupKnockout: (run: GroupKnockoutRun) => Promise<void>;
+  completeGroup: (
+    competition: PublishedCompetition,
+    run: GroupKnockoutRun,
+  ) => Promise<void>;
+  reopenGroup: (
+    competition: PublishedCompetition,
+    run: GroupKnockoutRun,
+  ) => Promise<void>;
+  resetGroup: (
+    competition: PublishedCompetition,
+    run: GroupKnockoutRun,
   ) => Promise<void>;
 }
 
@@ -436,14 +500,28 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
             competition,
             participants.organizerParticipants,
           );
-        } else {
+        } else if (competition.format === "round-robin-knockout") {
           await activateCompetition(
             database,
             uid,
             competition,
             participants.organizerParticipants,
           );
+        } else {
+          throw new Error(
+            "Confirm the Group Format draw preview before activation.",
+          );
         }
+      },
+      activateGroup: async (competition, previewRun) => {
+        const { database, uid } = requireOrganizer();
+        await activateGroupCompetition(
+          database,
+          uid,
+          competition,
+          participants.organizerParticipants,
+          previewRun,
+        );
       },
       startMatch: async (run, matchId, expectedMatchRevision) => {
         const { database, uid } = requireOrganizer();
@@ -601,6 +679,94 @@ export function CompetitionsProvider({ children }: { children: ReactNode }) {
       resetAllHands: async (competition, run) => {
         const { database, uid } = requireOrganizer();
         await resetStoredAllHandsRun(database, uid, competition, run);
+      },
+      startGroupMatch: async (run, matchId, expectedMatchRevision) => {
+        const { database, uid } = requireOrganizer();
+        await startStoredGroupMatch(
+          database,
+          uid,
+          run,
+          matchId,
+          expectedMatchRevision,
+        );
+      },
+      returnGroupMatchToPending: async (
+        run,
+        matchId,
+        expectedMatchRevision,
+      ) => {
+        const { database, uid } = requireOrganizer();
+        await returnStoredGroupMatchToPending(
+          database,
+          uid,
+          run,
+          matchId,
+          expectedMatchRevision,
+        );
+      },
+      recordGroupResult: async (run, matchId, options) => {
+        const { database, uid } = requireOrganizer();
+        await saveStoredGroupResult(database, uid, run, matchId, options);
+      },
+      resolveGroupTie: async (
+        run,
+        groupId,
+        participantIds,
+        orderedParticipantIds,
+        reason,
+      ) => {
+        const { database, uid } = requireOrganizer();
+        await saveStoredGroupTieResolution(
+          database,
+          uid,
+          run,
+          groupId,
+          participantIds,
+          orderedParticipantIds,
+          reason,
+        );
+      },
+      openQualificationReview: async (run) => {
+        const { database, uid } = requireOrganizer();
+        await openStoredQualificationReview(database, uid, run);
+      },
+      resolveCrossGroupSeed: async (
+        run,
+        groupRank,
+        participantIds,
+        orderedParticipantIds,
+        reason,
+      ) => {
+        const { database, uid } = requireOrganizer();
+        await saveStoredCrossGroupSeedResolution(
+          database,
+          uid,
+          run,
+          groupRank,
+          participantIds,
+          orderedParticipantIds,
+          reason,
+        );
+      },
+      generateGroupKnockout: async (run) => {
+        const { database, uid } = requireOrganizer();
+        await generateStoredGroupKnockout(database, uid, run);
+      },
+      resetGroupKnockout: async (run) => {
+        const { database, uid } = requireOrganizer();
+        await resetStoredGroupKnockout(database, uid, run);
+      },
+      completeGroup: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await completeStoredGroupCompetition(database, uid, competition, run);
+      },
+      reopenGroup: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await reopenStoredGroupCompetition(database, uid, competition, run);
+      },
+      resetGroup: async (competition, run) => {
+        const { database, uid } = requireOrganizer();
+        await resetStoredGroupRun(database, uid, competition, run);
       },
     }),
     [

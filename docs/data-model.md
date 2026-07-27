@@ -272,7 +272,7 @@ interface Phase3PublishedCompetition extends Phase3CompetitionBase {
 }
 ```
 
-`Phase3FormatConfig` is the implemented discriminated union for Merry-Go-Round settings (`series`, draws toggle, qualifier count, third-place toggle), All Hands settings (result mode, planned/open-ended sessions, teams toggle, generic metric labels/directions, negative-score toggle, and tie policy), and Group Format settings (automatic/manual group count, qualifiers per group, one/two legs, series, draws, third place). `Phase3ScoringConfig` separates head-to-head table points from championship-preview awards, or stores All Hands placement/winner/participation awards. Phase 4 freezes and executes Merry-Go-Round values; Phase 5 freezes and executes All Hands values. Group Format remains configuration-only.
+`Phase3FormatConfig` is the implemented discriminated union for Merry-Go-Round settings (`series`, draws toggle, qualifier count, third-place toggle), All Hands settings (result mode, planned/open-ended sessions, teams toggle, generic metric labels/directions, negative-score toggle, and tie policy), and Group Format settings (automatic/manual group count, qualifiers per group, one/two legs, series, draws, third place). `Phase3ScoringConfig` separates head-to-head table points from championship-preview awards, or stores All Hands placement/winner/participation awards. Phases 4–6 freeze and execute Merry-Go-Round, All Hands, and Group Format values respectively.
 
 The implemented paths are `/competitionDrafts/{competitionId}`, `/competitions/{competitionId}`, and `/audit/{auditId}`. Publishing is one multi-location write: create the `scheduled` record at the same ID, remove the draft, and append compact audit metadata. Published edits, archive/restore, and reorders increment revisions; reordering increments every changed record because `displayOrder` is versioned state. Optional null metric labels are omitted by Realtime Database and normalized back to `null` by the runtime adapter. Participant membership stores IDs only, so display profile changes can render without rewriting the selected membership.
 
@@ -432,6 +432,72 @@ interface GroupStage extends AuditFields {
 ```
 
 On confirmation, `shuffledParticipantIds`, groups, mappings, and fixtures are one logical write. `Group.participantIds` is an intentional denormalization needed for compact rendering and validation; membership is not editable after confirmation.
+
+### 6.1 Phase 6 Group Format runtime
+
+Phase 6 uses the same flat `/competitionRuns/{competitionId}` path and competition lifecycle as the other implemented formats. The local draw preview is never persisted as a separate record. Confirmation atomically creates the exact run below, changes the scheduled competition to `active`, and appends compact activation/draw audit entries.
+
+```ts
+interface GroupKnockoutRun {
+  competitionId: CompetitionId;
+  format: 'group-knockout';
+  stage: 'group-stage' | 'qualification-review' | 'knockout' | 'completed';
+  competitionRevision: number;
+  participantIds: ParticipantId[];
+  participantIndex: Record<ParticipantId, true>;
+  configSnapshot: {
+    format: 'group-knockout';
+    groupCountMode: 'automatic' | 'manual';
+    resolvedGroupCount: number;
+    qualifiersPerGroup: number;
+    roundRobinLegs: 1 | 2;
+    series: MatchSeries;
+    allowDraws: false;
+    includeThirdPlace: boolean;
+    tableScoring: HeadToHeadTableScoring;
+    overallScoring: HeadToHeadOverallScoring;
+    expectedGroupMatchCount: number;
+    drawVersion: 1;
+    fixtureGenerationVersion: 1;
+    seedingVersion: 1;
+  };
+  draw: {
+    shuffledParticipantIds: ParticipantId[];
+    shuffledPositions: Record<ParticipantId, number>;
+    assignments: Array<{
+      participantId: ParticipantId;
+      shuffledPosition: number;
+      groupId: EntityId;
+      positionInGroup: number;
+    }>;
+    generatedAt: UnixMs;
+    drawVersion: 1;
+  };
+  groups: Array<{
+    id: EntityId;
+    label: string;
+    participantIds: ParticipantId[];
+  }>;
+  matches: Record<MatchId, Match>;
+  tieResolutions: Record<EntityId, GroupTieResolution>;
+  qualification: QualificationSnapshot | null;
+  seedResolutions: Record<EntityId, CrossGroupSeedResolution>;
+  knockout: KnockoutRuntime | null;
+  placements: PlacementSnapshot | null;
+  currentMatchId: MatchId | null;
+  resultCount: number;
+  activatedAt: UnixMs;
+  activatedByUid: UserId;
+  completedAt: UnixMs | null;
+  completedByUid: UserId | null;
+  revision: number;
+  schemaVersion: 1;
+}
+```
+
+The authoritative Group Format inputs are the frozen configuration and expected group-match count, confirmed shuffled order/positions/assignments, stable groups, interleaved match identities, round-winner sequences, fingerprinted group tie decisions, frozen qualification snapshot, fingerprinted cross-group seed decisions, bracket dependencies/BYEs, completion placements, revisions, and audit entries. Group standings, normalized seed comparisons, next match, progress, public summaries, and itemized projected points are derived. Correcting a group result invalidates qualification and stale tie decisions; if a knockout exists, the organizer must explicitly reset that complete bracket first. A pre-result reset is the only whole-run deletion.
+
+The strict adapter verifies unique/stable group IDs and labels, exact participant coverage and balanced size, draw-to-group assignment positions, one/two fixtures for every in-group pair with reversed second-leg sides, contiguous global order, valid result series, qualification membership/ranks/fingerprints, seed-resolution fingerprints, standard bracket slots/dependencies/BYEs, and completion placements. Unknown or malformed data quarantines the run instead of partially rendering it.
 
 ## 7. All Hands sessions
 
@@ -761,7 +827,7 @@ Public `AppSettings` fixes the trip range to 31 July–2 August 2026 and the pub
 
 Path names are neutral and access-oriented. `$uid`, `$competitionId`, and similar segments are opaque generated IDs.
 
-The tree below remains the target for later execution, private-content, and backend-derived features. The implemented Phase 2–3 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
+The tree below remains the target for later private-content and backend-derived features. The implemented Phase 2–6 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
 
 ```text
 /
@@ -818,7 +884,7 @@ The tree below remains the target for later execution, private-content, and back
 
 “Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
-In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. Phase 3 instead uses the flat paths documented above and Rules-authorized atomic client publication because it contains public-safe configuration only. Phases 4–5 add the bounded, admin-claim-authorized `/competitionRuns` exception documented above for public-safe Merry-Go-Round and All Hands execution. Group Format, a persisted score ledger, and protected publication still require their later trusted-operation designs.
+In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. Phase 3 instead uses the flat paths documented above and Rules-authorized atomic client publication because it contains public-safe configuration only. Phases 4–6 add the bounded, admin-claim-authorized `/competitionRuns` exception documented above for public-safe Merry-Go-Round, All Hands, and Group Format execution. A persisted score ledger and protected publication still require their later trusted-operation designs.
 
 ## 13. Source of truth, derivation, and denormalization
 

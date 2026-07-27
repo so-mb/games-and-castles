@@ -42,6 +42,10 @@ export class CompetitionRunConflictError extends Error {
 const phaseFourAuditActions = new Set<CompetitionAuditEntry["action"]>([
   "competition-activated",
   "draw-fixtures-generated",
+  "group-draw-generated",
+  "group-stage-completed",
+  "qualification-snapshot-confirmed",
+  "cross-group-seed-resolved",
   "competition-run-reset",
   "match-started",
   "match-returned-to-pending",

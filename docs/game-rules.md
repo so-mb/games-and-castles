@@ -20,7 +20,7 @@ The following competition lifecycle applies to all three formats.
 
 ### Phase 3 configuration and Phase 4–5 execution lifecycle
 
-Phase 3 persists private `draft` records and published `scheduled`/`archived` configurations. Phase 4 adds `active` and `completed` execution for Merry-Go-Round (`round-robin-knockout`), and Phase 5 adds those states for All Hands (`all-hands`). Group Format remains configuration-only until Phase 6. Draw and activation reviews are organizer UI confirmations, not separately persisted `preview`, `ready`, or `locked` statuses.
+Phase 3 persists private `draft` records and published `scheduled`/`archived` configurations. Phase 4 adds `active` and `completed` execution for Merry-Go-Round (`round-robin-knockout`), Phase 5 adds those states for All Hands (`all-hands`), and Phase 6 adds them for Group Format (`group-knockout`). Draw and activation reviews are organizer UI confirmations, not separately persisted `preview`, `ready`, or `locked` statuses.
 
 ```mermaid
 stateDiagram-v2
@@ -270,23 +270,25 @@ Recommended automatic group counts:
 | 9–12 | 3 |
 | 13–16 | 4 |
 
-Automatic selection outside these ranges is an open implementation policy; organizers can use a validated manual count.
+Automatic selection outside these ranges is intentionally unavailable; organizers must use a validated manual count that leaves at least two participants in every balanced group and at least one non-qualifier per group.
 
 ### 6.2 Draw algorithm and invariants
 
 1. Securely shuffle unique participant IDs using the same unbiased approach as section 4.1.
 2. Create `groupCount` empty groups.
-3. Assign shuffled IDs round-robin to groups, using a snake direction on alternating passes if it improves deterministic balance.
+3. Assign shuffled IDs round-robin to groups in stable group-label order.
 4. Assert every participant appears exactly once and `maxGroupSize - minGroupSize <= 1`.
 5. Generate circle-method fixtures independently inside each group. For double round robin, create a second leg with reversed nominal sides and distinct match IDs.
-6. Preview group membership, fixtures, qualification mapping, and any bracket byes.
-7. On organizer confirmation, persist the participant order, groups, fixtures, and generation revision together in Firebase.
+6. Preview group membership, estimated fixtures, qualifier count, bracket size, and expected BYEs locally without writing Firebase.
+7. On organizer confirmation, persist that exact participant order, assignment positions, groups, interleaved fixtures, frozen configuration, active status, and generation revision together in Firebase.
 
-The draw preview is not public/official. After confirmation, any membership or draw change requires an explicit destructive reset that clears group results, dependent knockout state, and relevant derived score entries. The confirmation must enumerate the impact.
+The draw preview is not public/official. The confirmed draw is public to authenticated guests and its reveal can be replayed without regenerating assignments. Before any result, an explicit reset deletes the run and returns the unchanged configuration to scheduled. After a result exists, group membership cannot be reshuffled; corrections recalculate standings and explicitly invalidate qualification/knockout state when required.
 
 ### 6.3 Group ranking and qualification
 
-Group standings use the same default table scoring and ordered tiebreak principles as section 4.3, scoped first to the group. Qualifier mapping is frozen before play. Cross-group seeding should avoid immediate same-group rematches when the chosen bracket permits, but must not silently alter qualification ranks.
+Group standings use the same default table scoring and ordered tiebreak principles as section 4.3, scoped first to the group: table points; head-to-head only for an exact two-player tie and aggregated across both legs; round differential; rounds won; match wins; then an explicit organizer order bound to the standings fingerprint. After every group match and qualification-affecting tie is complete, an explicit organizer action freezes participant ID, group ID/rank, normalized metrics, and standings fingerprints in the qualification snapshot.
+
+Cross-group seeding compares only participants in the same group-rank tier, using table points per match, match wins per match, round differential per match, and rounds won per match. A remaining equality requires an explicit fingerprinted organizer order. Higher group-rank tiers never move behind lower tiers. The bracket uses the next power of two and awards BYEs to the highest seeds. To avoid an immediate same-group rematch, the deterministic assignment may permute opponents only inside an equivalent lower rank tier; it never removes a deserved BYE or moves a lower tier ahead. An unavoidable rematch is disclosed in the organizer's local bracket preview before confirmation.
 
 Recommended six-participant structure:
 
@@ -300,7 +302,7 @@ If a correction changes a qualifier after downstream knockout play began, the sy
 
 ## 7. Championship ledger
 
-This section remains the Phase 7 target. Phase 4 does not persist ledger entries or a global leaderboard: it applies the same configured award semantics through `deriveCompetitionPointBreakdown`, an itemized pure projection scoped to one Merry-Go-Round run. Corrections recompute that projection from source results and placements.
+This section remains the Phase 7 target. Phases 4–6 do not persist ledger entries or a global leaderboard: each implemented format applies its configured award semantics through an itemized pure projection scoped to one competition run. Corrections recompute that projection from source results, qualification, and placements.
 
 The ledger is the sole source for overall points. A displayed total is always:
 

@@ -11,6 +11,7 @@ import {
   undoLastRound,
 } from "../engine/series";
 import type { CompetitionMatch, CompetitionRun } from "../engine/types";
+import type { GroupKnockoutRun } from "../group-knockout/types";
 
 function participantName(
   participants: Participant[],
@@ -47,7 +48,7 @@ export function SeriesResultDialog({
   onSave,
 }: {
   match: CompetitionMatch | null;
-  run: CompetitionRun;
+  run: CompetitionRun | GroupKnockoutRun;
   participants: Participant[];
   onClose: () => void;
   onSave: (options: {
@@ -77,11 +78,14 @@ export function SeriesResultDialog({
   }, [match, roundWinnerIds, run.configSnapshot.series]);
   const correcting = Boolean(match?.result);
   const resetsKnockout =
-    correcting && match?.stage === "round-robin" && Boolean(run.knockout);
+    correcting &&
+    (match?.stage === "round-robin" || match?.stage === "group-stage") &&
+    Boolean(run.knockout);
   const cascadesKnockout = Boolean(
     correcting &&
     match &&
     match.stage !== "round-robin" &&
+    match.stage !== "group-stage" &&
     descendantMatchIds(run.matches, match.id).some((id) => {
       const descendant = run.matches[id];
       return (

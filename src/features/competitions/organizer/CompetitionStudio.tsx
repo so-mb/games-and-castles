@@ -38,6 +38,10 @@ import {
   AllHandsActivationReview,
   AllHandsControlRoom,
 } from "./AllHandsControlRoom";
+import {
+  GroupActivationReview,
+  GroupArenaControlRoom,
+} from "./GroupArenaControlRoom";
 
 type StudioTab = "drafts" | "scheduled" | "active" | "completed" | "archived";
 type PendingAction =
@@ -186,6 +190,13 @@ export function CompetitionStudio() {
           onBack={() => setActivating(null)}
           participants={participants.organizerParticipants}
         />
+      ) : latest.format === "group-knockout" ? (
+        <GroupActivationReview
+          competition={latest}
+          onActivated={activated}
+          onBack={() => setActivating(null)}
+          participants={participants.organizerParticipants}
+        />
       ) : (
         <ActivationReview
           competition={latest}
@@ -205,6 +216,13 @@ export function CompetitionStudio() {
     );
     return latest && controlledRun && controlledRun.format === "all-hands" ? (
       <AllHandsControlRoom
+        competition={latest}
+        onBack={() => setControlling(null)}
+        participants={participants.organizerParticipants}
+        run={controlledRun}
+      />
+    ) : latest && controlledRun && controlledRun.format === "group-knockout" ? (
+      <GroupArenaControlRoom
         competition={latest}
         onBack={() => setControlling(null)}
         participants={participants.organizerParticipants}
@@ -338,8 +356,9 @@ export function CompetitionStudio() {
             Competition Studio
           </h3>
           <p className="mt-2 max-w-xl text-sm leading-6 text-white/55">
-            Configure the flexible Friday order, then activate Merry-Go-Round or
-            All Hands competitions and control their live results here.
+            Configure the flexible Friday order, then activate Merry-Go-Round,
+            All Hands, or Group Format competitions and control their live
+            results here.
           </p>
         </div>
         <Button
@@ -504,17 +523,12 @@ export function CompetitionStudio() {
                       <ArrowDown aria-hidden="true" size={16} /> Later
                     </Button>
                     <Button
-                      disabled={
-                        !competitions.canMutate ||
-                        record.format === "group-knockout"
-                      }
+                      disabled={!competitions.canMutate}
                       onClick={() => setActivating(record)}
                       variant="dark"
                     >
                       <Play aria-hidden="true" size={16} />
-                      {record.format !== "group-knockout"
-                        ? "Activate"
-                        : "Group engine coming later"}
+                      Activate
                     </Button>
                     <Button
                       disabled={!competitions.canMutate}
