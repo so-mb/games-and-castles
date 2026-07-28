@@ -2,6 +2,11 @@
   "database": {
     "rules": "database.rules.json"
   },
+  "functions": {
+    "source": "functions",
+    "runtime": "nodejs24",
+    "predeploy": ["npm --prefix functions run build"]
+  },
   "emulators": {
     "auth": {
       "host": "127.0.0.1",
@@ -10,6 +15,10 @@
     "database": {
       "host": "127.0.0.1",
       "port": 9000
+    },
+    "functions": {
+      "host": "127.0.0.1",
+      "port": 5001
     },
     "ui": {
       "enabled": true,

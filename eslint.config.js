@@ -5,7 +5,7 @@ import globals from "globals";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "coverage", "node_modules"] },
+  { ignores: ["dist", "coverage", "node_modules", "functions/lib"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -28,6 +28,13 @@ export default tseslint.config(
   },
   {
     files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      globals: globals.node,
+    },
+  },
+  {
+    files: ["functions/src/**/*.ts"],
     languageOptions: {
       ecmaVersion: "latest",
       globals: globals.node,

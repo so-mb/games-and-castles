@@ -1372,6 +1372,138 @@
       },
       "$other": { ".validate": false }
     },
+    "specialReveal": {
+      "privateConfig": {
+        ".read": "auth != null && auth.token.admin === true",
+        ".write": "auth != null && auth.token.admin === true && newData.exists() && !newData.parent().child('publicState').exists() && ((!data.exists() && newData.child('revision').val() == 1 && newData.child('createdByUid').val() == auth.uid) || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('eventId').val() == data.child('eventId').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('createdByUid').val() == data.child('createdByUid').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val()))",
+        ".validate": "newData.hasChildren(['eventId', 'opening', 'predictionPrompt', 'optionLabels', 'resolutionPayloads', 'correctPredictionPoints', 'createdAt', 'createdByUid', 'updatedAt', 'updatedByUid', 'revision', 'schemaVersion'])",
+        "eventId": {
+          ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,80}$/)"
+        },
+        "opening": {
+          ".validate": "newData.hasChildren(['title', 'body', 'emojiKey'])",
+          "title": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 100"
+          },
+          "body": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 1500"
+          },
+          "emojiKey": {
+            ".validate": "newData.val().matches(/^(sparkles|star|crown|castle|confetti)$/)"
+          },
+          "$other": { ".validate": false }
+        },
+        "predictionPrompt": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 180"
+        },
+        "optionLabels": {
+          ".validate": "newData.hasChildren(['option-a', 'option-b'])",
+          "option-a": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50"
+          },
+          "option-b": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50"
+          },
+          "$other": { ".validate": false }
+        },
+        "resolutionPayloads": {
+          ".validate": "newData.hasChildren(['option-a', 'option-b'])",
+          "$option": {
+            ".validate": "($option == 'option-a' || $option == 'option-b') && newData.hasChildren(['title', 'body', 'emojiKey'])",
+            "title": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 100"
+            },
+            "body": {
+              ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 1500"
+            },
+            "emojiKey": {
+              ".validate": "newData.val().matches(/^(sparkles|star|crown|castle|confetti)$/)"
+            },
+            "$other": { ".validate": false }
+          }
+        },
+        "correctPredictionPoints": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 100 && newData.val() % 1 == 0"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
+        },
+        "createdByUid": {
+          ".validate": "newData.isString() && ((!data.exists() && newData.val() == auth.uid) || (data.exists() && newData.val() == data.val()))"
+        },
+        "updatedAt": {
+          ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+        },
+        "updatedByUid": { ".validate": "newData.val() == auth.uid" },
+        "revision": {
+          ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+        },
+        "schemaVersion": { ".validate": "newData.val() == 1" },
+        "$other": { ".validate": false }
+      },
+      "publicState": {
+        ".read": "auth != null",
+        ".write": false
+      },
+      "publicOpening": {
+        ".read": "auth != null && root.child('specialReveal').child('publicState').exists()",
+        ".write": false
+      },
+      "publicResolution": {
+        ".read": "auth != null && root.child('specialReveal').child('publicState').child('status').val() == 'resolved'",
+        ".write": false
+      },
+      "predictions": {
+        "$uid": {
+          ".read": "auth != null && auth.uid == $uid",
+          ".write": "auth != null && auth.uid == $uid && newData.exists() && newData.parent().parent().child('publicState').child('status').val() == 'prediction-open' && newData.child('ownerUid').val() == auth.uid && root.child('userProfiles').child(auth.uid).child('participantId').val() == newData.child('participantId').val() && ((!data.exists() && newData.child('revision').val() == 1 && newData.child('status').val() == 'submitted' && root.child('participants').child(newData.child('participantId').val()).child('ownerUid').val() == auth.uid && root.child('participants').child(newData.child('participantId').val()).child('status').val() == 'active') || (data.exists() && newData.child('revision').val() == data.child('revision').val() + 1 && newData.child('ownerUid').val() == data.child('ownerUid').val() && newData.child('participantId').val() == data.child('participantId').val() && newData.child('predictionId').val() == data.child('predictionId').val() && newData.child('createdAt').val() == data.child('createdAt').val() && newData.child('schemaVersion').val() == data.child('schemaVersion').val())) && newData.parent().parent().child('predictionReceipts').child(newData.child('predictionId').val()).child('predictionId').val() == newData.child('predictionId').val() && newData.parent().parent().child('predictionReceipts').child(newData.child('predictionId').val()).child('active').val() == (newData.child('status').val() == 'submitted') && newData.parent().parent().child('predictionReceipts').child(newData.child('predictionId').val()).child('updatedAt').val() == newData.child('updatedAt').val()",
+          ".validate": "newData.hasChildren(['ownerUid', 'participantId', 'predictionId', 'selection', 'status', 'createdAt', 'updatedAt', 'revision', 'schemaVersion'])",
+          "ownerUid": { ".validate": "newData.val() == $uid" },
+          "participantId": {
+            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 128"
+          },
+          "predictionId": {
+            ".validate": "newData.isString() && newData.val().matches(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/)"
+          },
+          "selection": {
+            ".validate": "newData.val() == 'option-a' || newData.val() == 'option-b'"
+          },
+          "status": {
+            ".validate": "newData.val() == 'submitted' || newData.val() == 'withdrawn'"
+          },
+          "createdAt": {
+            ".validate": "newData.isNumber() && ((!data.exists() && newData.val() <= now && newData.val() > now - 60000) || (data.exists() && newData.val() == data.val()))"
+          },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          },
+          "revision": {
+            ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() % 1 == 0"
+          },
+          "schemaVersion": { ".validate": "newData.val() == 1" },
+          "$other": { ".validate": false }
+        }
+      },
+      "predictionReceipts": {
+        ".read": "auth != null",
+        "$predictionId": {
+          ".write": "auth != null && newData.exists() && newData.parent().parent().child('publicState').child('status').val() == 'prediction-open' && newData.parent().parent().child('predictions').child(auth.uid).child('predictionId').val() == $predictionId && newData.child('predictionId').val() == $predictionId && newData.child('active').val() == (newData.parent().parent().child('predictions').child(auth.uid).child('status').val() == 'submitted') && newData.child('updatedAt').val() == newData.parent().parent().child('predictions').child(auth.uid).child('updatedAt').val()",
+          ".validate": "newData.hasChildren(['predictionId', 'active', 'updatedAt', 'schemaVersion'])",
+          "predictionId": { ".validate": "newData.val() == $predictionId" },
+          "active": { ".validate": "newData.isBoolean()" },
+          "updatedAt": {
+            ".validate": "newData.isNumber() && newData.val() <= now && newData.val() > now - 60000"
+          },
+          "schemaVersion": { ".validate": "newData.val() == 1" },
+          "$other": { ".validate": false }
+        }
+      },
+      "privateSecurity": {
+        ".read": false,
+        ".write": false
+      },
+      "$other": { ".validate": false }
+    },
     "championshipLedger": {
       "competitionSources": {
         ".read": "auth != null",
@@ -1453,6 +1585,12 @@
             }
           },
           "$other": { ".validate": false }
+        }
+      },
+      "predictionSources": {
+        "$eventId": {
+          ".read": "auth != null && root.child('specialReveal').child('publicState').child('status').val() == 'resolved' && root.child('specialReveal').child('publicState').child('eventId').val() == $eventId",
+          ".write": false
         }
       },
       "manualBonusesPublic": {
@@ -1540,10 +1678,10 @@
           ".validate": "newData.isString() && newData.val() == $auditId"
         },
         "action": {
-          ".validate": "newData.isString() && newData.val().matches(/^(draft-created|draft-updated|draft-deleted|draft-duplicated|competition-published|competition-updated|competition-archived|competition-restored|competition-reordered|competition-activated|draw-fixtures-generated|group-draw-generated|group-stage-completed|qualification-snapshot-confirmed|cross-group-seed-resolved|competition-run-reset|match-started|match-returned-to-pending|match-result-recorded|match-result-corrected|session-created|session-started|session-returned-to-pending|session-result-recorded|session-result-corrected|session-voided|session-restored|session-deleted|completion-review-opened|tie-resolved|tie-resolution-invalidated|knockout-generated|knockout-reset|downstream-results-cascaded|competition-completed|competition-reopened|championship-source-reconciled|championship-source-backfilled|championship-source-orphan-removed|manual-bonus-created|manual-bonus-revoked|manual-bonus-restored|birthday-vault-opened|birthday-submissions-closed|birthday-submissions-reopened|birthday-message-approved|birthday-message-hidden|birthday-messages-bulk-approved|birthday-reveal-order-changed|birthday-vault-revealed|birthday-vault-republished)$/)"
+          ".validate": "newData.isString() && newData.val().matches(/^(draft-created|draft-updated|draft-deleted|draft-duplicated|competition-published|competition-updated|competition-archived|competition-restored|competition-reordered|competition-activated|draw-fixtures-generated|group-draw-generated|group-stage-completed|qualification-snapshot-confirmed|cross-group-seed-resolved|competition-run-reset|match-started|match-returned-to-pending|match-result-recorded|match-result-corrected|session-created|session-started|session-returned-to-pending|session-result-recorded|session-result-corrected|session-voided|session-restored|session-deleted|completion-review-opened|tie-resolved|tie-resolution-invalidated|knockout-generated|knockout-reset|downstream-results-cascaded|competition-completed|competition-reopened|championship-source-reconciled|championship-source-backfilled|championship-source-orphan-removed|manual-bonus-created|manual-bonus-revoked|manual-bonus-restored|birthday-vault-opened|birthday-submissions-closed|birthday-submissions-reopened|birthday-message-approved|birthday-message-hidden|birthday-messages-bulk-approved|birthday-reveal-order-changed|birthday-vault-revealed|birthday-vault-republished|special-reveal-config-created|special-reveal-config-updated)$/)"
         },
         "entityType": {
-          ".validate": "newData.val() == 'competition' || newData.val() == 'championship-source' || newData.val() == 'manual-bonus' || newData.val() == 'birthday-vault'"
+          ".validate": "newData.val() == 'competition' || newData.val() == 'championship-source' || newData.val() == 'manual-bonus' || newData.val() == 'birthday-vault' || newData.val() == 'special-reveal'"
         },
         "entityId": {
           ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 128"

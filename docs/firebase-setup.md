@@ -1,12 +1,12 @@
 # Firebase setup and operations
 
-## 1. Phase 2–8 scope
+## 1. Phase 2–9 scope
 
-Firebase powers anonymous guest identity, the shared participant roster, organizer email/password authentication, organizer participant management, competition configuration, all three competition runtimes, the Phase 7 championship ledger, and the Phase 8 Birthday Vault. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
+Firebase powers anonymous guest identity, the shared participant roster, organizer email/password authentication, organizer participant management, competition configuration, all three competition runtimes, the Phase 7 championship ledger, the Phase 8 Birthday Vault, and the Phase 9 protected Special Reveal. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
 
-Phases 4–6 store public-safe active/completed competition records and format-discriminated `/competitionRuns/{competitionId}` data. Phase 7 stores one replaceable normalized source per valid active/completed run under `/championshipLedger/competitionSources/{competitionId}`. Phase 8 stores lifecycle state, identity-free receipts, owner-private messages, organizer-only moderation, and sanitized revealed snapshots under `/birthdayVault`. Birthday submit/withdraw and reveal/republish are atomic root updates validated by Rules; presentation replay is local-only. Predictions, protected special-reveal data, the exact accommodation address, Cloud Functions, App Check, analytics, and service-worker behavior remain unimplemented.
+Phases 4–6 store public-safe active/completed competition records and format-discriminated `/competitionRuns/{competitionId}` data. Phase 7 stores one replaceable normalized source per valid active/completed run under `/championshipLedger/competitionSources/{competitionId}`. Phase 8 stores lifecycle state, identity-free receipts, owner-private messages, organizer-only moderation, and sanitized revealed snapshots under `/birthdayVault`. Phase 9 stores owner-private predictions, identity-free receipts, backend-owned public opening/resolution state, backend-only rate-limit state, and one complete prediction ledger source. Six callable Functions perform protected opening, lock/reopen, resolution, correction, and reconciliation. App Check enforcement, the exact accommodation address, analytics, and service-worker behavior remain unimplemented.
 
-> **Production status (27 July 2026):** Phases 2–7 are deployed, production-connected, and reconciled. The production Firebase project and organizer access are provisioned, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. Phase 8 is complete in the repository only; its Rules/frontend deployment remains a deliberate operator action. This implementation did not deploy Rules or change remote Firebase data.
+> **Production status (28 July 2026):** Phases 2–7 are deployed, production-connected, and reconciled. The production Firebase project and organizer access are provisioned, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. Phases 8–9 are complete in the repository only; Phase 9 verifier provisioning and Functions, Rules, and frontend deployment remain deliberate operator actions. This implementation did not deploy Functions/Rules or change remote Firebase data.
 
 ## 2. Create the Firebase projects
 
@@ -40,7 +40,12 @@ Never place service-account JSON, access tokens, passwords, exact accommodation 
 
 ## 4. Local emulator workflow
 
-Prerequisites are Node.js 20.19 or newer and Java 21 or newer. Start Auth, Realtime Database, and the Emulator UI with the synthetic demo project:
+Prerequisites are Node.js 24 or newer and Java 21 or newer. Install both dependency trees, then start Auth, Realtime Database, Functions, and the Emulator UI with the synthetic demo project:
+
+```sh
+npm install
+npm --prefix functions install
+```
 
 ```sh
 npm run emulators
@@ -50,6 +55,7 @@ The configured endpoints are:
 
 - Auth: `127.0.0.1:9099`
 - Realtime Database: `127.0.0.1:9000`
+- Functions: `127.0.0.1:5001` (`europe-west1` callables)
 - Emulator UI: `127.0.0.1:4000`
 
 In another terminal, run the app with a complete local `.env.local` and `VITE_FIREBASE_USE_EMULATORS=true`. Use only synthetic participants and organizer accounts in the emulator.
@@ -60,7 +66,15 @@ Run the isolated Rules suite with:
 npm run test:rules
 ```
 
-This command starts only the database emulator for `demo-games-and-castles`, runs the permission matrix, and shuts the emulator down. The separate Rules workflow runs the same command in CI. Pages deployment never deploys database rules.
+Run the Functions unit and callable integration suites with:
+
+```sh
+npm run functions:typecheck
+npm run test:functions
+npm run test:functions:integration
+```
+
+The Rules command starts only the database emulator for `demo-games-and-castles`, runs the permission matrix, and shuts it down. The Functions integration wrapper creates a random synthetic code/verifier, uses a temporary ignored mode-`0600` emulator secret file, and removes it after the run. Automated tests use demo project IDs and cannot touch a real project. The Pages workflow runs all validation but deploys neither Functions nor database Rules.
 
 ## 5. Organizer provisioning
 
@@ -119,11 +133,59 @@ Phase 8 adds:
 - `/birthdayVault/publishedMessages/{publicationId}` — authenticated read only after reveal; organizer-only sanitized records tied to the current reveal revision.
 - `/audit/{auditId}` — adds compact Birthday Vault state/moderation/order/publication actions without message bodies or notes.
 
+Phase 9 adds:
+
+- `/specialReveal/privateConfig` — organizer-only, revisioned configuration; client editing freezes after opening.
+- `/specialReveal/publicState` — authenticated read and backend-only lifecycle writes.
+- `/specialReveal/publicOpening` — authenticated read after opening and backend-only publication.
+- `/specialReveal/publicResolution` — authenticated read only after resolution and backend-only publication/correction.
+- `/specialReveal/predictions/{ownerUid}` — owner-only read/write while `prediction-open`; organizer clients cannot enumerate it.
+- `/specialReveal/predictionReceipts/{predictionId}` — authenticated identity-free count source coupled atomically to the owner's prediction.
+- `/specialReveal/privateSecurity/attempts/{organizerUid}` — backend-only persistent failed-code rate limit.
+- `/championshipLedger/predictionSources/{eventId}` — authenticated read only after resolution and backend-only complete-source writes.
+- `/audit/{auditId}` — adds neutral configuration, lifecycle, resolution, correction, reconciliation, and lockout metadata without codes, choices, or payload bodies.
+
 After deliberately deploying the Phase 8 Rules and frontend, sign in to Organizer Mode and open **Birthday Vault**. Open submissions only when ready to collect real messages. Rehearse with synthetic emulator data first; do not create production test messages that might be mistaken for guest content. Rules deployment is still separate from Pages deployment and is never performed by the Pages workflow.
+
+## 7. Phase 9 secret and Functions deployment
+
+Cloud Functions production deployment requires the target Firebase project to use the pay-as-you-go Blaze plan. Enabling billing remains a manual project-owner decision; repository commands do not upgrade a plan. Firebase's current requirement is documented in its [Cloud Functions deployment guide](https://firebase.google.com/docs/functions/get-started#deploy-functions-to-a-production-environment).
+
+The six callable Functions use Node.js 24, Functions v2, the Admin SDK, `europe-west1`, and the neutral Secret Manager name `SPECIAL_REVEAL_CODE_VERIFIER`. Provision the verifier from an interactive trusted terminal; the script prompts without echo, verifies a second entry, generates a versioned scrypt verifier locally, requires the target project ID to be retyped, and streams the verifier to Firebase CLI without printing or saving the code/verifier:
+
+```sh
+npm run reveal:set-code -- --project YOUR_DEVELOPMENT_PROJECT_ID
+npm run reveal:set-code -- --project YOUR_PRODUCTION_PROJECT_ID
+```
+
+For each environment, use this fixed order:
+
+1. Configure the verifier secret.
+2. Deploy Functions.
+3. Deploy Realtime Database Rules.
+4. Deploy the frontend through the existing Pages workflow.
+
+Development deployment commands:
+
+```sh
+npm run deploy:functions -- YOUR_DEVELOPMENT_PROJECT_ID
+npm run deploy:rules -- YOUR_DEVELOPMENT_PROJECT_ID
+```
+
+Production deployment commands:
+
+```sh
+npm run deploy:functions -- YOUR_PRODUCTION_PROJECT_ID
+npm run deploy:rules -- YOUR_PRODUCTION_PROJECT_ID
+```
+
+Confirm the target printed by Firebase before every command. The CLI may request normal Google Cloud API enablement, Secret Manager service identity/IAM, or Artifact Registry cleanup configuration; review those prompts and do not enable APIs, billing, or IAM changes without the project owner's approval. Functions deployment is manual and limited by `firebase.json` to the `functions/` codebase. The Pages workflow has no service-account credential and cannot deploy it.
+
+After development deployment, use only neutral synthetic content to rehearse configuration, opening, owner/private prediction behavior, lock/stale-write denial, reopen, resolution/retry, correction, deterministic points, reconciliation, and the persistent five-failure/15-minute lockout. Production content entry and opening are separate deliberate live operations. See [Protected Special Reveal](special-reveal.md) for the complete lifecycle and limitations.
 
 After the revised Rules are deliberately deployed, publish the frontend through the normal Pages workflow. In Organizer Mode, open **Championship Desk**, review the preview counts, reconcile each existing valid run (or use **Reconcile all**), then repeat the scan to confirm every supported active/completed run is **In sync**. Reconciliation is idempotent and does not alter results. Test result correction, All Hands void/restore, completion/reopen, bonus revoke/restore, and guest write denial with synthetic development data before production. A production smoke check should remain non-destructive beyond the required ledger backfill.
 
-## 7. GitHub Pages variables
+## 8. GitHub Pages variables
 
 The production repository has the following Actions variables configured. For a replacement repository or Firebase project, create them in **Repository settings → Secrets and variables → Actions → Variables**:
 
@@ -136,6 +198,6 @@ The production repository has the following Actions variables configured. For a 
 
 The Pages workflow sets emulator mode to false. The current deployed build receives all six variables and its live participant features are connected to production Firebase. A future build with missing variables would still deploy the static page, but its live participant features would remain unconfigured.
 
-## 8. Identity and recovery limitation
+## 9. Identity and recovery limitation
 
 Anonymous guest identity persists in the current browser profile. Clearing site data, using private browsing, or switching browser/device can create a new UID. Phase 2 has no guest identity recovery, cross-device claim, account linking, or display-name-as-proof mechanism. An organizer can add a separate organizer-managed participant, but cannot relink a lost anonymous identity in this phase.

@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-Phase 8 is complete in the repository. Deployment of its frontend and Realtime Database Rules remains a deliberate operator action; the implementation did not modify remote Firebase resources. Prediction processing and the protected special reveal remain Phase 9 work.
+Phase 8 is complete in the repository. Deployment of its frontend and Realtime Database Rules remains a deliberate operator action; the implementation did not modify remote Firebase resources. Phase 9 now implements prediction processing and the protected Special Reveal separately; Birthday Vault continues to use no Cloud Function.
 
 The Birthday Vault is a private digital guestbook, not a cryptographic vault. Firebase Authentication identifies owners and organizers, while default-deny Realtime Database Rules enforce access and data shape. Other guests do not download private message content or moderation. No Cloud Function is used for this feature because publication contains no backend-only outcome or protected payload.
 

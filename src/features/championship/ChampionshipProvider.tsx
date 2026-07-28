@@ -12,6 +12,9 @@ import { useCompetitions } from "../competitions/CompetitionsProvider";
 import { useConnection } from "../live/ConnectionProvider";
 import { useFirebase } from "../live/FirebaseProvider";
 import { useParticipants } from "../participants/ParticipantsProvider";
+import type { PredictionLedgerSnapshot } from "../special-reveal/domain/types";
+import { subscribePredictionLedgerSources } from "../special-reveal/repositories/specialReveal";
+import { useSpecialReveal } from "../special-reveal/SpecialRevealProvider";
 import { deriveChampionshipAchievements } from "./achievements/deriveAchievements";
 import { deriveChampionshipLeaderboard } from "./domain/leaderboard";
 import { deriveReconciliationItems } from "./domain/reconciliation";
@@ -37,6 +40,7 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 
 interface ChampionshipContextValue {
   sources: CompetitionLedgerSnapshot[];
+  predictionSources: PredictionLedgerSnapshot[];
   publicBonuses: ManualChampionshipBonus[];
   organizerBonuses: ManualChampionshipBonus[];
   standings: ChampionshipStanding[];
@@ -70,7 +74,11 @@ export function ChampionshipProvider({ children }: { children: ReactNode }) {
   const connection = useConnection();
   const competitions = useCompetitions();
   const participants = useParticipants();
+  const specialReveal = useSpecialReveal();
   const [sources, setSources] = useState<CompetitionLedgerSnapshot[]>([]);
+  const [predictionSources, setPredictionSources] = useState<
+    PredictionLedgerSnapshot[]
+  >([]);
   const [publicBonuses, setPublicBonuses] = useState<ManualChampionshipBonus[]>(
     [],
   );
@@ -86,8 +94,9 @@ export function ChampionshipProvider({ children }: { children: ReactNode }) {
     if (firebase.status !== "ready" || auth.guest.status !== "ready") return;
     let sourcesReady = false;
     let bonusesReady = false;
+    let predictionsReady = false;
     const markReady = () => {
-      if (sourcesReady && bonusesReady) setState("ready");
+      if (sourcesReady && bonusesReady && predictionsReady) setState("ready");
     };
     const fail = () => {
       setState("error");
@@ -113,11 +122,36 @@ export function ChampionshipProvider({ children }: { children: ReactNode }) {
       },
       fail,
     );
+    const stopPredictions =
+      specialReveal.publicState?.status === "resolved"
+        ? subscribePredictionLedgerSources(
+            firebase.clients.guestDatabase,
+            specialReveal.publicState.eventId,
+            (result) => {
+              setPredictionSources(result.sources);
+              setMalformedSourceIds((current) => [
+                ...new Set([
+                  ...current.filter((id) => !id.startsWith("prediction:")),
+                  ...result.invalidIds.map((id) => `prediction:${id}`),
+                ]),
+              ]);
+              predictionsReady = true;
+              markReady();
+            },
+            fail,
+          )
+        : (() => {
+            setPredictionSources([]);
+            predictionsReady = true;
+            markReady();
+            return () => undefined;
+          })();
     return () => {
       stopSources();
       stopBonuses();
+      stopPredictions();
     };
-  }, [auth.guest, firebase]);
+  }, [auth.guest, firebase, specialReveal.publicState]);
 
   useEffect(() => {
     if (firebase.status !== "ready" || auth.organizer.status !== "authorized") {
@@ -158,10 +192,16 @@ export function ChampionshipProvider({ children }: { children: ReactNode }) {
     () =>
       deriveChampionshipLeaderboard({
         sources,
+        predictionSources,
         bonuses: publicBonuses,
         participants: participants.championshipParticipants,
       }),
-    [participants.championshipParticipants, publicBonuses, sources],
+    [
+      participants.championshipParticipants,
+      predictionSources,
+      publicBonuses,
+      sources,
+    ],
   );
   const achievements = useMemo(
     () => deriveChampionshipAchievements(standings),
@@ -218,6 +258,7 @@ export function ChampionshipProvider({ children }: { children: ReactNode }) {
   const value = useMemo<ChampionshipContextValue>(
     () => ({
       sources,
+      predictionSources,
       publicBonuses,
       organizerBonuses:
         auth.organizer.status === "authorized" ? organizerBonuses : [],
@@ -271,6 +312,7 @@ export function ChampionshipProvider({ children }: { children: ReactNode }) {
       malformedBonusIds,
       malformedSourceIds,
       organizerBonuses,
+      predictionSources,
       publicBonuses,
       reconciliation,
       reconcileOne,

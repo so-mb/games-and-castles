@@ -4091,4 +4091,576 @@ describe("Realtime Database security rules", () => {
       );
     });
   });
+
+  describe("Phase 9 special reveal and predictions", () => {
+    const predictionId = "123e4567-e89b-42d3-a456-426614174001";
+
+    function contexts() {
+      return {
+        unauthenticated: environment.unauthenticatedContext().database(),
+        guest: environment.authenticatedContext("guest-1").database(),
+        otherGuest: environment.authenticatedContext("guest-2").database(),
+        admin: environment
+          .authenticatedContext("admin", { admin: true })
+          .database(),
+      };
+    }
+
+    function revealState(
+      status:
+        | "prediction-open"
+        | "prediction-locked"
+        | "resolved" = "prediction-open",
+      overrides: Record<string, unknown> = {},
+    ) {
+      const now = Date.now();
+      return {
+        eventId: "event-neutral",
+        status,
+        openedAt: now,
+        ...(status !== "prediction-open" ? { lockedAt: now } : {}),
+        ...(status === "resolved" ? { resolvedAt: now } : {}),
+        openRevision: 1,
+        resolutionRevision: status === "resolved" ? 1 : 0,
+        revision:
+          status === "prediction-open"
+            ? 1
+            : status === "prediction-locked"
+              ? 2
+              : 3,
+        schemaVersion: 1,
+        ...overrides,
+      };
+    }
+
+    function revealConfig(overrides: Record<string, unknown> = {}) {
+      const now = Date.now();
+      return {
+        eventId: "event-neutral",
+        opening: {
+          title: "A special announcement is ready.",
+          body: "Make one private prediction.",
+          emojiKey: "sparkles",
+        },
+        predictionPrompt: "Which option do you predict?",
+        optionLabels: { "option-a": "Option A", "option-b": "Option B" },
+        resolutionPayloads: {
+          "option-a": {
+            title: "Option A resolution",
+            body: "Selected presentation.",
+            emojiKey: "star",
+          },
+          "option-b": {
+            title: "Option B resolution",
+            body: "Selected presentation.",
+            emojiKey: "star",
+          },
+        },
+        correctPredictionPoints: 3,
+        createdAt: now,
+        createdByUid: "admin",
+        updatedAt: now,
+        updatedByUid: "admin",
+        revision: 1,
+        schemaVersion: 1,
+        ...overrides,
+      };
+    }
+
+    function prediction(overrides: Record<string, unknown> = {}) {
+      const now = Date.now();
+      return {
+        ownerUid: "guest-1",
+        participantId: "guest-1",
+        predictionId,
+        selection: "option-a",
+        status: "submitted",
+        createdAt: now,
+        updatedAt: now,
+        revision: 1,
+        schemaVersion: 1,
+        ...overrides,
+      };
+    }
+
+    function receipt(overrides: Record<string, unknown> = {}) {
+      return {
+        predictionId,
+        active: true,
+        updatedAt: Date.now(),
+        schemaVersion: 1,
+        ...overrides,
+      };
+    }
+
+    async function seedReveal(
+      status:
+        | "prediction-open"
+        | "prediction-locked"
+        | "resolved" = "prediction-open",
+      overrides: Record<string, unknown> = {},
+    ) {
+      await seed({
+        participants: {
+          "guest-1": participant("guest-1", "guest-1"),
+          "guest-2": participant("guest-2", "guest-2"),
+        },
+        userProfiles: {
+          "guest-1": {
+            uid: "guest-1",
+            participantId: "guest-1",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            schemaVersion: 1,
+          },
+          "guest-2": {
+            uid: "guest-2",
+            participantId: "guest-2",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            schemaVersion: 1,
+          },
+        },
+        specialReveal: {
+          privateConfig: revealConfig(),
+          publicState: revealState(status),
+          publicOpening: {
+            eventId: "event-neutral",
+            title: "A special announcement is ready.",
+            body: "Make one private prediction.",
+            emojiKey: "sparkles",
+            predictionPrompt: "Which option do you predict?",
+            optionLabels: { "option-a": "Option A", "option-b": "Option B" },
+            publishedAt: Date.now(),
+            openRevision: 1,
+            schemaVersion: 1,
+          },
+          ...(status === "resolved"
+            ? {
+                publicResolution: {
+                  eventId: "event-neutral",
+                  correctOption: "option-a",
+                  correctOptionLabel: "Option A",
+                  title: "Option A resolution",
+                  body: "Selected presentation.",
+                  emojiKey: "star",
+                  aggregate: { optionA: 1, optionB: 0, total: 1 },
+                  correctPredictionPoints: 3,
+                  resolvedAt: Date.now(),
+                  resolutionRevision: 1,
+                  schemaVersion: 1,
+                },
+              }
+            : {}),
+          ...overrides,
+        },
+      });
+    }
+
+    async function submit(database: Database, value = prediction()) {
+      await update(ref(database), {
+        "specialReveal/predictions/guest-1": value,
+        [`specialReveal/predictionReceipts/${predictionId}`]: receipt({
+          active: value.status === "submitted",
+          updatedAt: value.updatedAt,
+        }),
+      });
+    }
+
+    it("1 denies unauthenticated public-state reads", async () => {
+      await seedReveal();
+      await assertFails(
+        get(ref(contexts().unauthenticated, "specialReveal/publicState")),
+      );
+    });
+    it("2 allows authenticated public-state reads", async () => {
+      await seedReveal();
+      await assertSucceeds(
+        get(ref(contexts().guest, "specialReveal/publicState")),
+      );
+    });
+    it("3 denies guest public-state writes", async () => {
+      await seedReveal();
+      await assertFails(
+        set(ref(contexts().guest, "specialReveal/publicState"), revealState()),
+      );
+    });
+    it("4 denies admin-client public-state writes", async () => {
+      await seedReveal();
+      await assertFails(
+        set(ref(contexts().admin, "specialReveal/publicState"), revealState()),
+      );
+    });
+    it("5 denies opening reads before backend publication", async () => {
+      await seed({ specialReveal: { privateConfig: revealConfig() } });
+      await assertFails(
+        get(ref(contexts().guest, "specialReveal/publicOpening")),
+      );
+    });
+    it("6 allows opening reads after publication", async () => {
+      await seedReveal();
+      await assertSucceeds(
+        get(ref(contexts().guest, "specialReveal/publicOpening")),
+      );
+    });
+    it("7 denies resolution reads before resolution", async () => {
+      await seedReveal("prediction-locked", {
+        publicResolution: { value: "unavailable" },
+      });
+      await assertFails(
+        get(ref(contexts().guest, "specialReveal/publicResolution")),
+      );
+    });
+    it("8 allows resolution reads after resolution", async () => {
+      await seedReveal("resolved");
+      await assertSucceeds(
+        get(ref(contexts().guest, "specialReveal/publicResolution")),
+      );
+    });
+    it("9 denies guest private-config reads", async () => {
+      await seedReveal();
+      await assertFails(
+        get(ref(contexts().guest, "specialReveal/privateConfig")),
+      );
+    });
+    it("10 allows admin private-config reads", async () => {
+      await seedReveal();
+      await assertSucceeds(
+        get(ref(contexts().admin, "specialReveal/privateConfig")),
+      );
+    });
+    it("11 allows an admin to create valid pre-open configuration", async () => {
+      await assertSucceeds(
+        set(
+          ref(contexts().admin, "specialReveal/privateConfig"),
+          revealConfig(),
+        ),
+      );
+    });
+    it("12 denies guest configuration creation", async () => {
+      await assertFails(
+        set(
+          ref(contexts().guest, "specialReveal/privateConfig"),
+          revealConfig({ createdByUid: "guest-1", updatedByUid: "guest-1" }),
+        ),
+      );
+    });
+    it("13 denies invalid configuration option labels", async () => {
+      await assertFails(
+        set(
+          ref(contexts().admin, "specialReveal/privateConfig"),
+          revealConfig({
+            optionLabels: { "option-a": "", "option-b": "Option B" },
+          }),
+        ),
+      );
+    });
+    it("14 denies unknown configuration fields", async () => {
+      await assertFails(
+        set(
+          ref(contexts().admin, "specialReveal/privateConfig"),
+          revealConfig({ hiddenOutcome: "option-a" }),
+        ),
+      );
+    });
+    it("15 allows one-step pre-open configuration revision", async () => {
+      const current = revealConfig();
+      await seed({ specialReveal: { privateConfig: current } });
+      await assertSucceeds(
+        set(
+          ref(contexts().admin, "specialReveal/privateConfig"),
+          revealConfig({ createdAt: current.createdAt, revision: 2 }),
+        ),
+      );
+    });
+    it("16 denies stale configuration revision", async () => {
+      const current = revealConfig();
+      await seed({ specialReveal: { privateConfig: current } });
+      await assertFails(
+        set(
+          ref(contexts().admin, "specialReveal/privateConfig"),
+          revealConfig({ createdAt: current.createdAt, revision: 3 }),
+        ),
+      );
+    });
+    it("17 freezes configuration after opening", async () => {
+      await seedReveal();
+      await assertFails(
+        set(
+          ref(contexts().admin, "specialReveal/privateConfig"),
+          revealConfig({ revision: 2 }),
+        ),
+      );
+    });
+    it("18 denies configuration deletion", async () => {
+      await seed({ specialReveal: { privateConfig: revealConfig() } });
+      await assertFails(
+        remove(ref(contexts().admin, "specialReveal/privateConfig")),
+      );
+    });
+    it("19 allows an owner to read only their prediction path", async () => {
+      await seedReveal();
+      await seedAt("specialReveal/predictions/guest-1", prediction());
+      await assertSucceeds(
+        get(ref(contexts().guest, "specialReveal/predictions/guest-1")),
+      );
+    });
+    it("20 denies another guest prediction reads", async () => {
+      await seedReveal();
+      await seedAt("specialReveal/predictions/guest-1", prediction());
+      await assertFails(
+        get(ref(contexts().otherGuest, "specialReveal/predictions/guest-1")),
+      );
+    });
+    it("21 denies admin-client prediction reads", async () => {
+      await seedReveal();
+      await seedAt("specialReveal/predictions/guest-1", prediction());
+      await assertFails(
+        get(ref(contexts().admin, "specialReveal/predictions/guest-1")),
+      );
+    });
+    it("22 denies prediction collection enumeration", async () => {
+      await seedReveal();
+      await assertFails(
+        get(ref(contexts().guest, "specialReveal/predictions")),
+      );
+    });
+    it("23 allows an owner-coupled atomic prediction submission", async () => {
+      await seedReveal();
+      await assertSucceeds(submit(contexts().guest));
+    });
+    it("24 exposes only sanitized receipts to authenticated guests", async () => {
+      await seedReveal();
+      await submit(contexts().guest);
+      const result = await get(
+        ref(contexts().otherGuest, "specialReveal/predictionReceipts"),
+      );
+      expect(result.val()[predictionId]).toEqual(
+        expect.objectContaining({ active: true, predictionId }),
+      );
+      expect(result.val()[predictionId]).not.toHaveProperty("selection");
+    });
+    it("25 denies submission without its receipt", async () => {
+      await seedReveal();
+      await assertFails(
+        set(
+          ref(contexts().guest, "specialReveal/predictions/guest-1"),
+          prediction(),
+        ),
+      );
+    });
+    it("26 denies forged ownership", async () => {
+      await seedReveal();
+      await assertFails(
+        submit(contexts().guest, prediction({ ownerUid: "guest-2" })),
+      );
+    });
+    it("27 denies forged participant linkage", async () => {
+      await seedReveal();
+      await assertFails(
+        submit(contexts().guest, prediction({ participantId: "guest-2" })),
+      );
+    });
+    it("28 denies an invalid prediction option", async () => {
+      await seedReveal();
+      await assertFails(
+        submit(contexts().guest, prediction({ selection: "option-c" })),
+      );
+    });
+    it("29 denies initial withdrawn records", async () => {
+      await seedReveal();
+      await assertFails(
+        submit(contexts().guest, prediction({ status: "withdrawn" })),
+      );
+    });
+    it("30 denies unknown prediction fields", async () => {
+      await seedReveal();
+      await assertFails(
+        submit(contexts().guest, prediction({ outcome: "correct" })),
+      );
+    });
+    it("31 allows selection replacement while open", async () => {
+      await seedReveal();
+      const current = prediction();
+      await submit(contexts().guest, current);
+      await assertSucceeds(
+        submit(
+          contexts().guest,
+          prediction({
+            createdAt: current.createdAt,
+            updatedAt: Date.now(),
+            revision: 2,
+            selection: "option-b",
+          }),
+        ),
+      );
+    });
+    it("32 allows withdrawal while open", async () => {
+      await seedReveal();
+      const current = prediction();
+      await submit(contexts().guest, current);
+      await assertSucceeds(
+        submit(
+          contexts().guest,
+          prediction({
+            createdAt: current.createdAt,
+            updatedAt: Date.now(),
+            revision: 2,
+            status: "withdrawn",
+          }),
+        ),
+      );
+    });
+    it("33 allows resubmission while open", async () => {
+      await seedReveal();
+      const current = prediction();
+      await submit(contexts().guest, current);
+      const withdrawn = prediction({
+        createdAt: current.createdAt,
+        updatedAt: Date.now(),
+        revision: 2,
+        status: "withdrawn",
+      });
+      await submit(contexts().guest, withdrawn);
+      await assertSucceeds(
+        submit(
+          contexts().guest,
+          prediction({
+            createdAt: current.createdAt,
+            updatedAt: Date.now(),
+            revision: 3,
+          }),
+        ),
+      );
+    });
+    it("34 denies immutable prediction ID changes", async () => {
+      await seedReveal();
+      const current = prediction();
+      await submit(contexts().guest, current);
+      await assertFails(
+        update(ref(contexts().guest, "specialReveal/predictions/guest-1"), {
+          predictionId: "123e4567-e89b-42d3-a456-426614174002",
+          revision: 2,
+          updatedAt: Date.now(),
+        }),
+      );
+    });
+    it("35 denies stale prediction revisions", async () => {
+      await seedReveal();
+      const current = prediction();
+      await submit(contexts().guest, current);
+      await assertFails(
+        submit(
+          contexts().guest,
+          prediction({ createdAt: current.createdAt, revision: 3 }),
+        ),
+      );
+    });
+    it("36 denies guest writes after lock", async () => {
+      await seedReveal("prediction-locked");
+      await assertFails(submit(contexts().guest));
+    });
+    it("37 allows guest writes after a backend reopen", async () => {
+      await seedReveal("prediction-open", {
+        publicState: revealState("prediction-open", { revision: 3 }),
+      });
+      await assertSucceeds(submit(contexts().guest));
+    });
+    it("38 denies guest writes after resolution", async () => {
+      await seedReveal("resolved");
+      await assertFails(submit(contexts().guest));
+    });
+    it("39 denies admin-client prediction writes", async () => {
+      await seedReveal();
+      await assertFails(
+        set(
+          ref(contexts().admin, "specialReveal/predictions/admin"),
+          prediction({ ownerUid: "admin" }),
+        ),
+      );
+    });
+    it("40 denies uncoupled receipt writes", async () => {
+      await seedReveal();
+      await assertFails(
+        set(
+          ref(
+            contexts().guest,
+            `specialReveal/predictionReceipts/${predictionId}`,
+          ),
+          receipt(),
+        ),
+      );
+    });
+    it("41 denies all client access to private attempt state", async () => {
+      await seedAt("specialReveal/privateSecurity/attempts/admin", {
+        failedCount: 1,
+      });
+      await assertFails(
+        get(
+          ref(contexts().admin, "specialReveal/privateSecurity/attempts/admin"),
+        ),
+      );
+      await assertFails(
+        set(
+          ref(contexts().admin, "specialReveal/privateSecurity/attempts/admin"),
+          { failedCount: 2 },
+        ),
+      );
+    });
+    it("42 denies prediction-source reads before resolution", async () => {
+      await seedReveal("prediction-locked");
+      await seedAt("championshipLedger/predictionSources/event-neutral", {
+        meta: { status: "resolved" },
+      });
+      await assertFails(
+        get(
+          ref(
+            contexts().guest,
+            "championshipLedger/predictionSources/event-neutral",
+          ),
+        ),
+      );
+    });
+    it("43 allows prediction-source reads after resolution", async () => {
+      await seedReveal("resolved");
+      await seedAt("championshipLedger/predictionSources/event-neutral", {
+        meta: { status: "resolved" },
+      });
+      await assertSucceeds(
+        get(
+          ref(
+            contexts().guest,
+            "championshipLedger/predictionSources/event-neutral",
+          ),
+        ),
+      );
+    });
+    it("44 denies guest and admin-client prediction-source writes", async () => {
+      await seedReveal("resolved");
+      await assertFails(
+        set(
+          ref(
+            contexts().guest,
+            "championshipLedger/predictionSources/event-neutral",
+          ),
+          { value: true },
+        ),
+      );
+      await assertFails(
+        set(
+          ref(
+            contexts().admin,
+            "championshipLedger/predictionSources/event-neutral",
+          ),
+          { value: true },
+        ),
+      );
+    });
+    it("45 preserves default denial for unknown special-reveal children", async () => {
+      await seedReveal();
+      await assertFails(
+        set(ref(contexts().admin, "specialReveal/unknown"), { value: true }),
+      );
+    });
+  });
 });

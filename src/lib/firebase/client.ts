@@ -11,6 +11,15 @@ import {
   getDatabase,
   type Database,
 } from "firebase/database";
+import {
+  connectFunctionsEmulator,
+  getFunctions,
+  type Functions,
+} from "firebase/functions";
+import {
+  firebaseFunctionsEmulatorPort,
+  firebaseFunctionsRegion,
+} from "./constants";
 import type { FirebaseRuntimeConfig } from "./config";
 
 const organizerAppName = "games-and-castles-organizer";
@@ -23,6 +32,7 @@ export interface FirebaseClients {
   organizerApp: FirebaseApp;
   organizerAuth: Auth;
   organizerDatabase: Database;
+  organizerFunctions: Functions;
   persistenceReady: Promise<void>;
   useEmulators: boolean;
 }
@@ -45,6 +55,16 @@ function connectEmulatorsOnce(auth: Auth, database: Database, key: string) {
   emulatorConnections.add(key);
 }
 
+function connectFunctionsEmulatorOnce(functions: Functions, key: string) {
+  if (emulatorConnections.has(key)) return;
+  connectFunctionsEmulator(
+    functions,
+    "127.0.0.1",
+    firebaseFunctionsEmulatorPort,
+  );
+  emulatorConnections.add(key);
+}
+
 export function createFirebaseClients(
   runtimeConfig: Extract<FirebaseRuntimeConfig, { status: "configured" }>,
 ): FirebaseClients {
@@ -56,10 +76,15 @@ export function createFirebaseClients(
   const organizerAuth = getAuth(organizerApp);
   const guestDatabase = getDatabase(guestApp);
   const organizerDatabase = getDatabase(organizerApp);
+  const organizerFunctions = getFunctions(
+    organizerApp,
+    firebaseFunctionsRegion,
+  );
 
   if (runtimeConfig.useEmulators) {
     connectEmulatorsOnce(guestAuth, guestDatabase, "guest");
     connectEmulatorsOnce(organizerAuth, organizerDatabase, "organizer");
+    connectFunctionsEmulatorOnce(organizerFunctions, "organizer-functions");
   }
 
   return {
@@ -69,6 +94,7 @@ export function createFirebaseClients(
     organizerApp,
     organizerAuth,
     organizerDatabase,
+    organizerFunctions,
     persistenceReady: Promise.all([
       setPersistence(guestAuth, browserLocalPersistence),
       setPersistence(organizerAuth, browserLocalPersistence),

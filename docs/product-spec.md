@@ -131,23 +131,23 @@ Phase 8 intentionally uses no Cloud Function. Organizer authentication and stric
 
 ### 4.6 Special Reveal
 
-The section uses neutral terminology and a neutral locked state. Each linked participant can submit one selection, stored as `option-a` or `option-b`; user-facing labels will be supplied dynamically from an authorized source later. The participant can overwrite their own selection until the event is locked. Individual selections and optional aggregate distribution remain private until policy permits publication.
+The section uses neutral terminology and a neutral locked state. Each linked participant can submit one selection, stored as `option-a` or `option-b`; reviewed user-facing labels are published dynamically with the opening. The participant can overwrite or withdraw their own selection only while `prediction-open`. Other guests and organizer clients cannot read individual selections. An identity-free total may be shown before resolution; the option distribution publishes only with the final result.
 
-The organizer locks predictions, confirms the operation, provides the protected organizer code when required, and calls a Firebase Callable Cloud Function. The backend verifies the custom admin claim and protected condition, publishes neutral reveal state/content from protected storage, resolves predictions, creates deterministic scoring entries, and audits the action atomically or with resumable idempotency. Correct predictions default to 3 championship points; incorrect predictions receive 0. Repeated invocation must not duplicate points.
+The organizer first saves private configuration and uses a protected callable to publish the reviewed opening. The organizer later locks predictions, provides the protected organizer code, and calls the resolution Function. The backend verifies the custom admin claim, Secret Manager-backed verifier, persistent lockout, exact request, state, and revisions; it publishes only the selected resolution, resolves predictions, replaces the complete deterministic scoring source, and audits the action in one transaction. Correct predictions default to 3 championship points; incorrect predictions receive 0. Matching retries cannot duplicate points. Strong-confirmation correction and prediction-source reconciliation are also backend-owned.
 
 The required organizer flow is:
 
 1. Open organizer mode.
-2. Lock predictions.
-3. Confirm the special reveal.
-4. Provide the protected organizer code when required.
-5. Trigger a Firebase Callable Cloud Function.
-6. The function verifies organizer authorization.
-7. The function verifies the protected code or server-side condition.
-8. The function publishes the reveal from protected storage.
-9. The function resolves predictions.
-10. Correct predictions receive configured championship points through deterministic backend entries.
-11. All connected clients receive the new public state in realtime.
+2. Save the reviewed private configuration.
+3. Provide the protected organizer code and open predictions through a callable Function.
+4. Let linked guests submit one owner-private prediction while open.
+5. Lock predictions; reopen only if further submissions are intentionally allowed.
+6. Select the correct neutral option and provide the protected code.
+7. The resolution Function verifies organizer authorization, lockout, code, state, and revisions.
+8. The Function publishes only the selected resolution and identity-free aggregate.
+9. Correct predictions receive configured championship points through one complete deterministic backend source.
+10. All connected clients receive the new public state and leaderboard in realtime.
+11. Correction requires the strong confirmation `CORRECT RESULT`; reconciliation never changes the selected public resolution.
 
 No client asset, documentation example, path, component name, environment variable, or commit message may describe or hint at the sensitive content.
 

@@ -34,6 +34,13 @@ export function deriveChampionshipAchievements(
 ) {
   const definitions = [
     {
+      id: "prediction-master",
+      title: "Prediction Master",
+      criterion: "Most correct prediction awards",
+      value: (row: ChampionshipStanding) =>
+        row.byAwardType["prediction-correct"] ?? 0,
+    },
+    {
       id: "round-warrior",
       title: "Round Warrior",
       criterion: "Most points earned from individual round wins",

@@ -69,6 +69,7 @@ function standing(
     label: "Match win",
     awardedAt: 200,
     awardType: "match-win" as const,
+    sourceNamespace: "competition" as const,
     competitionId: "castle-cup",
     competitionTitle: "Castle Cup",
     competitionFormat: "round-robin-knockout" as const,
@@ -93,6 +94,7 @@ function standing(
     tied: rank === 1,
     totalPoints,
     competitionPoints: totalPoints,
+    predictionPoints: 0,
     bonusPoints: 0,
     competitionsScored: totalPoints ? 1 : 0,
     scoredEvents: totalPoints ? 1 : 0,
@@ -117,6 +119,7 @@ function standing(
 function setChampionship(overrides: Record<string, unknown> = {}) {
   state.value = {
     sources: [],
+    predictionSources: [],
     publicBonuses: [],
     organizerBonuses: [],
     standings: [standing("player-1", "Alex", 0, 1)],

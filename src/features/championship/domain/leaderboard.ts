@@ -5,9 +5,11 @@ import type {
   CompetitionLedgerSnapshot,
   ManualChampionshipBonus,
 } from "./types";
+import type { PredictionLedgerSnapshot } from "../../special-reveal/domain/types";
 
 export function deriveChampionshipLeaderboard(input: {
   sources: CompetitionLedgerSnapshot[];
+  predictionSources?: PredictionLedgerSnapshot[];
   bonuses: ManualChampionshipBonus[];
   participants: Participant[];
 }): ChampionshipStanding[] {
@@ -22,11 +24,29 @@ export function deriveChampionshipLeaderboard(input: {
       label: entry.label,
       awardedAt: entry.awardedAt,
       awardType: entry.sourceType,
+      sourceNamespace: "competition",
       competitionId: entry.competitionId,
       competitionTitle: source.meta.competitionTitle,
       competitionFormat: entry.competitionFormat,
       stage: entry.stage,
     })),
+  );
+  (input.predictionSources ?? []).forEach((source) =>
+    Object.values(source.entries).forEach((entry) =>
+      awards.push({
+        id: entry.id,
+        participantId: entry.participantId,
+        points: entry.points,
+        label: entry.label,
+        awardedAt: entry.awardedAt,
+        awardType: entry.sourceType,
+        sourceNamespace: "prediction",
+        competitionId: null,
+        competitionTitle: null,
+        competitionFormat: null,
+        stage: null,
+      }),
+    ),
   );
   input.bonuses
     .filter((bonus) => bonus.status === "active")
@@ -38,6 +58,7 @@ export function deriveChampionshipLeaderboard(input: {
         label: bonus.label,
         awardedAt: bonus.createdAt,
         awardType: "manual-bonus",
+        sourceNamespace: "manual-bonus",
         competitionId: null,
         competitionTitle: null,
         competitionFormat: null,
@@ -56,7 +77,10 @@ export function deriveChampionshipLeaderboard(input: {
       (award) => award.participantId === participantId,
     );
     const competitionAwards = participantAwards.filter(
-      (award) => award.competitionId,
+      (award) => award.sourceNamespace === "competition",
+    );
+    const predictionAwards = participantAwards.filter(
+      (award) => award.sourceNamespace === "prediction",
     );
     const bonusAwards = participantAwards.filter(
       (award) => award.awardType === "manual-bonus",
@@ -91,14 +115,19 @@ export function deriveChampionshipLeaderboard(input: {
       (sum, award) => sum + award.points,
       0,
     );
+    const predictionPoints = predictionAwards.reduce(
+      (sum, award) => sum + award.points,
+      0,
+    );
     return {
       participantId,
       participant,
       displayName: participant?.displayName ?? "Unavailable participant",
       rank: 0,
       tied: false,
-      totalPoints: competitionPoints + bonusPoints,
+      totalPoints: competitionPoints + predictionPoints + bonusPoints,
       competitionPoints,
+      predictionPoints,
       bonusPoints,
       competitionsScored: contributions.length,
       scoredEvents: participantAwards.length,

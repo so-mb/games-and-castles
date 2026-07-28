@@ -630,7 +630,7 @@ Fixed plans may enter completion review only after the configured number of non-
 
 ## 8. Standings and championship ledger
 
-Phase 7 implements the namespaced ledger below. The older `Standing` and `ChampionshipScoreEntry` interfaces in this section remain conceptual future/cache shapes; the current authoritative competition source uses `CompetitionLedgerSnapshot` and is never reduced to a mutable total.
+Phase 7 implements competition sources and bonuses; Phase 9 adds a backend-owned prediction source. The older `Standing` and `ChampionshipScoreEntry` interfaces in this section remain conceptual future/cache shapes; current authoritative sources are never reduced to a mutable total.
 
 ```ts
 interface CompetitionLedgerSnapshot {
@@ -665,11 +665,40 @@ interface ChampionshipLedgerEntry {
   sourceRevision: number;
   schemaVersion: 1;
 }
+
+interface PredictionLedgerSnapshot {
+  meta: {
+    eventId: string;
+    status: 'resolved';
+    stateRevision: number;
+    resolutionRevision: number;
+    sourceFingerprint: string;
+    generatedAt: number;
+    generatedByUid: UserId;
+    entryCount: number;
+    schemaVersion: 1;
+  };
+  entries: Record<string, PredictionLedgerEntry>;
+}
+
+interface PredictionLedgerEntry {
+  id: string; // deterministic hash for event + participant
+  participantId: ParticipantId;
+  sourceNamespace: 'prediction';
+  sourceId: EventId;
+  sourceEntityId: string; // prediction:{eventId}:{participantId}
+  sourceType: 'prediction-correct';
+  points: number;
+  label: 'Correct prediction';
+  awardedAt: UnixMs;
+  sourceRevision: number;
+  schemaVersion: 1;
+}
 ```
 
 The implemented award union covers match wins, round wins, match participation, session wins/placements/participation/custom awards, qualification, and the three competition podium places. Zero awards are omitted. The entry identity hashes competition, participant, award type, source entity, and optional discriminator after canonical serialization; display names never participate.
 
-One runtime mutation replaces the complete `/championshipLedger/competitionSources/{competitionId}` source. Reopen, correction, session void/restore, knockout reset, and pre-result run reset therefore remove unsupported entries rather than adding compensating corrections. The source fingerprint covers the authoritative run revision, canonical scoring configuration, status, and stable sorted entries; metadata also exposes the revision explicitly for validation and reconciliation.
+One runtime mutation replaces the complete `/championshipLedger/competitionSources/{competitionId}` source. Reopen, correction, session void/restore, knockout reset, and pre-result run reset therefore remove unsupported entries rather than adding compensating corrections. Phase 9 resolution/correction atomically replaces `/championshipLedger/predictionSources/{eventId}` together with public state/resolution; reconciliation rebuilds that complete source from authoritative resolved data. Source fingerprints cover authoritative revisions and stable sorted entries; metadata exposes revisions explicitly for validation and reconciliation.
 
 ```ts
 interface Standing {
@@ -724,7 +753,7 @@ interface ChampionshipScoreEntry {
 }
 ```
 
-`Standing` is derived and is not persisted in Phase 7. The implemented ledger is authenticated-readable and written only by the authorized organizer client through exact Rules-validated full-source or bonus operations. Leaderboard totals, ranks, recent awards, contributions, and achievements are derived views. Never persist a client-editable `totalPoints` as source of truth.
+`Standing` is derived and is not persisted. Competition sources and bonuses are written through exact Rules-bounded organizer operations; prediction sources are written only by the Phase 9 Admin SDK callables and become authenticated-readable after resolution. Leaderboard totals, competition/bonus/prediction subtotals, ranks, recent awards, contributions, and achievements are derived views. Never persist a client-editable `totalPoints` as source of truth.
 
 Idempotency keys are deterministically constructed from source type, source entity/revision unit, participant, and rule. They are indexed in a backend-only map for atomic claim/upsert. Correcting a source creates the complete expected set; obsolete entries become `void` (preferred for audit) or move to an archive. Public totals include only `active` entries.
 
@@ -834,46 +863,90 @@ No moderation record means pending. A moderation record is current only when `me
 ```ts
 type PredictionOption = 'option-a' | 'option-b';
 
-interface PredictionEvent extends AuditFields {
-  id: EventId;
-  status: 'draft' | 'open' | 'locked' | 'resolved' | 'archived';
-  optionValues: ['option-a', 'option-b'];
-  optionLabels?: Record<PredictionOption, string>; // reviewed dynamic display data
-  correctPredictionPoints: number; // recommended 3
-  openedAt?: UnixMs;
+interface RevealPayload {
+  title: string;
+  body: string;
+  emojiKey: 'sparkles' | 'star' | 'crown' | 'castle' | 'confetti';
+}
+
+interface SpecialRevealPrivateConfig {
+  eventId: EventId;
+  opening: RevealPayload;
+  predictionPrompt: string;
+  optionLabels: Record<PredictionOption, string>;
+  resolutionPayloads: Record<PredictionOption, RevealPayload>;
+  correctPredictionPoints: number;
+  createdAt: UnixMs;
+  createdByUid: UserId;
+  updatedAt: UnixMs;
+  updatedByUid: UserId;
+  revision: number;
+  schemaVersion: 1;
+}
+
+interface SpecialRevealPublicState {
+  eventId: EventId;
+  status: 'prediction-open' | 'prediction-locked' | 'resolved';
+  openedAt: UnixMs;
   lockedAt?: UnixMs;
   resolvedAt?: UnixMs;
-  revealStateId: EntityId;
-  showAggregateAfterReveal: boolean;
+  openRevision: number;
+  resolutionRevision: number;
+  revision: number;
+  schemaVersion: 1;
+}
+
+interface SpecialRevealPublicOpening {
+  eventId: EventId;
+  title: string;
+  body: string;
+  emojiKey: RevealPayload['emojiKey'];
+  predictionPrompt: string;
+  optionLabels: Record<PredictionOption, string>;
+  publishedAt: UnixMs;
+  openRevision: number;
+  schemaVersion: 1;
 }
 
 interface Prediction {
-  schemaVersion: SchemaVersion;
-  eventId: EventId;
-  participantId: ParticipantId;
   ownerUid: UserId;
+  participantId: ParticipantId;
+  predictionId: EntityId;
   selection: PredictionOption;
+  status: 'submitted' | 'withdrawn';
   createdAt: UnixMs;
   updatedAt: UnixMs;
   revision: number;
-  resolvedAt?: UnixMs;
-  outcome?: 'correct' | 'incorrect'; // backend-written only
+  schemaVersion: 1;
 }
 
-interface RevealState extends AuditFields {
-  id: EntityId;
-  kind: 'birthday' | 'specialReveal';
-  status: 'locked' | 'published';
-  publicationId?: EntityId;
-  publishedAt?: UnixMs;
-  presentationVersion: number;
-  publicPayload?: Record<string, string | number | boolean>; // sanitized only
+interface PredictionReceipt {
+  predictionId: EntityId;
+  active: boolean;
+  updatedAt: UnixMs;
+  schemaVersion: 1;
+}
+
+interface SpecialRevealPublicResolution {
+  eventId: EventId;
+  correctOption: PredictionOption;
+  correctOptionLabel: string;
+  title: string;
+  body: string;
+  emojiKey: RevealPayload['emojiKey'];
+  aggregate: { optionA: number; optionB: number; total: number };
+  correctPredictionPoints: number;
+  resolvedAt: UnixMs;
+  resolutionRevision: number;
+  schemaVersion: 1;
 }
 ```
 
-Before resolution, only the owning UID and authorized organizers/backend can read an individual `Prediction`. `selection` accepts only the two neutral enum values. Correct outcome and scoring are backend-controlled. The special reveal's protected prepublication payload/code is deliberately absent from frontend domain types and public examples; it lives only in Secret Manager or backend-only storage.
+The implemented paths are `/specialReveal/privateConfig`, `/specialReveal/publicState`, `/specialReveal/publicOpening`, `/specialReveal/publicResolution`, `/specialReveal/predictions/{ownerUid}`, `/specialReveal/predictionReceipts/{predictionId}`, and the backend-only `/specialReveal/privateSecurity/attempts/{organizerUid}`. One owner UID has at most one current prediction. Its owner/participant/prediction identity and creation timestamp remain immutable; submit/update/withdraw advances one revision and writes the matching identity-free receipt atomically.
 
-Option labels are dynamic values, not enum keys. They must undergo content/privacy review before being placed in any client-readable path. Documentation and defaults remain neutral.
+Before resolution, only the owning UID and Admin SDK can read an individual `Prediction`; organizer clients are deliberately denied. `selection` accepts only the two neutral enum values. The identity-free active receipt count may be shown before resolution, while the option distribution is backend-derived and published only with `SpecialRevealPublicResolution`.
+
+Option labels are dynamic values, not enum keys. They remain under organizer-only `privateConfig` until `openSpecialReveal` copies the reviewed opening/prompt/labels to `publicOpening`. The selected resolution payload becomes public only in the atomic backend resolution/correction transaction; the unselected payload stays private. The protected code is deliberately absent from every database/domain type and lives only as a versioned scrypt verifier in Secret Manager.
 
 ## 11. Settings, protected trip information, and audit
 
@@ -921,7 +994,7 @@ Public `AppSettings` fixes the trip range to 31 July–2 August 2026 and the pub
 
 Path names are neutral and access-oriented. `$uid`, `$competitionId`, and similar segments are opaque generated IDs.
 
-The implemented Phase 7–8 branches are:
+The implemented Phase 7–9 branches are:
 
 ```text
 championshipLedger/
@@ -930,15 +1003,26 @@ championshipLedger/
     entries/{entryId}
   manualBonuses/{bonusId}                 # organizer-only active/revoked history
   manualBonusesPublic/{bonusId}           # authenticated active-only projection
+  predictionSources/{eventId}/
+    meta                                  # authenticated read only after resolution
+    entries/{entryId}                     # backend-owned deterministic correct awards
 birthdayVault/
   publicState                              # authenticated read; admin transitions
   submissionReceipts/{publicationId}      # authenticated sanitized count source
   privateMessages/{ownerUid}               # owner/admin read; owner collecting writes
   moderation/{ownerUid}                    # organizer only
   publishedMessages/{publicationId}        # authenticated read after reveal
+specialReveal/
+  privateConfig                            # organizer only; frozen after opening
+  publicState                              # authenticated read; backend lifecycle writes
+  publicOpening                            # authenticated after opening
+  publicResolution                         # authenticated only after resolution
+  predictions/{ownerUid}                   # owner only while open; backend resolution read
+  predictionReceipts/{predictionId}        # authenticated identity-free count source
+  privateSecurity/attempts/{organizerUid}  # backend only
 ```
 
-The tree below remains the target for later protected/backend-derived features. The implemented Phase 2–8 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, `/championshipLedger`, `/birthdayVault`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
+The tree below remains the target for later protected/backend-derived features. The implemented Phase 2–9 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, `/championshipLedger`, `/birthdayVault`, `/specialReveal`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
 
 ```text
 /
@@ -995,7 +1079,7 @@ The tree below remains the target for later protected/backend-derived features. 
 
 “Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
-In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. The implemented flat model uses admin-claim Rules for configuration, all three runtimes, Phase 7 complete competition sources/bonuses, and Phase 8 Birthday Vault moderation/publication. The protected special reveal still requires its later trusted-operation design.
+In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. The implemented flat model uses admin-claim Rules for configuration, all three runtimes, Phase 7 complete competition sources/bonuses, Phase 8 Birthday Vault moderation/publication, and Phase 9 callable Admin SDK operations for protected opening/resolution and prediction scoring.
 
 ## 13. Source of truth, derivation, and denormalization
 
@@ -1007,13 +1091,15 @@ In the future target, competition drafts live under `organizer`, while confirmed
 | Match/session result | Yes | Organizer under format-specific Rules | Authoritative versioned source |
 | Standings | No for Phases 4–5 | Pure client derivation | Rebuildable from results/config; no independently mutable total |
 | Championship competition sources | Yes | Rules-bounded organizer full-source operation | Authoritative current ledger; deterministic identity/fingerprint |
+| Championship prediction source | Yes | Backend-only callable resolution/correction/reconciliation | One complete source per resolved event; deterministic identity/fingerprint |
 | Manual championship bonus | Yes | Rules-bounded organizer revisioned operation | Private full history plus sanitized active public projection |
 | Leaderboard totals/ranks/recent list | No | Pure client derivation | Rebuilt from validated current sources and active bonuses |
 | Private birthday submission | Yes | Guest create/limited own update; organizer moderate | Never in guest-readable collection |
 | Published birthday snapshot | Yes | Rules-bounded organizer full-set operation | Sanitized public source for reveal presentation |
-| Prediction | Yes | Owner while open; backend resolves | Private per UID |
-| Aggregate prediction distribution | Optional persisted view | Backend | Publish only per configured policy |
-| Reveal prepublication payload | Yes if needed | Backend only | Prefer Secret Manager for protected config |
+| Prediction | Yes | Owner while open; backend resolves | Private per UID; organizer client read denied |
+| Prediction receipt | Yes | Owner atomic write; authenticated read | Identity-free active count; no selection/participant/owner field |
+| Aggregate prediction distribution | Yes after resolution | Backend | Published only with selected resolution |
+| Reveal prepublication payload | Yes | Organizer-only database config before open; backend read after | Both variants freeze at opening; no public read |
 | Published reveal snapshot/state | Yes | Backend | Guest-readable only after publication |
 | Message count | No separate total | Pure count of valid active sanitized receipts | Does not grant submission or identity reads |
 
@@ -1021,11 +1107,11 @@ Safe denormalization includes participant display snapshots in historical presen
 
 ## 14. Idempotency and concurrency
 
-- A client assigns a unique `requestId` to each privileged request. The backend stores its terminal status and safe result under `backend/operations` so retries return the same outcome.
-- Each derived score uses a logical `idempotencyKey`; the backend atomically claims its hashed lookup key and upserts one entry.
+- Competition clients continue to use current record revisions and deterministic complete-source replacement. Phase 9 callables use expected config/state/resolution revisions and terminal-state equality rather than a separate request record.
+- Each prediction score uses a deterministic entry ID derived from event and participant plus the logical `prediction:{eventId}:{participantId}` source identity.
 - Result updates carry `expectedRevision`. A transaction rejects stale revisions instead of silently overwriting another administrator.
-- Reveal resolution checks event status, publication identity, and idempotency record in one trusted workflow. Partial retries continue missing steps but never duplicate awards.
-- Multi-location fan-out updates are built server-side and committed atomically where Realtime Database limits allow. Long operations use explicit resumable states (`pending`, `applying`, `completed`, `failed`) under backend-only paths.
+- Reveal resolution checks locked state and expected revisions inside one trusted root transaction. A successful resolution/correction replaces public state, selected public payload, the complete prediction source, and audit metadata atomically; a matching retry is a no-op and cannot duplicate points.
+- Prediction source reconciliation derives and compares the complete expected content. Missing/damaged content is replaced; a matching revision/fingerprint/entry map produces no write.
 
 ## 15. Deletion, correction, and archival
 

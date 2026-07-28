@@ -307,10 +307,10 @@ Phase 7 persists one normalized, replaceable source for every valid active or co
 The ledger is the sole source for overall points. A displayed total is always:
 
 ```text
-participantTotal = sum(valid competition entries + active manual bonuses for participantId)
+participantTotal = sum(valid competition entries + active manual bonuses + valid prediction entries for participantId)
 ```
 
-The implemented generic award union distinguishes match wins, round wins, match participation, session wins/placements/participation/custom awards, qualification, and competition podium places. Manual bonuses are a separate revisioned source. Prediction awards are explicitly deferred.
+The implemented generic award union distinguishes match wins, round wins, match participation, session wins/placements/participation/custom awards, qualification, competition podium places, and Phase 9 correct predictions. Manual bonuses are a separate revisioned source. A correct prediction creates one backend-owned `prediction-correct` entry for the event/participant; incorrect and withdrawn predictions create no entry.
 
 ### 7.1 Deterministic keys
 

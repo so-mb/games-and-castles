@@ -38,11 +38,11 @@ auth != null && auth.token.admin === true
 - No database field such as `isAdmin`, email comparison in client code, URL parameter, or local-storage flag can grant access.
 - Guest and organizer sessions use separate Firebase Auth instances so organizer sign-in/out cannot replace the same browser's anonymous UID.
 
-### Phase 2–8 implemented boundary
+### Phase 2–9 implemented boundary
 
 Phase 2 permits narrowly scoped direct Realtime Database writes for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Phase 3 additionally permits claim-authorized organizer writes to `/competitionDrafts`, `/competitions`, and append-only `/audit`. Phases 4–6 open authenticated read-only access to `/competitionRuns` and claim-authorized organizer writes for exact `round-robin-knockout`, `all-hands`, and `group-knockout` runtimes. The guest UI selects `scheduled`, `active`, and `completed` records; archived records contain no private payload and remain omitted.
 
-Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Phase 7 adds a bounded admin-claim client exception for complete competition-ledger sources and manual bonuses. Phase 8 adds a separately bounded Birthday Vault exception: an owner may atomically update only their UID-keyed message and matching identity-free receipt while collecting; an organizer may moderate, change lifecycle state, and atomically replace the complete sanitized published set. Other guests never receive private content or moderation. Direct writes remain denied for persisted totals, predictions, the protected special reveal, protected trip data, and every unspecified path.
+Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Phase 7 adds a bounded admin-claim client exception for complete competition-ledger sources and manual bonuses. Phase 8 adds a separately bounded Birthday Vault exception: an owner may atomically update only their UID-keyed message and matching identity-free receipt while collecting; an organizer may moderate, change lifecycle state, and atomically replace the complete sanitized published set. Phase 9 adds one owner-scoped prediction plus identity-free receipt write while `prediction-open`, but deliberately denies organizer clients access to individual predictions. Public reveal state/opening/resolution, private security state, and prediction ledger sources are backend-owned. Direct writes remain denied for persisted totals, protected publication/resolution, protected trip data, and every unspecified path.
 
 Organizer accounts and custom claims are provisioned out of band with the Admin SDK utility documented in [Firebase setup](firebase-setup.md). That utility preserves unrelated custom claims, supports grant/revoke by email or UID, requires an explicit non-demo project ID, and never exposes credentials to Vite.
 
@@ -87,14 +87,14 @@ flowchart TD
 | Read another guest's private birthday submission | No | Yes | Yes |
 | Moderate/publish birthday messages | No | Yes, bounded Phase 8 Rules and atomic full-set operation | Yes |
 | Submit/update own prediction while open | Yes | Yes for own prediction | Yes |
-| Read another participant's private prediction before reveal | No | Organizer only when operationally required | Yes |
+| Read another participant's private prediction before reveal | No | No client access | Yes |
 | Lock prediction event | No | Yes | Yes |
 | Publish special reveal / resolve predictions | No | Invoke callable only | Yes |
 | Read published reveal after publication | Yes | Yes | Yes |
 | Read backend-only reveal/config/idempotency data | No | No client access | Yes |
 | Read audit history | No | Yes | Yes |
 
-Organizer capability to review predictions must not become a public aggregate or casual UI before reveal. If organizers do not need individual visibility, the UI should omit it even though the backend can read it.
+The organizer UI has no individual-prediction view. Before resolution, authenticated clients receive only identity-free active receipts for counting; the option distribution is published only with the backend resolution.
 
 ## 4. Access rules strategy
 
@@ -154,7 +154,7 @@ Conceptual Rules structure (illustrative, not a deployable complete ruleset):
 
 The recommended production design routes operations containing backend-only knowledge—especially prediction resolution and protected special-reveal publication—through callable functions. Direct client writes are allowed only when all authority and validation inputs are Rules-visible and the decision register explicitly records the boundary. Phase 8 Birthday Vault is one such exception: ownership, participant linkage, lifecycle, immutable IDs, revisions, receipt coupling, admin claim, and sanitized publication shape are Rules-verifiable; readiness checks that require collection-wide analysis also run in the organizer client and block publication.
 
-Phases 4–6 make a bounded exception for public-safe competition execution data. Phase 7 extends the same authorized organizer mutation boundary to one complete derived ledger source per run. Phase 8 adds owner-scoped Birthday Vault submission and organizer publication without extending the exception to prediction or protected-reveal data. Each operation uses the smallest root-level atomic update, exact schemas, and one-step revisions; no repository method exposes an individual private collection to guests or incrementally appends published messages.
+Phases 4–6 make a bounded exception for public-safe competition execution data. Phase 7 extends the same authorized organizer mutation boundary to one complete derived ledger source per run. Phase 8 adds owner-scoped Birthday Vault submission and organizer publication. Phase 9 adds an owner-scoped prediction/receipt atomic update only while the backend-owned state is open; protected opening/resolution and prediction-ledger mutations go through callable Functions. Each operation uses the smallest root-level atomic update, exact schemas, and one-step revisions; no repository method exposes an individual private collection to other guests/organizer clients or incrementally appends published messages or points.
 
 ### 4.2 Validation rules
 
@@ -209,42 +209,42 @@ An authorized organizer reads the private and moderation collections, verifies t
 
 ### 6.3 Prediction and special reveal
 
-The following flow keeps prediction resolution and special-reveal publication inside the trusted backend.
+Phase 9 keeps protected opening, prediction lifecycle transitions, resolution, correction, and scoring inside the trusted backend. The guest prediction itself is a Rules-validated atomic owner/receipt update because all authority inputs are Rules-visible.
 
 ```mermaid
 sequenceDiagram
     participant G as Guest client
     participant O as Organizer client
     participant CF as Callable Cloud Function
-    participant SM as Secret Manager / backend data
+    participant SM as Secret Manager
     participant DB as Realtime Database
-    G->>CF: Upsert own option-a/option-b while open
-    CF->>DB: Verify event open + owner; write one prediction
+    O->>CF: Open event (admin token, code, expected config revision)
+    CF->>SM: Load versioned scrypt verifier
+    CF->>DB: Transaction creates public opening + open state + audit
+    G->>DB: Atomic own option-a/option-b + identity-free receipt
+    DB->>DB: Rules verify open state, ownership, linkage, revision, and receipt
     O->>CF: Lock event (admin token, expected revision)
     CF->>DB: Transaction open -> locked + audit
-    O->>CF: Confirm specialReveal + protected code + requestId
-    CF->>CF: Verify ID token, admin claim, App Check, rate limit
-    CF->>SM: Verify protected code/condition and load protected payload
-    CF->>DB: Check locked state + idempotency request
-    CF->>DB: Resolve predictions and upsert deterministic score keys
-    CF->>DB: Publish sanitized reveal state/payload + audit
+    O->>CF: Resolve (admin token, code, option, expected revisions)
+    CF->>CF: Verify claim, strict schema, code, and per-admin lockout
+    CF->>DB: Root transaction checks locked state/config/predictions
+    CF->>DB: Publish selected resolution + complete deterministic source + audit
     DB-->>G: Realtime published state and updated leaderboard
 ```
 
-The callable reveal operation must:
+The implemented callable boundary:
 
-- accept only a neutral event/reveal ID, protected code when required, expected revision, and unique request ID;
-- reject unauthenticated, non-admin, invalid-App-Check, rate-limited, unlocked, already-conflicting, or invalid-condition requests;
-- compare a protected code against a server-side value without logging either value (use a timing-safe comparison where applicable);
-- load prepublication content only after authorization from Secret Manager or a backend-only path;
-- resolve selections server-side against the protected outcome;
-- award the configured points (recommended 3) with `prediction:{eventId}:{participantId}` logical keys;
-- write 0 no score entry for incorrect predictions (outcome may record `incorrect` privately);
-- be idempotent: a repeat returns the existing publication/result and cannot award twice;
-- publish only the sanitized content explicitly intended for all authenticated clients;
-- avoid including sensitive content or codes in error text, audit summaries, traces, analytics, or function request logging.
+- accepts only exact neutral operation fields, protected code where required, expected revisions, and an `option-a` / `option-b` selection for resolution/correction;
+- rejects unauthenticated, non-admin, malformed, stale, rate-limited, unlocked, or conflicting requests before public/ledger mutation;
+- loads `SPECIAL_REVEAL_CODE_VERIFIER` from Secret Manager and compares a derived scrypt key with timing-safe equality without logging either value;
+- stores both possible payloads only in organizer-readable private configuration, frozen after opening; the backend publishes only the reviewed opening or selected resolution fields;
+- resolves submitted selections server-side and replaces one complete deterministic source whose logical entry key is `prediction:{eventId}:{participantId}`;
+- writes no entry for incorrect/withdrawn predictions and cannot duplicate correct points on retry;
+- uses one Admin SDK root transaction for resolution/correction public state, selected payload, complete source, and audit metadata;
+- supports strong-confirmation correction and deterministic damaged-source reconciliation without changing the published resolution during reconciliation;
+- emits only generic client errors and neutral, payload-free audit summaries.
 
-Where one atomic Realtime Database update would exceed practical limits, store a backend-only operation state and make each step resumable/idempotent. Public state becomes `published` only after scores and publication data have reached a reconciled terminal state.
+App Check is configured but `enforceAppCheck` remains false until Phase 10 monitoring establishes a safe production rollout. It is not claimed as a Phase 9 authorization layer.
 
 ## 7. Exact accommodation-address privacy
 
@@ -254,13 +254,13 @@ A later authenticated implementation may store the exact address under a restric
 
 ## 8. App Check, abuse controls, and rate limiting
 
-App Check is enabled and monitored before enforcement, then enforced for Realtime Database, Authentication-supported flows where applicable, and Callable Functions in the hardening phase. It reduces abuse from non-genuine clients but does not replace Authentication, custom claims, Rules, or server validation.
+Phase 9 callables include the App Check integration hook but do not enforce it. Phase 10 will enable monitoring before enforcement for Realtime Database and Callable Functions, then enforce only after legitimate-device/browser rehearsal establishes readiness. App Check reduces abuse from non-genuine clients but does not replace Authentication, custom claims, Rules, or server validation.
 
-Rate limits are backend-enforced for callable guest submission, prediction update, protected-code attempts, fixture regeneration, and reveal operations. Use hashed UID/IP/device-app identifiers as appropriate, short and long windows, and conservative retry responses. Never store the protected code as a rate-limit key. Examples of policy to confirm through rehearsal:
+Phase 9 backend-enforces the protected-code attempt limit per organizer UID: five failures inside 15 minutes produce a 15-minute lockout, successful verification clears the record, and all state remains client-inaccessible. Never store the protected code as a rate-limit key. Broader callable guest submission, prediction burst, fixture regeneration, IP/device, alerting, and quota policy remains Phase 10 work. Current boundaries are:
 
 - birthday submission: structurally limited to one UID-keyed record with revision checks; final production abuse monitoring/rate policy remains part of Phase 10;
 - prediction update: modest per-UID burst limit while open;
-- protected-code verification: very low per-admin/per-project attempt rate with alerting;
+- protected-code verification: fixed per-admin persistent window/lockout; production alerting remains deferred;
 - result mutation: high enough for normal play, guarded by revision/idempotency rather than only frequency.
 
 Rules enforce hard structural ceilings even when functions rate-limit: maximum record counts per owned branch, allowed field sizes, and no guest deletes/rewrites outside policy. Firebase quotas and budget alerts provide an additional containment layer.
@@ -306,21 +306,21 @@ Rules are version-controlled and tested in the Firebase Emulator Suite before de
 | Admin read organizer and audit branches | Allowed |
 | Admin direct read backend-only secret/idempotency branch | Denied to client |
 | Admin callable with stale revision | Conflict; no partial write |
-| Repeated reveal request ID | Same terminal response; no extra score entries |
-| Correct prediction replay with new request ID after resolved | No duplicate deterministic score key |
+| Repeated matching reveal/correction | Terminal no-op; no extra score entries |
+| Reconciliation against matching source | No write; deterministic score key remains single |
 | Public read of locked special reveal | Neutral locked state only |
 | Exact address through public paths/build test fixture | Absent |
 
 Tests also cover deletes, partial updates, unknown child fields, null transitions, query indexes, archived records, token claim absence/false/true, claim revocation after token refresh, and concurrent emulator transactions.
 
-The expanded Phase 2–8 emulator matrix preserves participant/configuration, all three runtime suites, and the complete ledger/bonus matrix. Its 53 Phase 8 cases add public-state authorization/transitions, private owner reads and atomic writes, participant/profile linkage, immutable UUIDs, message/receipt validation, withdrawal, organizer-only moderation, stale revisions, pre-reveal published-read denial, sanitized named/anonymous publication, reveal/republish boundaries, audit append-only behavior, and continued denial of prediction/special-reveal paths. Production Rules deployment remains a separately authorized operator action and is never performed by the Pages workflow.
+The expanded Phase 2–9 Rules matrix has 199 cases. It preserves all 154 Phase 2–8 participant/configuration/runtime/ledger/bonus/Birthday regressions and adds 45 Phase 9 cases for private configuration, backend-owned public state/opening/resolution, owner-only predictions, atomic identity-free receipts, organizer enumeration denial, open/lock boundaries, private security, resolved-only prediction sources, audit, strict schemas, and default denial. Separate Functions domain and 13 callable emulator lifecycle tests cover authorization, verifier behavior, strict requests, state/revision boundaries, resolution/correction, deterministic atomic scoring, damaged-source reconciliation, no-op retry, and persistent lockout. Production deployment remains a separately authorized operator action and is never performed by the Pages workflow.
 
 ## 13. Hardening checklist
 
 - Default-deny Rules deployed before data is written; test mode never enabled.
 - Authorized domains, Auth providers, and admin accounts minimized.
 - Custom claim provisioning is out-of-band and audited.
-- Callable functions validate Auth, admin claim where required, App Check, request schema, state, revision, and idempotency.
+- Callable functions validate Auth, admin claim, request schema, protected verifier where required, persistent lockout, state, revision, and deterministic retry behavior. App Check enforcement remains a Phase 10 task.
 - Secret Manager IAM restricted to required function service accounts.
 - Public database and built assets automatically scanned for forbidden protected data.
 - App Check enforcement, rate limits, quotas, budget alerts, and function alerts enabled after monitoring.

@@ -6,6 +6,7 @@ import {
   Trophy,
   Award,
   CakeSlice,
+  LockKeyhole,
   UserPlus,
   UsersRound,
 } from "lucide-react";
@@ -37,6 +38,12 @@ const BirthdayVaultWorkspace = lazy(() =>
   ),
 );
 
+const SpecialRevealWorkspace = lazy(() =>
+  import("../special-reveal/organizer/SpecialRevealWorkspace").then(
+    (module) => ({ default: module.SpecialRevealWorkspace }),
+  ),
+);
+
 function initials(name: string) {
   return name
     .split(/\s+/)
@@ -59,7 +66,11 @@ export function OrganizerAccess() {
   const [pendingStatusId, setPendingStatusId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [activeTool, setActiveTool] = useState<
-    "participants" | "competitions" | "championship" | "birthday"
+    | "participants"
+    | "competitions"
+    | "championship"
+    | "birthday"
+    | "special-reveal"
   >("competitions");
 
   if (firebase.status !== "ready") return null;
@@ -173,6 +184,21 @@ export function OrganizerAccess() {
                 role="tablist"
               >
                 <button
+                  aria-controls="organizer-panel-special-reveal"
+                  aria-selected={activeTool === "special-reveal"}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "special-reveal" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
+                  id="organizer-tab-special-reveal"
+                  onClick={() => {
+                    setEditor(null);
+                    setActiveTool("special-reveal");
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  <LockKeyhole aria-hidden="true" size={17} />
+                  Special Reveal
+                </button>
+                <button
                   aria-controls="organizer-panel-birthday"
                   aria-selected={activeTool === "birthday"}
                   className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "birthday" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
@@ -239,7 +265,26 @@ export function OrganizerAccess() {
               </Button>
             </div>
 
-            {activeTool === "competitions" ? (
+            {activeTool === "special-reveal" ? (
+              <div
+                aria-labelledby="organizer-tab-special-reveal"
+                id="organizer-panel-special-reveal"
+                role="tabpanel"
+              >
+                <Suspense
+                  fallback={
+                    <p
+                      className="py-12 text-center text-sm text-white/55"
+                      role="status"
+                    >
+                      Opening Special Reveal controls…
+                    </p>
+                  }
+                >
+                  <SpecialRevealWorkspace />
+                </Suspense>
+              </div>
+            ) : activeTool === "competitions" ? (
               <div
                 aria-labelledby="organizer-tab-competitions"
                 id="organizer-panel-competitions"

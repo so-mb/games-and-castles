@@ -130,7 +130,7 @@ export function ChampionshipSection() {
         </p>
         <div className="flex flex-wrap items-end justify-between gap-6">
           <SectionHeading
-            description="Every current award is traced to a competition result or an organizer bonus. Totals are rebuilt live from that itemized ledger."
+            description="Every current award is traced to a competition result, prediction resolution, or organizer bonus. Totals are rebuilt live from that itemized ledger."
             eyebrow="Realtime ledger · transparent scoring"
             id="championship-title"
             title="Weekend championship"
@@ -239,6 +239,7 @@ export function ChampionshipSection() {
                           </span>
                           <span className="block truncate text-xs text-white/48">
                             {standing.competitionPoints} competition ·{" "}
+                            {standing.predictionPoints} prediction ·{" "}
                             {standing.bonusPoints} bonus ·{" "}
                             {standing.competitionsScored} scored
                           </span>

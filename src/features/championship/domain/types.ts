@@ -13,6 +13,7 @@ export const championshipAwardTypes = [
   "competition-winner",
   "competition-runner-up",
   "competition-third-place",
+  "prediction-correct",
 ] as const;
 
 export type ChampionshipAwardType = (typeof championshipAwardTypes)[number];
@@ -76,6 +77,7 @@ export interface ChampionshipAwardView {
   label: string;
   awardedAt: number;
   awardType: ChampionshipAwardType | "manual-bonus";
+  sourceNamespace: "competition" | "prediction" | "manual-bonus";
   competitionId: string | null;
   competitionTitle: string | null;
   competitionFormat: CompetitionFormat | null;
@@ -98,6 +100,7 @@ export interface ChampionshipStanding {
   tied: boolean;
   totalPoints: number;
   competitionPoints: number;
+  predictionPoints: number;
   bonusPoints: number;
   competitionsScored: number;
   scoredEvents: number;

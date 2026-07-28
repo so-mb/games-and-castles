@@ -373,26 +373,28 @@ Cross-cutting rules:
 
 ### Phase 9 — Prediction event and protected special reveal
 
+**Implementation status:** Complete in the repository. The neutral two-stage opening/resolution lifecycle, owner-scoped prediction/receipt writes, organizer Special Reveal workspace and private rehearsal, six Node.js 24 callable Functions, Secret Manager-backed code verification, persistent per-admin lockout, server-side publication/resolution/correction, deterministic prediction ledger, championship integration, default-deny Rules, and frontend/domain/Functions/emulator suites are implemented. Production verifier provisioning and Functions, Rules, and Pages deployment remain deliberate operator actions; no remote Firebase resource was modified by this implementation.
+
 **Goal:** Support one private neutral prediction per participant, backend-only reveal authorization/publication, and idempotent championship scoring.
 
 **Inputs**
 
-- Phase 2 auth/functions/rules; Phase 7 ledger; Phase 8 locked/reveal presentation pattern; server-side protected configuration provisioned out of band.
+- Phase 2 auth/rules; Phase 7 ledger; Phase 8 locked/reveal presentation pattern; reviewed neutral configuration; separately provisioned server-side verifier.
 
 **Outputs**
 
 - Dynamic safe labels with stored values only `option-a`/`option-b`.
 - Owner-scoped prediction create/update while open and organizer-controlled lock.
-- Callable protected reveal operation with admin claim, App Check hook, protected condition, rate limit, revision/request idempotency, publication, resolution, scoring, and audit.
+- Callable protected opening, lock, reopen, resolution, correction, and ledger-reconciliation operations with admin claim, strict schemas, state/revision idempotency, protected verification where required, rate limiting, atomic publication/scoring, and audit.
 - Realtime neutral locked/published states, optional post-reveal aggregate, full-screen local replay.
 
-**Dependencies:** Phases 2 and 7; protected code/condition provisioning and label/privacy policy; Secret Manager IAM; organizer runbook.
+**Dependencies:** Satisfied in repository design. Production rollout still requires the Blaze plan, protected-code provisioning in Secret Manager, Functions service-account secret access, reviewed neutral content, Rules/Functions/frontend deployment in the documented order, and an operator smoke test.
 
 **Acceptance criteria**
 
-1. A linked participant has at most one prediction and can replace it only while the event is `open`; private choices cannot be enumerated by another guest.
+1. A linked participant has at most one prediction and can replace it only while the event is `prediction-open`; private choices cannot be enumerated by another guest or organizer client.
 2. The lock transition atomically prevents later writes, including stale/offline retries.
-3. Non-admin, invalid-condition, unlocked-event, invalid-App-Check (when enforced), and rate-limited reveal attempts make no public/ledger mutation.
+3. Non-admin, invalid-condition, unlocked-event, stale-revision, and rate-limited reveal attempts make no public/ledger mutation. App Check enforcement is explicitly deferred to Phase 10.
 4. Successful call publishes only reviewed data, resolves predictions backend-side, and awards configured points (default 3) to correct selections.
 5. Each correct participant has at most one `prediction:{eventId}:{participantId}` logical score key; repeated same/new request IDs cannot duplicate points.
 6. Incorrect selections award 0 and cannot receive a stale/duplicate score.
@@ -401,7 +403,9 @@ Cross-cutting rules:
 
 **Main technical risks:** Secret leakage through build/log/error/metadata; resolving client-side; non-atomic partial publication; brute-force protected code; stale predictions crossing lock; duplicate trigger scoring.
 
-**Recommended tests:** Rules privacy matrix; callable auth/admin/App Check/state/schema tests; rate-limit tests; idempotent retry and injected partial failure; concurrent lock/update/reveal; deterministic score assertion; public export/build/log forbidden-data scan; full multi-device rehearsal using neutral synthetic payloads.
+**Implemented tests/review:** The 199-case Rules matrix preserves all 154 Phase 2–8 cases and adds 45 focused Phase 9 privacy, ownership, receipt, lifecycle, backend-only, ledger, audit, schema, and default-deny cases. Functions domain and 13 callable emulator lifecycle tests cover verifier behavior, authorization, schemas, state/revision boundaries, lock/reopen, resolution/correction, atomic deterministic scoring, damaged-source reconciliation, retry no-ops, and persistent lockout. Frontend/domain tests cover parsing, locked/open/locked/resolved guest presentation, owner result visibility, organizer workspace access, all-neutral fixtures, and championship prediction totals. Physical-device, production, App Check, retention, load, alerting, and adversarial rollout remain Phase 10–11 work.
+
+**Phase boundary:** Phase 9 adds no App Check enforcement, general retention/deletion automation, protected accommodation data, analytics, or automated remote deployment. The Pages workflow validates Functions but deploys only `dist/`; Functions and Rules remain manual.
 
 ---
 

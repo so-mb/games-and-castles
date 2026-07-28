@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-Phase 7 is complete, deployed, production-connected, and reconciled. The instructions below remain the operator runbook for a replacement environment or future source repair. Phase 8 now implements Birthday Vault independently; prediction scoring, protected special-reveal content, Cloud Functions, App Check, and a final championship lock remain outside this phase.
+Phase 7 is complete, deployed, production-connected, and reconciled. The instructions below remain the operator runbook for a replacement environment or future source repair. Phase 8 implements Birthday Vault independently. Phase 9 now adds backend-owned prediction scoring and Special Reveal correction/reconciliation in the repository; production rollout remains manual. App Check and a final championship lock remain outside this phase.
 
 ## Persisted paths
 
@@ -11,10 +11,18 @@ Phase 7 is complete, deployed, production-connected, and reconciled. The instruc
 /championshipLedger/competitionSources/{competitionId}/entries/{entryId}
 /championshipLedger/manualBonuses/{bonusId}
 /championshipLedger/manualBonusesPublic/{bonusId}
+/championshipLedger/predictionSources/{eventId}/meta
+/championshipLedger/predictionSources/{eventId}/entries/{entryId}
 /audit/{auditId}
 ```
 
-`competitionSources` and the active-only bonus projection are readable by authenticated guests. The complete bonus history, including revoked records and organizer metadata, is organizer-only. No mutable participant total, rank, recent-feed copy, or leaderboard cache is persisted.
+`competitionSources` and the active-only bonus projection are readable by authenticated guests. A prediction source becomes authenticated-readable only when its matching Special Reveal state is `resolved`. The complete bonus history is organizer-only, while prediction-source writes are Admin SDK-only. No mutable participant total, rank, recent-feed copy, or leaderboard cache is persisted.
+
+## Prediction normalization
+
+Resolution filters to submitted predictions whose owner/profile/active-participant linkage is still valid. Each correct selection maps to one `prediction-correct` entry with a deterministic ID and logical source identity `prediction:{eventId}:{participantId}`; incorrect or withdrawn selections map to no entry. The source fingerprint covers event/state/resolution identity and stable sorted entries, with award time fixed to the published resolution timestamp.
+
+Resolution and correction replace the complete prediction source in the same root transaction as public state/resolution and audit metadata. Reconciliation derives that source again from authoritative resolved data, verifies both metadata and the complete entry map, repairs damage when needed, and becomes a no-op once matched. No client can edit an individual prediction award.
 
 ## Competition normalization
 
@@ -50,6 +58,6 @@ Bonuses are positive integer awards from 1–100 points with a required plain-te
 
 ## Derived views
 
-The global table sums valid current competition entries plus active bonuses. It includes active zero-point participants, inactive participants with historical points, and safe placeholders for missing participant records. Equal totals use shared competition ranks (`1, 1, 3`) with no hidden tiebreak. Participant detail, source contributions, latest current awards, and score-neutral achievements are all rebuilt from the same validated inputs.
+The global table sums valid current competition entries, active bonuses, and valid resolved prediction entries. It includes active zero-point participants, inactive participants with historical points, and safe placeholders for missing participant records. Equal totals use shared competition ranks (`1, 1, 3`) with no hidden tiebreak. Participant detail exposes competition, bonus, and prediction subtotals; source contributions, latest current awards, and score-neutral achievements are rebuilt from the same inputs. `Prediction Master` is derived from a current correct-prediction entry and adds no points itself.
 
 Malformed records are quarantined. Missing, stale, malformed, or unsupported expected sources produce a public verification warning rather than being presented as final. “Latest scoring awards” describes current ledger entries, not an immutable history.

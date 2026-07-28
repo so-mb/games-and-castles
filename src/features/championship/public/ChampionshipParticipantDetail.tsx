@@ -28,7 +28,10 @@ export function ChampionshipParticipantDetail({
         (award) =>
           (competitionFilter === "all" ||
             award.competitionId === competitionFilter ||
-            (competitionFilter === "bonus" && !award.competitionId)) &&
+            (competitionFilter === "bonus" &&
+              award.sourceNamespace === "manual-bonus") ||
+            (competitionFilter === "prediction" &&
+              award.sourceNamespace === "prediction")) &&
           (awardFilter === "all" || award.awardType === awardFilter),
       ) ?? [],
     [awardFilter, competitionFilter, standing],
@@ -46,11 +49,12 @@ export function ChampionshipParticipantDetail({
       size="wide"
       title={`${standing.displayName} · score breakdown`}
     >
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-5">
         {[
           ["Rank", `${standing.rank}${standing.tied ? " · tied" : ""}`],
           ["Total", `${standing.totalPoints} pts`],
           ["Competition", `${standing.competitionPoints} pts`],
+          ["Predictions", `${standing.predictionPoints} pts`],
           ["Bonuses", `${standing.bonusPoints} pts`],
         ].map(([label, value]) => (
           <div
@@ -95,6 +99,9 @@ export function ChampionshipParticipantDetail({
             ))}
             {standing.bonusPoints > 0 ? (
               <option value="bonus">Manual bonuses</option>
+            ) : null}
+            {standing.predictionPoints > 0 ? (
+              <option value="prediction">Prediction event</option>
             ) : null}
           </select>
         </label>
@@ -152,8 +159,11 @@ export function ChampionshipParticipantDetail({
                 <span>
                   <span className="block text-sm font-bold">{award.label}</span>
                   <span className="block text-xs text-white/45">
-                    {award.competitionTitle ?? "Organizer bonus"} ·{" "}
-                    {award.awardType.replaceAll("-", " ")}
+                    {award.competitionTitle ??
+                      (award.sourceNamespace === "prediction"
+                        ? "Prediction event"
+                        : "Organizer bonus")}{" "}
+                    · {award.awardType.replaceAll("-", " ")}
                   </span>
                 </span>
                 <span className="font-score self-center font-black text-[var(--color-electric-cyan-400)]">

@@ -55,6 +55,14 @@ vi.mock("../birthday-vault/organizer/BirthdayVaultWorkspace", () => ({
   ),
 }));
 
+vi.mock("../special-reveal/organizer/SpecialRevealWorkspace", () => ({
+  SpecialRevealWorkspace: () => (
+    <section aria-label="Special Reveal content">
+      Special Reveal content
+    </section>
+  ),
+}));
+
 describe("OrganizerAccess", () => {
   beforeEach(() => {
     organizerState.auth.organizer.status = "authorized";
@@ -77,7 +85,7 @@ describe("OrganizerAccess", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens all four authorized organizer workspaces including Birthday Vault", async () => {
+  it("opens all five authorized organizer workspaces including Special Reveal", async () => {
     render(<OrganizerAccess />);
 
     const trigger = screen.getByRole("button", {
@@ -98,6 +106,9 @@ describe("OrganizerAccess", () => {
     });
     const birthdayTab = within(dialog).getByRole("tab", {
       name: "Birthday Vault",
+    });
+    const specialRevealTab = within(dialog).getByRole("tab", {
+      name: "Special Reveal",
     });
 
     expect(studioTab).toHaveAttribute("aria-selected", "true");
@@ -144,6 +155,15 @@ describe("OrganizerAccess", () => {
     ).toBeInTheDocument();
     expect(
       await within(dialog).findByText("Birthday Vault content"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(specialRevealTab);
+    expect(specialRevealTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      await within(dialog).findByRole("tabpanel", { name: "Special Reveal" }),
+    ).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText("Special Reveal content"),
     ).toBeInTheDocument();
   });
 });
