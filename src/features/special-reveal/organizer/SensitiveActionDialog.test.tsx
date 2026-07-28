@@ -72,18 +72,41 @@ describe("SensitiveActionDialog", () => {
     await waitFor(() => expect(state.onSuccess).toHaveBeenCalledOnce());
   });
 
-  it("clears a wrong password and performs no database operation", async () => {
+  it("clears a wrong password, then accepts a correct retry", async () => {
+    const wrongPassword = Object.assign(new Error("Wrong password."), {
+      code: "auth/wrong-password",
+    });
+    const onReauthenticate = vi
+      .fn()
+      .mockRejectedValueOnce(wrongPassword)
+      .mockResolvedValue(authorization);
     const state = setup({
-      onReauthenticate: vi.fn().mockRejectedValue(new Error("Not accepted.")),
+      onReauthenticate,
     });
     fill();
     fireEvent.click(
       screen.getByRole("button", { name: "Reauthenticate and continue" }),
     );
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Not accepted.");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "That email and password combination was not accepted.",
+    );
     expect(screen.getByLabelText("Current organizer password")).toHaveValue("");
     expect(state.onExecute).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText("Current organizer password"), {
+      target: { value: "correct-password" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Reauthenticate and continue" }),
+    );
+
+    await waitFor(() =>
+      expect(state.onExecute).toHaveBeenCalledWith(authorization),
+    );
+    expect(onReauthenticate).toHaveBeenNthCalledWith(1, "current-password");
+    expect(onReauthenticate).toHaveBeenNthCalledWith(2, "correct-password");
+    expect(state.onSuccess).toHaveBeenCalledOnce();
   });
 
   it("cancels without reauthentication and blocks submission offline", () => {

@@ -1,7 +1,9 @@
 import {
   get,
+  limitToFirst,
   onValue,
   push,
+  query,
   ref,
   serverTimestamp,
   update,
@@ -36,6 +38,7 @@ import {
   parseSpecialRevealPublicState,
   validateSpecialRevealConfig,
 } from "../domain/validation";
+import { waitForRecentDatabaseAuthorization } from "./recentDatabaseAuthorization";
 
 function pushKey(database: Database, path: string) {
   const value = push(ref(database, path));
@@ -299,9 +302,21 @@ function object(value: unknown): Record<string, unknown> {
 async function applyRevealMutation(
   database: Database,
   mutation: { result: RevealOperationResult; updates: RevealUpdates | null },
+  recentAccessConfirmed = false,
 ) {
-  if (mutation.updates) await update(ref(database), mutation.updates);
+  if (mutation.updates) {
+    if (!recentAccessConfirmed)
+      await confirmRecentRevealDatabaseAccess(database);
+    await update(ref(database), mutation.updates);
+  }
   return mutation.result;
+}
+
+async function confirmRecentRevealDatabaseAccess(database: Database) {
+  await waitForRecentDatabaseAuthorization({
+    readProbe: () =>
+      get(query(ref(database, "specialReveal/predictions"), limitToFirst(1))),
+  });
 }
 
 function parsePredictions(value: unknown) {
@@ -310,41 +325,59 @@ function parsePredictions(value: unknown) {
     .filter((prediction) => prediction !== null);
 }
 
-async function loadResolutionInputs(database: Database, eventId: string) {
+async function loadResolutionInputs(database: Database) {
+  await confirmRecentRevealDatabaseAccess(database);
   const [
     configSnapshot,
     stateSnapshot,
     predictionsSnapshot,
     participantsSnapshot,
-    profilesSnapshot,
-    resolutionSnapshot,
-    sourceSnapshot,
   ] = await Promise.all([
     get(ref(database, "specialReveal/privateConfig")),
     get(ref(database, "specialReveal/publicState")),
     get(ref(database, "specialReveal/predictions")),
     get(ref(database, "participants")),
-    get(ref(database, "userProfiles")),
-    get(ref(database, "specialReveal/publicResolution")),
-    get(ref(database, `championshipLedger/predictionSources/${eventId}`)),
   ]);
   const config = parseSpecialRevealPrivateConfig(configSnapshot.val());
   const state = parseSpecialRevealPublicState(stateSnapshot.val());
   if (!config || !state)
     throw new Error("The protected reveal data is incomplete or malformed.");
-  const resolution = parseSpecialRevealPublicResolution(
-    resolutionSnapshot.val(),
-  );
-  const parsedSources = parsePredictionLedgerSources(
-    sourceSnapshot.exists() ? { [eventId]: sourceSnapshot.val() } : null,
+  const predictions = parsePredictions(predictionsSnapshot.val());
+  const ownerUids = [...new Set(predictions.map(({ ownerUid }) => ownerUid))];
+  const profileSnapshots = await Promise.all(
+    ownerUids.map((uid) => get(ref(database, `userProfiles/${uid}`))),
   );
   return {
     config,
     state,
-    predictions: parsePredictions(predictionsSnapshot.val()),
+    predictions,
     participants: object(participantsSnapshot.val()),
-    profiles: object(profilesSnapshot.val()),
-    resolution,
+    profiles: Object.fromEntries(
+      ownerUids.flatMap((uid, index) => {
+        const value = profileSnapshots[index]?.val();
+        return value === null || value === undefined ? [] : [[uid, value]];
+      }),
+    ),
+  };
+}
+
+async function loadPublishedResolutionInputs(
+  database: Database,
+  eventId: string,
+) {
+  const source = await loadResolutionInputs(database);
+  if (source.state.status !== "resolved")
+    throw new Error("The published resolution is unavailable.");
+  const [resolutionSnapshot, sourceSnapshot] = await Promise.all([
+    get(ref(database, "specialReveal/publicResolution")),
+    get(ref(database, `championshipLedger/predictionSources/${eventId}`)),
+  ]);
+  const parsedSources = parsePredictionLedgerSources(
+    sourceSnapshot.exists() ? { [eventId]: sourceSnapshot.val() } : null,
+  );
+  return {
+    ...source,
+    resolution: parseSpecialRevealPublicResolution(resolutionSnapshot.val()),
     currentSource:
       (parsedSources.sources[0] as PredictionLedgerSnapshot | undefined) ??
       null,
@@ -403,10 +436,7 @@ export async function resolveSpecialRevealInBrowser(input: {
   config: SpecialRevealPrivateConfig;
   correctOption: PredictionOption;
 }) {
-  const source = await loadResolutionInputs(
-    input.database,
-    input.config.eventId,
-  );
+  const source = await loadResolutionInputs(input.database);
   return applyRevealMutation(
     input.database,
     buildResolveRevealMutation({
@@ -418,6 +448,7 @@ export async function resolveSpecialRevealInBrowser(input: {
       auditId: pushKey(input.database, "audit"),
       now: Date.now(),
     }),
+    true,
   );
 }
 
@@ -429,7 +460,7 @@ export async function correctSpecialRevealInBrowser(input: {
   resolution: SpecialRevealPublicResolution;
   correctOption: PredictionOption;
 }) {
-  const source = await loadResolutionInputs(
+  const source = await loadPublishedResolutionInputs(
     input.database,
     input.config.eventId,
   );
@@ -447,6 +478,7 @@ export async function correctSpecialRevealInBrowser(input: {
       auditId: pushKey(input.database, "audit"),
       now: Date.now(),
     }),
+    true,
   );
 }
 
@@ -457,7 +489,7 @@ export async function reconcilePredictionLedgerInBrowser(input: {
   config: SpecialRevealPrivateConfig;
   resolution: SpecialRevealPublicResolution;
 }) {
-  const source = await loadResolutionInputs(
+  const source = await loadPublishedResolutionInputs(
     input.database,
     input.config.eventId,
   );
@@ -473,5 +505,6 @@ export async function reconcilePredictionLedgerInBrowser(input: {
       auditId: pushKey(input.database, "audit"),
       now: Date.now(),
     }),
+    true,
   );
 }

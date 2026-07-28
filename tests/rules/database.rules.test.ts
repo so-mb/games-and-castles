@@ -66,6 +66,7 @@ import {
   buildReconcilePredictionMutation,
   buildResolveRevealMutation,
 } from "../../src/features/special-reveal/domain/operations";
+import { resolveSpecialRevealInBrowser } from "../../src/features/special-reveal/repositories/specialReveal";
 import type {
   PredictionLedgerSnapshot,
   SpecialRevealPrediction,
@@ -4977,6 +4978,29 @@ describe("Realtime Database security rules", () => {
           source,
         ),
       );
+    });
+
+    it("51c resolves through the browser repository without forbidden pre-publication reads", async () => {
+      const state = typedState("prediction-locked");
+      const config = typedConfig();
+      await seedReveal("prediction-locked", {
+        publicState: state,
+        predictions: { "guest-1": prediction() },
+      });
+
+      await expect(
+        resolveSpecialRevealInBrowser({
+          database: contexts().revealAdmin,
+          uid: "reveal-admin",
+          state,
+          config,
+          correctOption: "option-a",
+        }),
+      ).resolves.toMatchObject({
+        applied: true,
+        stateRevision: 3,
+        resolutionRevision: 1,
+      });
     });
 
     it("52 denies old or ordinary admins from resolving", async () => {
