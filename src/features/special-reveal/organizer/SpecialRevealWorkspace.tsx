@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import {
   Eye,
-  KeyRound,
   Lock,
   RefreshCw,
   Save,
@@ -12,6 +11,9 @@ import {
 import { Button } from "../../../components/ui/Button";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { friendlyFirebaseError } from "../../../lib/firebase/errors";
+import { useAuth } from "../../auth/AuthProvider";
+import type { RecentRevealAuthorization } from "../../auth/specialRevealAuthorization";
+import { useConnection } from "../../live/ConnectionProvider";
 import type {
   PredictionOption,
   RevealEmojiKey,
@@ -20,6 +22,7 @@ import type {
 import { revealEmojiKeys } from "../domain/types";
 import { validateSpecialRevealConfig } from "../domain/validation";
 import { useSpecialReveal } from "../SpecialRevealProvider";
+import { SensitiveActionDialog } from "./SensitiveActionDialog";
 import { SpecialRevealRehearsal } from "./SpecialRevealRehearsal";
 
 const emptyConfig: SpecialRevealConfigInput = {
@@ -109,15 +112,22 @@ function SpecialRevealWorkspaceEditor({
   initialConfig: SpecialRevealConfigInput;
 }) {
   const reveal = useSpecialReveal();
+  const auth = useAuth();
+  const connection = useConnection();
   const [config, setConfig] = useState<SpecialRevealConfigInput>(initialConfig);
-  const [code, setCode] = useState("");
   const [correctOption, setCorrectOption] =
     useState<PredictionOption>("option-a");
-  const [confirmation, setConfirmation] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [rehearsalOpen, setRehearsalOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<{
+    title: string;
+    consequence: string;
+    confirmationPhrase: string;
+    success: string;
+    execute: (authorization: RecentRevealAuthorization) => Promise<void>;
+  } | null>(null);
 
   const validation = useMemo(
     () => validateSpecialRevealConfig(config),
@@ -125,16 +135,14 @@ function SpecialRevealWorkspaceEditor({
   );
   const frozen = reveal.publicState !== null;
 
-  async function act(action: () => Promise<void>, success: string) {
+  async function saveConfiguration() {
     if (busy) return;
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
-      await action();
-      setCode("");
-      setConfirmation("");
-      setMessage(success);
+      await reveal.saveConfig(config);
+      setMessage("Configuration saved.");
     } catch (cause) {
       setError(
         friendlyFirebaseError(
@@ -147,6 +155,13 @@ function SpecialRevealWorkspaceEditor({
     } finally {
       setBusy(false);
     }
+  }
+
+  function requestSensitiveAction(action: NonNullable<typeof pendingAction>) {
+    if (!reveal.canOrganizerMutate) return;
+    setError(null);
+    setMessage(null);
+    setPendingAction(action);
   }
 
   return (
@@ -182,8 +197,9 @@ function SpecialRevealWorkspaceEditor({
             Protected event configuration
           </h3>
           <p className="mt-1 text-sm text-white/50">
-            Both resolution variants stay organizer-only until the backend
-            selects and publishes one. Configuration freezes after opening.
+            Both resolution variants stay restricted to the dedicated reveal
+            organizer until one is published. Configuration freezes after
+            opening.
           </p>
         </div>
         <fieldset
@@ -305,9 +321,7 @@ function SpecialRevealWorkspaceEditor({
           disabled={
             frozen || busy || !validation.valid || !reveal.canOrganizerMutate
           }
-          onClick={() =>
-            void act(() => reveal.saveConfig(config), "Configuration saved.")
-          }
+          onClick={() => void saveConfiguration()}
           variant="dark"
         >
           <Save aria-hidden="true" size={17} />
@@ -323,31 +337,25 @@ function SpecialRevealWorkspaceEditor({
           Lifecycle controls
         </h3>
         <p className="mt-1 text-sm text-white/50">
-          Protected-code operations are verified by the backend. The code is
-          never stored in this browser.
+          Every lifecycle action requires the current Firebase organizer
+          password, both custom claims, and a recent authentication token.
+          Publication is one atomic Realtime Database update.
         </p>
-        <label className="mt-5 block max-w-md text-sm font-bold">
-          Protected organizer code
-          <input
-            autoComplete="off"
-            className="mt-2 min-h-11 w-full rounded-xl border border-white/15 bg-white/5 px-3"
-            disabled={busy}
-            onChange={(event) => setCode(event.target.value)}
-            type="password"
-            value={code}
-          />
-        </label>
         <div className="mt-5 flex flex-wrap gap-3">
           {!reveal.publicState ? (
             <Button
               disabled={
-                busy ||
-                !code ||
-                !reveal.privateConfig ||
-                !reveal.canOrganizerMutate
+                busy || !reveal.privateConfig || !reveal.canOrganizerMutate
               }
               onClick={() =>
-                void act(() => reveal.open(code), "Predictions opened.")
+                requestSensitiveAction({
+                  title: "Open the special reveal",
+                  consequence:
+                    "Publishes the reviewed opening and prediction labels to every signed-in guest, then opens predictions.",
+                  confirmationPhrase: "OPEN REVEAL",
+                  success: "Predictions opened.",
+                  execute: reveal.open,
+                })
               }
               variant="dark"
             >
@@ -357,7 +365,16 @@ function SpecialRevealWorkspaceEditor({
           ) : reveal.publicState.status === "prediction-open" ? (
             <Button
               disabled={busy || !reveal.canOrganizerMutate}
-              onClick={() => void act(reveal.lock, "Predictions locked.")}
+              onClick={() =>
+                requestSensitiveAction({
+                  title: "Lock predictions",
+                  consequence:
+                    "Stops every guest from editing or withdrawing a prediction until you deliberately reopen.",
+                  confirmationPhrase: "LOCK PREDICTIONS",
+                  success: "Predictions locked.",
+                  execute: reveal.lock,
+                })
+              }
               variant="dark"
             >
               <Lock aria-hidden="true" size={17} />
@@ -367,7 +384,16 @@ function SpecialRevealWorkspaceEditor({
             <>
               <Button
                 disabled={busy || !reveal.canOrganizerMutate}
-                onClick={() => void act(reveal.reopen, "Predictions reopened.")}
+                onClick={() =>
+                  requestSensitiveAction({
+                    title: "Reopen predictions",
+                    consequence:
+                      "Allows guests to edit or withdraw their existing predictions again.",
+                    confirmationPhrase: "REOPEN PREDICTIONS",
+                    success: "Predictions reopened.",
+                    execute: reveal.reopen,
+                  })
+                }
                 variant="quiet"
               >
                 <Unlock aria-hidden="true" size={17} />
@@ -385,12 +411,17 @@ function SpecialRevealWorkspaceEditor({
                 <option value="option-b">Option B</option>
               </select>
               <Button
-                disabled={busy || !code || !reveal.canOrganizerMutate}
+                disabled={busy || !reveal.canOrganizerMutate}
                 onClick={() =>
-                  void act(
-                    () => reveal.resolve(code, correctOption),
-                    "Reveal resolved and scoring published.",
-                  )
+                  requestSensitiveAction({
+                    title: "Resolve and publish",
+                    consequence:
+                      "Publishes only the selected resolution, freezes predictions permanently, and replaces the complete prediction scoring source.",
+                    confirmationPhrase: "RESOLVE PREDICTIONS",
+                    success: "Reveal resolved and scoring published.",
+                    execute: (authorization) =>
+                      reveal.resolve(authorization, correctOption),
+                  })
                 }
                 variant="dark"
               >
@@ -402,7 +433,14 @@ function SpecialRevealWorkspaceEditor({
             <Button
               disabled={busy || !reveal.canOrganizerMutate}
               onClick={() =>
-                void act(reveal.reconcile, "Prediction ledger reconciled.")
+                requestSensitiveAction({
+                  title: "Reconcile prediction scoring",
+                  consequence:
+                    "Recalculates the complete prediction source from the resolved event without changing the published outcome.",
+                  confirmationPhrase: "RECONCILE LEDGER",
+                  success: "Prediction ledger reconciled.",
+                  execute: reveal.reconcile,
+                })
               }
               variant="quiet"
             >
@@ -421,7 +459,7 @@ function SpecialRevealWorkspaceEditor({
               Predictions remain locked. This replaces the selected payload and
               complete ledger source.
             </p>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-4 max-w-sm">
               <select
                 aria-label="Corrected prediction option"
                 className="min-h-11 rounded-xl border border-white/15 bg-[var(--color-night-900)] px-3"
@@ -433,31 +471,24 @@ function SpecialRevealWorkspaceEditor({
                 <option value="option-a">Option A</option>
                 <option value="option-b">Option B</option>
               </select>
-              <input
-                aria-label="Correction confirmation"
-                className="min-h-11 rounded-xl border border-white/15 bg-white/5 px-3"
-                onChange={(event) => setConfirmation(event.target.value)}
-                placeholder="Type CORRECT RESULT"
-                value={confirmation}
-              />
             </div>
             <Button
               className="mt-3"
-              disabled={
-                busy ||
-                !code ||
-                confirmation !== "CORRECT RESULT" ||
-                !reveal.canOrganizerMutate
-              }
+              disabled={busy || !reveal.canOrganizerMutate}
               onClick={() =>
-                void act(
-                  () => reveal.correct(code, correctOption),
-                  "Published resolution corrected and rescored.",
-                )
+                requestSensitiveAction({
+                  title: "Correct the published result",
+                  consequence:
+                    "Replaces the public resolution and complete prediction source. Previous winners lose those points and newly correct predictors receive them.",
+                  confirmationPhrase: "CORRECT RESULT",
+                  success: "Published resolution corrected and rescored.",
+                  execute: (authorization) =>
+                    reveal.correct(authorization, correctOption),
+                })
               }
               variant="quiet"
             >
-              <KeyRound aria-hidden="true" size={17} />
+              <ShieldCheck aria-hidden="true" size={17} />
               Correct result
             </Button>
           </div>
@@ -483,6 +514,26 @@ function SpecialRevealWorkspaceEditor({
         config={config}
         onClose={() => setRehearsalOpen(false)}
         open={rehearsalOpen}
+      />
+      <SensitiveActionDialog
+        confirmationPhrase={pendingAction?.confirmationPhrase ?? "CONFIRM"}
+        consequence={pendingAction?.consequence ?? ""}
+        key={pendingAction?.title ?? "closed"}
+        onCancel={() => setPendingAction(null)}
+        onExecute={async (authorization) => {
+          if (!pendingAction) return;
+          await pendingAction.execute(authorization);
+        }}
+        onReauthenticate={auth.reauthenticateSpecialReveal}
+        onSuccess={() => {
+          if (pendingAction) setMessage(pendingAction.success);
+        }}
+        online={connection === "online"}
+        open={pendingAction !== null}
+        organizerEmail={
+          auth.organizer.status === "authorized" ? auth.organizer.email : ""
+        }
+        title={pendingAction?.title ?? "Confirm protected action"}
       />
     </div>
   );

@@ -11,7 +11,7 @@ import {
   type SpecialRevealPublicOpening,
   type SpecialRevealPublicResolution,
   type SpecialRevealPublicState,
-} from "./types";
+} from "./types.ts";
 
 type ObjectValue = Record<string, unknown>;
 
@@ -320,12 +320,14 @@ export function parsePredictionLedgerSources(value: unknown) {
       integer(meta.resolutionRevision, 1) &&
       string(meta.sourceFingerprint, 16, 64) &&
       integer(meta.generatedAt) &&
-      string(meta.generatedByUid, 1, 128) &&
       integer(meta.entryCount) &&
       Number(meta.entryCount) === Object.keys(entries).length &&
       meta.schemaVersion === 1
     )
-      sources.push(item as unknown as PredictionLedgerSnapshot);
+      sources.push({
+        ...(item as unknown as PredictionLedgerSnapshot),
+        entries: entries as PredictionLedgerSnapshot["entries"],
+      });
     else invalidIds.push(eventId);
   });
   return { sources, invalidIds };

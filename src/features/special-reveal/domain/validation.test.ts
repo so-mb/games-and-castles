@@ -67,7 +67,6 @@ describe("special reveal runtime validation", () => {
         resolutionRevision: 1,
         sourceFingerprint: "0123456789abcdef0123456789abcdef",
         generatedAt: 10,
-        generatedByUid: "admin",
         entryCount: 1,
         schemaVersion: 1,
       },
@@ -90,6 +89,13 @@ describe("special reveal runtime validation", () => {
     expect(
       parsePredictionLedgerSources({ "event-neutral": source }).sources,
     ).toHaveLength(1);
+    expect(
+      parsePredictionLedgerSources({
+        "event-neutral": {
+          meta: { ...source.meta, entryCount: 0 },
+        },
+      }).sources[0]?.entries,
+    ).toEqual({});
     expect(
       parsePredictionLedgerSources({
         "event-neutral": { ...source, meta: { ...source.meta, entryCount: 2 } },

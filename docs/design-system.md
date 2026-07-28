@@ -310,7 +310,7 @@ Do not fire confetti or reveal animations merely because historical published da
 - Authentication errors offer retry/sign-in without exposing whether a protected code or resource exists.
 - Validation errors stay near fields and preserve entered values.
 - Permission errors distinguish “sign in,” “organizer access required,” and “state changed” only when safe.
-- Destructive/partial-operation errors point organizers to audit/operation status and block unsafe retry until the backend reports whether the request was applied.
+- Destructive/partial-operation errors point organizers to audit/operation status and block unsafe retry until the current persisted revision confirms whether the request was applied.
 - Never render raw Firebase errors, stack traces, database paths, protected values, or function payloads to guests.
 
 ## 10. Accessibility verification checklist

@@ -16,6 +16,10 @@ import {
 } from "firebase/auth";
 import { friendlyFirebaseError } from "../../lib/firebase/errors";
 import { useFirebase } from "../live/FirebaseProvider";
+import {
+  reauthenticateSpecialRevealOrganizer,
+  type RecentRevealAuthorization,
+} from "./specialRevealAuthorization";
 
 type GuestAuthState =
   | { status: "unconfigured" | "loading"; uid: null; message: null }
@@ -28,7 +32,14 @@ type OrganizerAuthState =
       uid: null;
       message: null;
     }
-  | { status: "authorized"; uid: string; message: null }
+  | {
+      status: "authorized";
+      uid: string;
+      email: string;
+      specialRevealAdmin: boolean;
+      authTimeMs: number;
+      message: null;
+    }
   | { status: "error"; uid: null; message: string };
 
 interface AuthContextValue {
@@ -36,6 +47,9 @@ interface AuthContextValue {
   organizer: OrganizerAuthState;
   signInOrganizer: (email: string, password: string) => Promise<void>;
   signOutOrganizer: () => Promise<void>;
+  reauthenticateSpecialReveal: (
+    password: string,
+  ) => Promise<RecentRevealAuthorization>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -121,6 +135,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               setOrganizer({
                 status: "authorized",
                 uid: user.uid,
+                email: user.email ?? "",
+                specialRevealAdmin: token.claims.specialRevealAdmin === true,
+                authTimeMs: Date.parse(token.authTime),
                 message: null,
               });
               return;
@@ -185,6 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setOrganizer({
           status: "authorized",
           uid: credential.user.uid,
+          email: credential.user.email ?? email.trim(),
+          specialRevealAdmin: token.claims.specialRevealAdmin === true,
+          authTimeMs: Date.parse(token.authTime),
           message: null,
         });
       } catch (error) {
@@ -204,9 +224,54 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signOut(firebase.clients.organizerAuth);
   }, [firebase]);
 
+  const reauthenticateSpecialReveal = useCallback(
+    async (password: string) => {
+      if (firebase.status !== "ready")
+        throw new Error("Firebase is not configured.");
+      try {
+        const authorization = await reauthenticateSpecialRevealOrganizer(
+          firebase.clients.organizerAuth,
+          password,
+        );
+        setOrganizer({
+          status: "authorized",
+          uid: authorization.uid,
+          email: authorization.email,
+          specialRevealAdmin: true,
+          authTimeMs: authorization.authTimeMs,
+          message: null,
+        });
+        return authorization;
+      } catch (error) {
+        throw new Error(
+          friendlyFirebaseError(
+            error,
+            error instanceof Error
+              ? error.message
+              : "Organizer reauthentication failed.",
+          ),
+          { cause: error },
+        );
+      }
+    },
+    [firebase],
+  );
+
   const value = useMemo(
-    () => ({ guest, organizer, signInOrganizer, signOutOrganizer }),
-    [guest, organizer, signInOrganizer, signOutOrganizer],
+    () => ({
+      guest,
+      organizer,
+      signInOrganizer,
+      signOutOrganizer,
+      reauthenticateSpecialReveal,
+    }),
+    [
+      guest,
+      organizer,
+      reauthenticateSpecialReveal,
+      signInOrganizer,
+      signOutOrganizer,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

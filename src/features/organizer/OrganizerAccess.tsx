@@ -93,6 +93,8 @@ export function OrganizerAccess() {
   }
 
   const authorized = auth.organizer.status === "authorized";
+  const specialRevealAccess =
+    auth.organizer.status === "authorized" && auth.organizer.specialRevealAdmin;
   const triggerLabel = authorized ? "Studio" : "Organizer";
 
   return (
@@ -183,21 +185,23 @@ export function OrganizerAccess() {
                 className="flex flex-wrap gap-2"
                 role="tablist"
               >
-                <button
-                  aria-controls="organizer-panel-special-reveal"
-                  aria-selected={activeTool === "special-reveal"}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "special-reveal" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
-                  id="organizer-tab-special-reveal"
-                  onClick={() => {
-                    setEditor(null);
-                    setActiveTool("special-reveal");
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  <LockKeyhole aria-hidden="true" size={17} />
-                  Special Reveal
-                </button>
+                {specialRevealAccess ? (
+                  <button
+                    aria-controls="organizer-panel-special-reveal"
+                    aria-selected={activeTool === "special-reveal"}
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "special-reveal" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
+                    id="organizer-tab-special-reveal"
+                    onClick={() => {
+                      setEditor(null);
+                      setActiveTool("special-reveal");
+                    }}
+                    role="tab"
+                    type="button"
+                  >
+                    <LockKeyhole aria-hidden="true" size={17} />
+                    Special Reveal
+                  </button>
+                ) : null}
                 <button
                   aria-controls="organizer-panel-birthday"
                   aria-selected={activeTool === "birthday"}
@@ -265,7 +269,7 @@ export function OrganizerAccess() {
               </Button>
             </div>
 
-            {activeTool === "special-reveal" ? (
+            {activeTool === "special-reveal" && specialRevealAccess ? (
               <div
                 aria-labelledby="organizer-tab-special-reveal"
                 id="organizer-panel-special-reveal"

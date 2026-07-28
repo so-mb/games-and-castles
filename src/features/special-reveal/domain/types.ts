@@ -123,14 +123,13 @@ export interface PredictionLedgerSnapshot {
     resolutionRevision: number;
     sourceFingerprint: string;
     generatedAt: number;
-    generatedByUid: string;
     entryCount: number;
     schemaVersion: 1;
   };
   entries: Record<string, PredictionLedgerEntry>;
 }
 
-export interface RevealCallableResult {
+export interface RevealOperationResult {
   applied: boolean;
   stateRevision: number;
   resolutionRevision?: number;

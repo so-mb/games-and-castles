@@ -5,9 +5,9 @@
 1. Firebase Authentication UIDs identify actors; stable participant IDs identify players. Never use a display name as a foreign key.
 2. Authoritative inputs are separated from derived read models. A client may display a cached derivation but cannot award championship points.
 3. Confirmed generated fixtures and groups become persisted source-of-truth data. A generator must not run on every client.
-4. Multi-path writes, transactions, or trusted functions keep result, derivation, and audit revisions consistent.
+4. Multi-path writes and Rules-validated revisions keep result, derivation, and audit state consistent.
 5. Public paths contain only data safe to download to every authenticated guest. Security Rules do not filter a collection after download.
-6. Secrets, protected codes, prepublication reveal payloads, individual private submissions, individual predictions, and exact private addresses never enter public paths.
+6. Credentials, prepublication reveal payloads, individual private submissions, individual predictions, and exact private addresses never enter public paths.
 7. Realtime Database keys use opaque IDs or neutral terms. User text is stored as values after validation, never interpolated into paths.
 
 ## 2. Shared TypeScript conventions
@@ -630,7 +630,7 @@ Fixed plans may enter completion review only after the configured number of non-
 
 ## 8. Standings and championship ledger
 
-Phase 7 implements competition sources and bonuses; Phase 9 adds a backend-owned prediction source. The older `Standing` and `ChampionshipScoreEntry` interfaces in this section remain conceptual future/cache shapes; current authoritative sources are never reduced to a mutable total.
+Phase 7 implements competition sources and bonuses; Phase 9 adds a dual-claim reveal-organizer-owned prediction source. The older `Standing` and `ChampionshipScoreEntry` interfaces in this section remain conceptual future/cache shapes; current authoritative sources are never reduced to a mutable total.
 
 ```ts
 interface CompetitionLedgerSnapshot {
@@ -674,7 +674,6 @@ interface PredictionLedgerSnapshot {
     resolutionRevision: number;
     sourceFingerprint: string;
     generatedAt: number;
-    generatedByUid: UserId;
     entryCount: number;
     schemaVersion: 1;
   };
@@ -746,16 +745,16 @@ interface ChampionshipScoreEntry {
   sourceRevision: number;
   status: 'active' | 'void';
   createdAt: UnixMs;
-  createdBy: UserId; // admin UID or trusted function identity marker
+  createdBy: UserId; // organizer UID or trusted local fallback marker
   voidedAt?: UnixMs;
   voidedBy?: UserId;
   voidReason?: string;
 }
 ```
 
-`Standing` is derived and is not persisted. Competition sources and bonuses are written through exact Rules-bounded organizer operations; prediction sources are written only by the Phase 9 Admin SDK callables and become authenticated-readable after resolution. Leaderboard totals, competition/bonus/prediction subtotals, ranks, recent awards, contributions, and achievements are derived views. Never persist a client-editable `totalPoints` as source of truth.
+`Standing` is derived and is not persisted. Competition sources and bonuses are written through exact Rules-bounded organizer operations; prediction sources are written only by a recently reauthenticated dual-claim reveal organizer (or trusted local fallback) and become authenticated-readable after resolution. Leaderboard totals, competition/bonus/prediction subtotals, ranks, recent awards, contributions, and achievements are derived views. Never persist a client-editable `totalPoints` as source of truth.
 
-Idempotency keys are deterministically constructed from source type, source entity/revision unit, participant, and rule. They are indexed in a backend-only map for atomic claim/upsert. Correcting a source creates the complete expected set; obsolete entries become `void` (preferred for audit) or move to an archive. Public totals include only `active` entries.
+Entry IDs are deterministically constructed from source type, source entity/revision unit, participant, and rule. Complete-source replacement makes retries converge without a separate claim map. Correcting a source creates the complete expected set, removing obsolete current entries. Public totals derive only from the current validated sources.
 
 ### Score-ledger derivation flow
 
@@ -942,11 +941,11 @@ interface SpecialRevealPublicResolution {
 }
 ```
 
-The implemented paths are `/specialReveal/privateConfig`, `/specialReveal/publicState`, `/specialReveal/publicOpening`, `/specialReveal/publicResolution`, `/specialReveal/predictions/{ownerUid}`, `/specialReveal/predictionReceipts/{predictionId}`, and the backend-only `/specialReveal/privateSecurity/attempts/{organizerUid}`. One owner UID has at most one current prediction. Its owner/participant/prediction identity and creation timestamp remain immutable; submit/update/withdraw advances one revision and writes the matching identity-free receipt atomically.
+The implemented paths are `/specialReveal/privateConfig`, `/specialReveal/publicState`, `/specialReveal/publicOpening`, `/specialReveal/publicResolution`, `/specialReveal/predictions/{ownerUid}`, and `/specialReveal/predictionReceipts/{predictionId}`. One owner UID has at most one current prediction. Its owner/participant/prediction identity and creation timestamp remain immutable; submit/update/withdraw advances one revision and writes the matching identity-free receipt atomically.
 
-Before resolution, only the owning UID and Admin SDK can read an individual `Prediction`; organizer clients are deliberately denied. `selection` accepts only the two neutral enum values. The identity-free active receipt count may be shown before resolution, while the option distribution is backend-derived and published only with `SpecialRevealPublicResolution`.
+Before resolution, only the owning UID may read an individual `Prediction`; a recently authenticated user with both reveal claims may read the full collection for resolution. Ordinary admins are denied. `selection` accepts only the two neutral enum values. The identity-free active receipt count may be shown before resolution, while the option distribution is derived by the privileged reveal-organizer browser and published only with `SpecialRevealPublicResolution`.
 
-Option labels are dynamic values, not enum keys. They remain under organizer-only `privateConfig` until `openSpecialReveal` copies the reviewed opening/prompt/labels to `publicOpening`. The selected resolution payload becomes public only in the atomic backend resolution/correction transaction; the unselected payload stays private. The protected code is deliberately absent from every database/domain type and lives only as a versioned scrypt verifier in Secret Manager.
+Option labels are dynamic values, not enum keys. They remain under dual-claim `privateConfig` until the recent-auth opening operation copies the reviewed opening/prompt/labels to `publicOpening`. The selected resolution payload becomes public only in the atomic resolution/correction update; the unselected payload stays private. There is no app-specific reveal credential in any database/domain type.
 
 ## 11. Settings, protected trip information, and audit
 
@@ -976,7 +975,7 @@ interface AuditEntry {
   schemaVersion: SchemaVersion;
   occurredAt: UnixMs;
   actorUid: UserId;
-  actorRole: 'organizer' | 'backend';
+  actorRole: 'organizer' | 'trusted-local-admin';
   action: string;
   entityType: string;
   entityId: EntityId;
@@ -984,11 +983,11 @@ interface AuditEntry {
   afterRevision?: number;
   reason?: string;
   requestId?: string;
-  summary: string; // no secrets, codes, or protected content
+  summary: string; // no passwords, selections, or protected content
 }
 ```
 
-Public `AppSettings` fixes the trip range to 31 July–2 August 2026 and the public accommodation copy to `Žižkov, Prague 3`; it otherwise contains only display-safe global state. `ProtectedTripInfo` is reserved for a later authenticated feature and is never compiled into Vite assets, static data, or mock data. Audit entries are append-only to clients, organizer-readable, and backend/admin-writable. They record metadata and safe summaries rather than duplicating private message bodies, prediction choices, protected codes, exact addresses, or reveal content.
+Public `AppSettings` fixes the trip range to 31 July–2 August 2026 and the public accommodation copy to `Žižkov, Prague 3`; it otherwise contains only display-safe global state. `ProtectedTripInfo` is reserved for a later authenticated feature and is never compiled into Vite assets, static data, or mock data. Audit entries are append-only, organizer-readable, and authorized-organizer/trusted-fallback writable. They record metadata and safe summaries rather than duplicating passwords, private message bodies, prediction choices, exact addresses, or reveal content.
 
 ## 12. Recommended Realtime Database tree
 
@@ -1005,7 +1004,7 @@ championshipLedger/
   manualBonusesPublic/{bonusId}           # authenticated active-only projection
   predictionSources/{eventId}/
     meta                                  # authenticated read only after resolution
-    entries/{entryId}                     # backend-owned deterministic correct awards
+    entries/{entryId}                     # recent dual-claim deterministic correct awards
 birthdayVault/
   publicState                              # authenticated read; admin transitions
   submissionReceipts/{publicationId}      # authenticated sanitized count source
@@ -1013,20 +1012,19 @@ birthdayVault/
   moderation/{ownerUid}                    # organizer only
   publishedMessages/{publicationId}        # authenticated read after reveal
 specialReveal/
-  privateConfig                            # organizer only; frozen after opening
-  publicState                              # authenticated read; backend lifecycle writes
+  privateConfig                            # dual-claim organizer; frozen after opening
+  publicState                              # authenticated read; recent-auth lifecycle writes
   publicOpening                            # authenticated after opening
   publicResolution                         # authenticated only after resolution
-  predictions/{ownerUid}                   # owner only while open; backend resolution read
+  predictions/{ownerUid}                   # owner while open; recent reveal-admin resolution read
   predictionReceipts/{predictionId}        # authenticated identity-free count source
-  privateSecurity/attempts/{organizerUid}  # backend only
 ```
 
-The tree below remains the target for later protected/backend-derived features. The implemented Phase 2–9 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, `/championshipLedger`, `/birthdayVault`, `/specialReveal`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
+The tree below remains a conceptual target for later access-oriented organization. The implemented Phase 2–9 subset is intentionally flat: `/userProfiles`, `/participants`, `/competitionDrafts`, `/competitions`, `/competitionRuns`, `/championshipLedger`, `/birthdayVault`, `/specialReveal`, and `/audit`. A later migration must preserve compatibility and authorization rather than assuming the future tree already exists.
 
 ```text
 /
-  public/                                      # authenticated guest read; admin/backend write
+  public/                                      # authenticated guest read; authorized write
     appSettings/app
     trip/
       itinerary/{itemId}
@@ -1049,7 +1047,7 @@ The tree below remains the target for later protected/backend-derived features. 
     predictionEvents/{eventId}                 # safe event state; no individual choices
     specialReveal/{revealStateId}              # locked marker or published safe snapshot only
 
-  guestOwned/                                  # owner-scoped data; writes follow per-endpoint rules/callables
+  guestOwned/                                  # owner-scoped data; writes follow per-endpoint Rules
     userProfiles/{uid}
     participantClaims/{uid}
     birthdaySubmissions/{uid}/{messageId}
@@ -1062,24 +1060,17 @@ The tree below remains the target for later protected/backend-derived features. 
     controls/
       birthday
       predictionEvents/{eventId}
-      specialReveal/{revealStateId}            # control metadata only; no protected payload/code
+      specialReveal/{revealStateId}            # control metadata only; no protected payload
     protectedTripInfo/trip
 
-  backend/                                     # Admin SDK / trusted functions only
-    specialReveal/{revealStateId}
-    idempotency/{idempotencyKeyHash}
-    operations/{requestId}
-    rateLimits/{scopeHash}
-    derivationState/{sourceEntityId}
-
-  audit/                                       # organizer read; append-only backend/admin operation
+  audit/                                       # organizer read; append-only authorized operation
     byTime/{pushId}
     byEntity/{entityType}/{entityId}/{pushId}
 ```
 
 “Public” means readable by authenticated guests, not internet-indexable or safe for secrets. If itinerary reading before auth is desired later, only explicitly safe static itinerary fields may receive unauthenticated read access. Public accommodation data contains only `Žižkov, Prague 3`. The exact address is not populated anywhere for the static phase; a later authenticated implementation may place it under `organizer/protectedTripInfo` or another explicitly authenticated/restricted branch after separate authorization review.
 
-In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. The implemented flat model uses admin-claim Rules for configuration, all three runtimes, Phase 7 complete competition sources/bonuses, Phase 8 Birthday Vault moderation/publication, and Phase 9 callable Admin SDK operations for protected opening/resolution and prediction scoring.
+In the future target, competition drafts live under `organizer`, while confirmed sanitized configuration/results live under `public`. The implemented flat model uses Rules for configuration, all three runtimes, Phase 7 complete competition sources/bonuses, Phase 8 Birthday Vault moderation/publication, and Phase 9 dual-claim recent-auth browser operations for protected opening/resolution and prediction scoring.
 
 ## 13. Source of truth, derivation, and denormalization
 
@@ -1087,30 +1078,30 @@ In the future target, competition drafts live under `organizer`, while confirmed
 |---|---|---|---|
 | Participant identity/profile | Yes | Owner for limited fields; organizer for management | Participant ID is stable reference |
 | Competition/config snapshot | Yes | Organizer | Authoritative after start |
-| Confirmed shuffle/groups/fixture order | Yes | Organizer confirmation/backend operation | Generated once, then authoritative |
+| Confirmed shuffle/groups/fixture order | Yes | Organizer confirmation | Generated once, then authoritative |
 | Match/session result | Yes | Organizer under format-specific Rules | Authoritative versioned source |
 | Standings | No for Phases 4–5 | Pure client derivation | Rebuildable from results/config; no independently mutable total |
 | Championship competition sources | Yes | Rules-bounded organizer full-source operation | Authoritative current ledger; deterministic identity/fingerprint |
-| Championship prediction source | Yes | Backend-only callable resolution/correction/reconciliation | One complete source per resolved event; deterministic identity/fingerprint |
+| Championship prediction source | Yes | Recent dual-claim browser operation or trusted local fallback | One complete source per resolved event; deterministic identity/fingerprint |
 | Manual championship bonus | Yes | Rules-bounded organizer revisioned operation | Private full history plus sanitized active public projection |
 | Leaderboard totals/ranks/recent list | No | Pure client derivation | Rebuilt from validated current sources and active bonuses |
 | Private birthday submission | Yes | Guest create/limited own update; organizer moderate | Never in guest-readable collection |
 | Published birthday snapshot | Yes | Rules-bounded organizer full-set operation | Sanitized public source for reveal presentation |
-| Prediction | Yes | Owner while open; backend resolves | Private per UID; organizer client read denied |
+| Prediction | Yes | Owner while open; recent reveal admin resolves | Private per UID; ordinary admin/guest collection reads denied |
 | Prediction receipt | Yes | Owner atomic write; authenticated read | Identity-free active count; no selection/participant/owner field |
-| Aggregate prediction distribution | Yes after resolution | Backend | Published only with selected resolution |
-| Reveal prepublication payload | Yes | Organizer-only database config before open; backend read after | Both variants freeze at opening; no public read |
-| Published reveal snapshot/state | Yes | Backend | Guest-readable only after publication |
+| Aggregate prediction distribution | Yes after resolution | Privileged reveal-organizer derivation | Published only with selected resolution |
+| Reveal prepublication payload | Yes | Dual-claim database config before open | Both variants freeze at opening; no public read |
+| Published reveal snapshot/state | Yes | Recent dual-claim atomic operation | Guest-readable only after publication |
 | Message count | No separate total | Pure count of valid active sanitized receipts | Does not grant submission or identity reads |
 
 Safe denormalization includes participant display snapshots in historical presentation, stage IDs on matches, match IDs on stages, bounded recent-activity indexes, and leaderboard caches. Every cache declares the source revision/computation time. Do not denormalize protected content into audit, analytics, client logs, notification text, or public indexes.
 
 ## 14. Idempotency and concurrency
 
-- Competition clients continue to use current record revisions and deterministic complete-source replacement. Phase 9 callables use expected config/state/resolution revisions and terminal-state equality rather than a separate request record.
+- Competition clients continue to use current record revisions and deterministic complete-source replacement. Phase 9 browser operations use expected config/state/resolution revisions and terminal-state equality rather than a separate request record.
 - Each prediction score uses a deterministic entry ID derived from event and participant plus the logical `prediction:{eventId}:{participantId}` source identity.
-- Result updates carry `expectedRevision`. A transaction rejects stale revisions instead of silently overwriting another administrator.
-- Reveal resolution checks locked state and expected revisions inside one trusted root transaction. A successful resolution/correction replaces public state, selected public payload, the complete prediction source, and audit metadata atomically; a matching retry is a no-op and cannot duplicate points.
+- Result updates carry `expectedRevision`. Rules reject stale revisions instead of silently overwriting another administrator.
+- Reveal resolution re-reads locked state and expected revisions after recent reauthentication. A successful root update replaces public state, selected public payload, the complete prediction source, and audit metadata atomically; a matching retry is a no-op and cannot duplicate points.
 - Prediction source reconciliation derives and compares the complete expected content. Missing/damaged content is replaced; a matching revision/fingerprint/entry map produces no write.
 
 ## 15. Deletion, correction, and archival

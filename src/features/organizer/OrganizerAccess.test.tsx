@@ -5,9 +5,17 @@ import { OrganizerAccess } from "./OrganizerAccess";
 const organizerState = vi.hoisted(() => ({
   auth: {
     guest: { status: "ready", uid: "guest", message: null },
-    organizer: { status: "authorized", uid: "admin", message: null },
+    organizer: {
+      status: "authorized",
+      uid: "admin",
+      email: "organizer@example.test",
+      specialRevealAdmin: true,
+      authTimeMs: Date.now(),
+      message: null,
+    },
     signInOrganizer: vi.fn(),
     signOutOrganizer: vi.fn(),
+    reauthenticateSpecialReveal: vi.fn(),
   },
   participants: {
     canMutate: true,
@@ -66,6 +74,26 @@ vi.mock("../special-reveal/organizer/SpecialRevealWorkspace", () => ({
 describe("OrganizerAccess", () => {
   beforeEach(() => {
     organizerState.auth.organizer.status = "authorized";
+    organizerState.auth.organizer.specialRevealAdmin = true;
+  });
+
+  it("hides protected reveal tools from an ordinary admin", () => {
+    organizerState.auth.organizer.specialRevealAdmin = false;
+    render(<OrganizerAccess />);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Open Organizer Mode — signed in",
+      }),
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Organizer console" });
+    expect(
+      within(dialog).queryByRole("tab", { name: "Special Reveal" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole("tab", { name: "Competition Studio" }),
+    ).toBeInTheDocument();
   });
 
   it("does not expose Championship Desk before organizer authentication", () => {

@@ -39,12 +39,6 @@ export default defineConfig({
     setupFiles: "./src/test/setup.ts",
     css: true,
     globals: true,
-    exclude: [
-      "tests/rules/**",
-      "tests/functions/**",
-      "functions/**",
-      "node_modules/**",
-      "dist/**",
-    ],
+    exclude: ["tests/rules/**", "node_modules/**", "dist/**"],
   },
 });

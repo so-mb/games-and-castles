@@ -398,7 +398,9 @@ export function ChampionshipSection() {
                         {award.label}
                         {award.competitionTitle
                           ? ` · ${award.competitionTitle}`
-                          : " · Organizer bonus"}
+                          : award.sourceNamespace === "prediction"
+                            ? " · Prediction event"
+                            : " · Organizer bonus"}
                       </span>
                     </span>
                     <span className="font-score self-center text-lg font-black text-[var(--color-electric-cyan-400)]">

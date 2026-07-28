@@ -22,7 +22,7 @@ export function App() {
         Skip to main content
       </a>
       <SiteNavigation />
-      <main id="main-content">
+      <main id="main-content" tabIndex={-1}>
         <HeroSection />
         <WeekendOverviewSection />
         <ChampionshipSection />

@@ -59,6 +59,20 @@ import { deriveCrossGroupSeeds } from "../../src/features/competitions/group-kno
 import type { GroupKnockoutRun } from "../../src/features/competitions/group-knockout/types";
 import { deriveCompetitionLedgerSnapshot } from "../../src/features/championship/ledger/snapshot";
 import type { ManualChampionshipBonus } from "../../src/features/championship/domain/types";
+import {
+  buildCorrectRevealMutation,
+  buildOpenRevealMutation,
+  buildPredictionStateMutation,
+  buildReconcilePredictionMutation,
+  buildResolveRevealMutation,
+} from "../../src/features/special-reveal/domain/operations";
+import type {
+  PredictionLedgerSnapshot,
+  SpecialRevealPrediction,
+  SpecialRevealPrivateConfig,
+  SpecialRevealPublicResolution,
+  SpecialRevealPublicState,
+} from "../../src/features/special-reveal/domain/types";
 
 const projectId = "demo-games-and-castles";
 let environment: RulesTestEnvironment;
@@ -4096,12 +4110,33 @@ describe("Realtime Database security rules", () => {
     const predictionId = "123e4567-e89b-42d3-a456-426614174001";
 
     function contexts() {
+      const recentAuthTime = Math.floor(Date.now() / 1000);
       return {
         unauthenticated: environment.unauthenticatedContext().database(),
         guest: environment.authenticatedContext("guest-1").database(),
         otherGuest: environment.authenticatedContext("guest-2").database(),
         admin: environment
           .authenticatedContext("admin", { admin: true })
+          .database(),
+        specialOnly: environment
+          .authenticatedContext("special-only", {
+            specialRevealAdmin: true,
+            auth_time: recentAuthTime,
+          })
+          .database(),
+        revealAdmin: environment
+          .authenticatedContext("reveal-admin", {
+            admin: true,
+            specialRevealAdmin: true,
+            auth_time: recentAuthTime,
+          })
+          .database(),
+        oldRevealAdmin: environment
+          .authenticatedContext("reveal-admin", {
+            admin: true,
+            specialRevealAdmin: true,
+            auth_time: recentAuthTime - 301,
+          })
           .database(),
       };
     }
@@ -4158,9 +4193,9 @@ describe("Realtime Database security rules", () => {
         },
         correctPredictionPoints: 3,
         createdAt: now,
-        createdByUid: "admin",
+        createdByUid: "reveal-admin",
         updatedAt: now,
-        updatedByUid: "admin",
+        updatedByUid: "reveal-admin",
         revision: 1,
         schemaVersion: 1,
         ...overrides,
@@ -4267,6 +4302,49 @@ describe("Realtime Database security rules", () => {
       });
     }
 
+    function typedConfig() {
+      return revealConfig() as unknown as SpecialRevealPrivateConfig;
+    }
+
+    function typedState(
+      status:
+        | "prediction-open"
+        | "prediction-locked"
+        | "resolved" = "prediction-open",
+      overrides: Record<string, unknown> = {},
+    ) {
+      return revealState(
+        status,
+        overrides,
+      ) as unknown as SpecialRevealPublicState;
+    }
+
+    function revealPrediction() {
+      return prediction() as unknown as SpecialRevealPrediction;
+    }
+
+    function browserResolutionInput(
+      state: SpecialRevealPublicState,
+      correctOption: "option-a" | "option-b" = "option-a",
+    ) {
+      return {
+        config: typedConfig(),
+        state,
+        predictions: [revealPrediction()],
+        participants: {
+          "guest-1": participant("guest-1", "guest-1"),
+          "guest-2": participant("guest-2", "guest-2"),
+        },
+        profiles: {
+          "guest-1": { participantId: "guest-1" },
+          "guest-2": { participantId: "guest-2" },
+        },
+        correctOption,
+        actorUid: "reveal-admin",
+        now: Date.now(),
+      };
+    }
+
     it("1 denies unauthenticated public-state reads", async () => {
       await seedReveal();
       await assertFails(
@@ -4285,13 +4363,13 @@ describe("Realtime Database security rules", () => {
         set(ref(contexts().guest, "specialReveal/publicState"), revealState()),
       );
     });
-    it("4 denies admin-client public-state writes", async () => {
+    it("4 denies ordinary admin public-state writes", async () => {
       await seedReveal();
       await assertFails(
         set(ref(contexts().admin, "specialReveal/publicState"), revealState()),
       );
     });
-    it("5 denies opening reads before backend publication", async () => {
+    it("5 denies opening reads before publication", async () => {
       await seed({ specialReveal: { privateConfig: revealConfig() } });
       await assertFails(
         get(ref(contexts().guest, "specialReveal/publicOpening")),
@@ -4323,16 +4401,16 @@ describe("Realtime Database security rules", () => {
         get(ref(contexts().guest, "specialReveal/privateConfig")),
       );
     });
-    it("10 allows admin private-config reads", async () => {
+    it("10 allows a dedicated reveal admin to read private config", async () => {
       await seedReveal();
       await assertSucceeds(
-        get(ref(contexts().admin, "specialReveal/privateConfig")),
+        get(ref(contexts().revealAdmin, "specialReveal/privateConfig")),
       );
     });
-    it("11 allows an admin to create valid pre-open configuration", async () => {
+    it("11 allows a dedicated reveal admin to create valid pre-open configuration", async () => {
       await assertSucceeds(
         set(
-          ref(contexts().admin, "specialReveal/privateConfig"),
+          ref(contexts().revealAdmin, "specialReveal/privateConfig"),
           revealConfig(),
         ),
       );
@@ -4348,7 +4426,7 @@ describe("Realtime Database security rules", () => {
     it("13 denies invalid configuration option labels", async () => {
       await assertFails(
         set(
-          ref(contexts().admin, "specialReveal/privateConfig"),
+          ref(contexts().revealAdmin, "specialReveal/privateConfig"),
           revealConfig({
             optionLabels: { "option-a": "", "option-b": "Option B" },
           }),
@@ -4358,7 +4436,7 @@ describe("Realtime Database security rules", () => {
     it("14 denies unknown configuration fields", async () => {
       await assertFails(
         set(
-          ref(contexts().admin, "specialReveal/privateConfig"),
+          ref(contexts().revealAdmin, "specialReveal/privateConfig"),
           revealConfig({ hiddenOutcome: "option-a" }),
         ),
       );
@@ -4368,7 +4446,7 @@ describe("Realtime Database security rules", () => {
       await seed({ specialReveal: { privateConfig: current } });
       await assertSucceeds(
         set(
-          ref(contexts().admin, "specialReveal/privateConfig"),
+          ref(contexts().revealAdmin, "specialReveal/privateConfig"),
           revealConfig({ createdAt: current.createdAt, revision: 2 }),
         ),
       );
@@ -4378,7 +4456,7 @@ describe("Realtime Database security rules", () => {
       await seed({ specialReveal: { privateConfig: current } });
       await assertFails(
         set(
-          ref(contexts().admin, "specialReveal/privateConfig"),
+          ref(contexts().revealAdmin, "specialReveal/privateConfig"),
           revealConfig({ createdAt: current.createdAt, revision: 3 }),
         ),
       );
@@ -4387,7 +4465,7 @@ describe("Realtime Database security rules", () => {
       await seedReveal();
       await assertFails(
         set(
-          ref(contexts().admin, "specialReveal/privateConfig"),
+          ref(contexts().revealAdmin, "specialReveal/privateConfig"),
           revealConfig({ revision: 2 }),
         ),
       );
@@ -4395,7 +4473,7 @@ describe("Realtime Database security rules", () => {
     it("18 denies configuration deletion", async () => {
       await seed({ specialReveal: { privateConfig: revealConfig() } });
       await assertFails(
-        remove(ref(contexts().admin, "specialReveal/privateConfig")),
+        remove(ref(contexts().revealAdmin, "specialReveal/privateConfig")),
       );
     });
     it("19 allows an owner to read only their prediction path", async () => {
@@ -4560,7 +4638,7 @@ describe("Realtime Database security rules", () => {
       await seedReveal("prediction-locked");
       await assertFails(submit(contexts().guest));
     });
-    it("37 allows guest writes after a backend reopen", async () => {
+    it("37 allows guest writes after an authorized reopen", async () => {
       await seedReveal("prediction-open", {
         publicState: revealState("prediction-open", { revision: 3 }),
       });
@@ -4588,22 +4666,6 @@ describe("Realtime Database security rules", () => {
             `specialReveal/predictionReceipts/${predictionId}`,
           ),
           receipt(),
-        ),
-      );
-    });
-    it("41 denies all client access to private attempt state", async () => {
-      await seedAt("specialReveal/privateSecurity/attempts/admin", {
-        failedCount: 1,
-      });
-      await assertFails(
-        get(
-          ref(contexts().admin, "specialReveal/privateSecurity/attempts/admin"),
-        ),
-      );
-      await assertFails(
-        set(
-          ref(contexts().admin, "specialReveal/privateSecurity/attempts/admin"),
-          { failedCount: 2 },
         ),
       );
     });
@@ -4660,6 +4722,426 @@ describe("Realtime Database security rules", () => {
       await seedReveal();
       await assertFails(
         set(ref(contexts().admin, "specialReveal/unknown"), { value: true }),
+      );
+    });
+
+    it("46 denies private config to ordinary and single-claim admins", async () => {
+      await seed({ specialReveal: { privateConfig: revealConfig() } });
+      await assertFails(
+        get(ref(contexts().admin, "specialReveal/privateConfig")),
+      );
+      await assertFails(
+        get(ref(contexts().specialOnly, "specialReveal/privateConfig")),
+      );
+    });
+
+    it("47 allows only a recently authenticated dual-claim admin to enumerate predictions", async () => {
+      await seedReveal("prediction-open", {
+        predictions: { "guest-1": prediction() },
+      });
+      await assertSucceeds(
+        get(ref(contexts().revealAdmin, "specialReveal/predictions")),
+      );
+      await assertFails(
+        get(ref(contexts().oldRevealAdmin, "specialReveal/predictions")),
+      );
+      await assertFails(
+        get(ref(contexts().admin, "specialReveal/predictions")),
+      );
+    });
+
+    it("48 opens atomically only with both claims and recent auth", async () => {
+      const config = typedConfig();
+      await seed({ specialReveal: { privateConfig: config } });
+      const mutation = buildOpenRevealMutation({
+        config,
+        state: null,
+        expectedConfigRevision: 1,
+        actorUid: "reveal-admin",
+        auditId: "audit-open",
+        now: Date.now(),
+      });
+      await assertFails(update(ref(contexts().admin), mutation.updates!));
+      await assertFails(update(ref(contexts().specialOnly), mutation.updates!));
+      await assertFails(
+        update(ref(contexts().oldRevealAdmin), mutation.updates!),
+      );
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), mutation.updates!),
+      );
+      const opening = await get(
+        ref(contexts().guest, "specialReveal/publicOpening"),
+      );
+      expect(opening.val()).not.toHaveProperty("resolutionPayloads");
+    });
+
+    it("48a accepts the matching opening payload when state already exists", async () => {
+      const timestamp = Date.now();
+      const config = typedConfig();
+      const state = typedState("prediction-open", { openedAt: timestamp });
+      await seed({
+        specialReveal: { privateConfig: config, publicState: state },
+      });
+      await assertSucceeds(
+        set(ref(contexts().revealAdmin, "specialReveal/publicOpening"), {
+          eventId: config.eventId,
+          title: config.opening.title,
+          body: config.opening.body,
+          emojiKey: config.opening.emojiKey,
+          predictionPrompt: config.predictionPrompt,
+          optionLabels: config.optionLabels,
+          publishedAt: timestamp,
+          openRevision: 1,
+          schemaVersion: 1,
+        }),
+      );
+    });
+
+    it("48b accepts the initial state when the matching opening exists", async () => {
+      const timestamp = Date.now();
+      const config = typedConfig();
+      const state = typedState("prediction-open", { openedAt: timestamp });
+      await seed({
+        specialReveal: {
+          privateConfig: config,
+          publicOpening: {
+            eventId: config.eventId,
+            title: config.opening.title,
+            body: config.opening.body,
+            emojiKey: config.opening.emojiKey,
+            predictionPrompt: config.predictionPrompt,
+            optionLabels: config.optionLabels,
+            publishedAt: timestamp,
+            openRevision: 1,
+            schemaVersion: 1,
+          },
+        },
+      });
+      await assertSucceeds(
+        set(ref(contexts().revealAdmin, "specialReveal/publicState"), state),
+      );
+    });
+
+    it("49 lets a recent reveal admin lock and reopen with one-step revisions", async () => {
+      const openState = typedState();
+      await seedReveal("prediction-open", { publicState: openState });
+      const locked = buildPredictionStateMutation({
+        state: openState,
+        expectedStateRevision: 1,
+        action: "lock",
+        actorUid: "reveal-admin",
+        auditId: "audit-lock",
+        now: Date.now(),
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), locked.updates!),
+      );
+      const lockedState = locked.updates?.[
+        "specialReveal/publicState"
+      ] as SpecialRevealPublicState;
+      const reopened = buildPredictionStateMutation({
+        state: lockedState,
+        expectedStateRevision: 2,
+        action: "reopen",
+        actorUid: "reveal-admin",
+        auditId: "audit-reopen",
+        now: Date.now(),
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), reopened.updates!),
+      );
+    });
+
+    it("50 denies old sessions, invalid transitions, and stale revisions", async () => {
+      const openState = typedState();
+      await seedReveal("prediction-open", { publicState: openState });
+      const locked = buildPredictionStateMutation({
+        state: openState,
+        expectedStateRevision: 1,
+        action: "lock",
+        actorUid: "reveal-admin",
+        auditId: "audit-old-lock",
+        now: Date.now(),
+      });
+      await assertFails(
+        update(ref(contexts().oldRevealAdmin), locked.updates!),
+      );
+      await assertFails(
+        update(ref(contexts().revealAdmin), {
+          ...locked.updates,
+          "specialReveal/publicState": {
+            ...openState,
+            status: "resolved",
+            lockedAt: Date.now(),
+            resolvedAt: Date.now(),
+            resolutionRevision: 1,
+            revision: 2,
+          },
+        }),
+      );
+      await assertFails(
+        update(ref(contexts().revealAdmin), {
+          ...locked.updates,
+          "specialReveal/publicState": {
+            ...(locked.updates?.[
+              "specialReveal/publicState"
+            ] as SpecialRevealPublicState),
+            revision: 4,
+          },
+        }),
+      );
+    });
+
+    it("51 resolves public data and deterministic points atomically", async () => {
+      const state = typedState("prediction-locked");
+      await seedReveal("prediction-locked", {
+        publicState: state,
+        predictions: { "guest-1": prediction() },
+      });
+      const input = browserResolutionInput(state);
+      const mutation = buildResolveRevealMutation({
+        ...input,
+        expectedStateRevision: 2,
+        expectedConfigRevision: 1,
+        auditId: "audit-resolve",
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), mutation.updates!),
+      );
+      const source = await get(
+        ref(
+          contexts().guest,
+          "championshipLedger/predictionSources/event-neutral",
+        ),
+      );
+      expect(source.val().meta.entryCount).toBe(1);
+    });
+
+    it("51a accepts the matching public resolution independently", async () => {
+      const lockedState = typedState("prediction-locked");
+      const input = browserResolutionInput(lockedState);
+      const mutation = buildResolveRevealMutation({
+        ...input,
+        expectedStateRevision: 2,
+        expectedConfigRevision: 1,
+        auditId: "audit-resolution-isolation",
+      });
+      const resolvedState = mutation.updates?.[
+        "specialReveal/publicState"
+      ] as SpecialRevealPublicState;
+      const resolution = mutation.updates?.[
+        "specialReveal/publicResolution"
+      ] as SpecialRevealPublicResolution;
+      await seedReveal("resolved", {
+        publicState: resolvedState,
+        publicResolution: null,
+        predictions: { "guest-1": prediction() },
+      });
+      await assertSucceeds(
+        set(
+          ref(contexts().revealAdmin, "specialReveal/publicResolution"),
+          resolution,
+        ),
+      );
+    });
+
+    it("51b accepts the matching prediction source independently", async () => {
+      const lockedState = typedState("prediction-locked");
+      const input = browserResolutionInput(lockedState);
+      const mutation = buildResolveRevealMutation({
+        ...input,
+        expectedStateRevision: 2,
+        expectedConfigRevision: 1,
+        auditId: "audit-source-isolation",
+      });
+      const resolvedState = mutation.updates?.[
+        "specialReveal/publicState"
+      ] as SpecialRevealPublicState;
+      const resolution = mutation.updates?.[
+        "specialReveal/publicResolution"
+      ] as SpecialRevealPublicResolution;
+      const source = mutation.updates?.[
+        "championshipLedger/predictionSources/event-neutral"
+      ] as PredictionLedgerSnapshot;
+      await seedReveal("resolved", {
+        publicState: resolvedState,
+        publicResolution: resolution,
+        predictions: { "guest-1": prediction() },
+      });
+      await assertSucceeds(
+        set(
+          ref(
+            contexts().revealAdmin,
+            "championshipLedger/predictionSources/event-neutral",
+          ),
+          source,
+        ),
+      );
+    });
+
+    it("52 denies old or ordinary admins from resolving", async () => {
+      const state = typedState("prediction-locked");
+      await seedReveal("prediction-locked", {
+        publicState: state,
+        predictions: { "guest-1": prediction() },
+      });
+      const mutation = buildResolveRevealMutation({
+        ...browserResolutionInput(state),
+        expectedStateRevision: 2,
+        expectedConfigRevision: 1,
+        auditId: "audit-denied-resolve",
+      });
+      await assertFails(update(ref(contexts().admin), mutation.updates!));
+      await assertFails(
+        update(ref(contexts().oldRevealAdmin), mutation.updates!),
+      );
+    });
+
+    it("53 rejects arbitrary points and resolution-source revision mismatch", async () => {
+      const state = typedState("prediction-locked");
+      await seedReveal("prediction-locked", {
+        publicState: state,
+        predictions: { "guest-1": prediction() },
+      });
+      const mutation = buildResolveRevealMutation({
+        ...browserResolutionInput(state),
+        expectedStateRevision: 2,
+        expectedConfigRevision: 1,
+        auditId: "audit-invalid-resolve",
+      });
+      const updates = structuredClone(mutation.updates!);
+      const source = updates[
+        "championshipLedger/predictionSources/event-neutral"
+      ] as PredictionLedgerSnapshot;
+      Object.values(source.entries)[0]!.points = 99;
+      await assertFails(update(ref(contexts().revealAdmin), updates));
+
+      const mismatched = structuredClone(mutation.updates!);
+      const mismatchedSource = mismatched[
+        "championshipLedger/predictionSources/event-neutral"
+      ] as PredictionLedgerSnapshot;
+      mismatchedSource.meta.resolutionRevision = 2;
+      await assertFails(update(ref(contexts().revealAdmin), mismatched));
+    });
+
+    it("54 corrects by replacing the public resolution and complete source", async () => {
+      const state = typedState("prediction-locked");
+      await seedReveal("prediction-locked", {
+        publicState: state,
+        predictions: { "guest-1": prediction() },
+      });
+      const input = browserResolutionInput(state);
+      const initial = buildResolveRevealMutation({
+        ...input,
+        expectedStateRevision: 2,
+        expectedConfigRevision: 1,
+        auditId: "audit-initial",
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), initial.updates!),
+      );
+      const resolvedState = initial.updates?.[
+        "specialReveal/publicState"
+      ] as SpecialRevealPublicState;
+      const currentResolution = initial.updates?.[
+        "specialReveal/publicResolution"
+      ] as SpecialRevealPublicResolution;
+      const correction = buildCorrectRevealMutation({
+        ...input,
+        state: resolvedState,
+        currentResolution,
+        correctOption: "option-b",
+        expectedStateRevision: 3,
+        expectedResolutionRevision: 1,
+        auditId: "audit-correction",
+        now: Date.now(),
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), correction.updates!),
+      );
+      const source = await get(
+        ref(
+          contexts().guest,
+          "championshipLedger/predictionSources/event-neutral",
+        ),
+      );
+      expect(source.val().meta.entryCount).toBe(0);
+    });
+
+    it("55 repairs a missing source and repeated reconciliation is a no-op", async () => {
+      const state = typedState("prediction-locked");
+      await seedReveal("prediction-locked", {
+        publicState: state,
+        predictions: { "guest-1": prediction() },
+      });
+      const input = browserResolutionInput(state);
+      const initial = buildResolveRevealMutation({
+        ...input,
+        expectedStateRevision: 2,
+        expectedConfigRevision: 1,
+        auditId: "audit-resolve-reconcile",
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), initial.updates!),
+      );
+      const resolvedState = initial.updates?.[
+        "specialReveal/publicState"
+      ] as SpecialRevealPublicState;
+      const resolution = initial.updates?.[
+        "specialReveal/publicResolution"
+      ] as SpecialRevealPublicResolution;
+      await seedAt("championshipLedger/predictionSources/event-neutral", null);
+      const reconcile = buildReconcilePredictionMutation({
+        ...input,
+        state: resolvedState,
+        resolution,
+        currentSource: null,
+        expectedStateRevision: 3,
+        auditId: "audit-reconcile",
+        now: Date.now(),
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), reconcile.updates!),
+      );
+      const source = reconcile.updates?.[
+        "championshipLedger/predictionSources/event-neutral"
+      ] as PredictionLedgerSnapshot;
+      const repeated = buildReconcilePredictionMutation({
+        ...input,
+        state: resolvedState,
+        resolution,
+        currentSource: source,
+        expectedStateRevision: 3,
+        auditId: "audit-reconcile-repeat",
+        now: Date.now(),
+      });
+      expect(repeated).toMatchObject({
+        updates: null,
+        result: { applied: false },
+      });
+    });
+
+    it("56 keeps special reveal audit records append-only", async () => {
+      const entry = {
+        id: "audit-special",
+        action: "prediction-event-locked",
+        entityType: "special-reveal",
+        entityId: "event-neutral",
+        actorUid: "reveal-admin",
+        beforeRevision: 1,
+        afterRevision: 2,
+        occurredAt: Date.now(),
+        summary: "Prediction event locked.",
+        schemaVersion: 1,
+      };
+      await assertSucceeds(
+        set(ref(contexts().revealAdmin, "audit/audit-special"), entry),
+      );
+      await assertFails(
+        set(ref(contexts().revealAdmin, "audit/audit-special"), {
+          ...entry,
+          summary: "Changed.",
+        }),
       );
     });
   });

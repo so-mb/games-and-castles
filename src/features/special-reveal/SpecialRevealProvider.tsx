@@ -8,6 +8,10 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "../auth/AuthProvider";
+import {
+  assertFreshRevealAuthorization,
+  type RecentRevealAuthorization,
+} from "../auth/specialRevealAuthorization";
 import { useConnection } from "../live/ConnectionProvider";
 import { useFirebase } from "../live/FirebaseProvider";
 import { useParticipants } from "../participants/ParticipantsProvider";
@@ -21,12 +25,11 @@ import type {
   SpecialRevealPublicState,
 } from "./domain/types";
 import {
-  correctSpecialRevealResolution,
-  lockPredictionEvent,
-  openSpecialReveal,
-  reconcilePredictionLedger,
-  reopenPredictionEvent,
-  resolveSpecialReveal,
+  changePredictionStateInBrowser,
+  correctSpecialRevealInBrowser,
+  openSpecialRevealInBrowser,
+  reconcilePredictionLedgerInBrowser,
+  resolveSpecialRevealInBrowser,
   savePrediction,
   saveSpecialRevealConfig,
   subscribeOwnPrediction,
@@ -56,12 +59,18 @@ interface SpecialRevealContextValue {
   submitPrediction: (selection: PredictionOption) => Promise<void>;
   withdrawPrediction: () => Promise<void>;
   saveConfig: (value: SpecialRevealConfigInput) => Promise<void>;
-  open: (code: string) => Promise<void>;
-  lock: () => Promise<void>;
-  reopen: () => Promise<void>;
-  resolve: (code: string, correctOption: PredictionOption) => Promise<void>;
-  correct: (code: string, correctOption: PredictionOption) => Promise<void>;
-  reconcile: () => Promise<void>;
+  open: (authorization: RecentRevealAuthorization) => Promise<void>;
+  lock: (authorization: RecentRevealAuthorization) => Promise<void>;
+  reopen: (authorization: RecentRevealAuthorization) => Promise<void>;
+  resolve: (
+    authorization: RecentRevealAuthorization,
+    correctOption: PredictionOption,
+  ) => Promise<void>;
+  correct: (
+    authorization: RecentRevealAuthorization,
+    correctOption: PredictionOption,
+  ) => Promise<void>;
+  reconcile: (authorization: RecentRevealAuthorization) => Promise<void>;
 }
 
 const SpecialRevealContext = createContext<SpecialRevealContextValue | null>(
@@ -89,6 +98,8 @@ export function SpecialRevealProvider({ children }: { children: ReactNode }) {
   const [organizerState, setOrganizerState] = useState<LoadState>("idle");
   const [malformedIds, setMalformedIds] = useState<string[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const isSpecialRevealOrganizer =
+    auth.organizer.status === "authorized" && auth.organizer.specialRevealAdmin;
 
   const setMalformed = useCallback((id: string, malformed: boolean) => {
     setMalformedIds((current) =>
@@ -188,7 +199,7 @@ export function SpecialRevealProvider({ children }: { children: ReactNode }) {
   }, [auth.guest, firebase, publicState?.status, setMalformed]);
 
   useEffect(() => {
-    if (firebase.status !== "ready" || auth.organizer.status !== "authorized") {
+    if (firebase.status !== "ready" || !isSpecialRevealOrganizer) {
       return;
     }
     return subscribeSpecialRevealPrivateConfig(
@@ -205,7 +216,7 @@ export function SpecialRevealProvider({ children }: { children: ReactNode }) {
         );
       },
     );
-  }, [auth.organizer, firebase, setMalformed]);
+  }, [firebase, isSpecialRevealOrganizer, setMalformed]);
 
   const requireGuest = useCallback(() => {
     if (connection !== "online")
@@ -228,14 +239,26 @@ export function SpecialRevealProvider({ children }: { children: ReactNode }) {
   const requireOrganizer = useCallback(() => {
     if (connection !== "online")
       throw new Error("Special reveal controls are paused while offline.");
-    if (firebase.status !== "ready" || auth.organizer.status !== "authorized")
+    if (
+      firebase.status !== "ready" ||
+      auth.organizer.status !== "authorized" ||
+      !auth.organizer.specialRevealAdmin
+    )
       throw new Error("Organizer access is not ready.");
     return {
       database: firebase.clients.organizerDatabase,
-      functions: firebase.clients.organizerFunctions,
       uid: auth.organizer.uid,
     };
   }, [auth.organizer, connection, firebase]);
+
+  const requireRecentOrganizer = useCallback(
+    (authorization: RecentRevealAuthorization) => {
+      const organizer = requireOrganizer();
+      assertFreshRevealAuthorization(authorization, organizer.uid);
+      return organizer;
+    },
+    [requireOrganizer],
+  );
 
   const value = useMemo<SpecialRevealContextValue>(
     () => ({
@@ -244,8 +267,7 @@ export function SpecialRevealProvider({ children }: { children: ReactNode }) {
       resolution: publicState?.status === "resolved" ? resolution : null,
       ownPrediction,
       predictionCount,
-      privateConfig:
-        auth.organizer.status === "authorized" ? privateConfig : null,
+      privateConfig: isSpecialRevealOrganizer ? privateConfig : null,
       state: firebase.status === "ready" ? state : "idle",
       organizerState,
       malformedIds,
@@ -255,8 +277,7 @@ export function SpecialRevealProvider({ children }: { children: ReactNode }) {
         auth.guest.status === "ready" &&
         participants.ownParticipant !== null &&
         publicState?.status === "prediction-open",
-      canOrganizerMutate:
-        connection === "online" && auth.organizer.status === "authorized",
+      canOrganizerMutate: connection === "online" && isSpecialRevealOrganizer,
       submitPrediction: async (selection) => {
         const guest = requireGuest();
         await savePrediction({ ...guest, current: ownPrediction, selection });
@@ -280,62 +301,76 @@ export function SpecialRevealProvider({ children }: { children: ReactNode }) {
           value: config,
         });
       },
-      open: async (code) => {
-        const organizer = requireOrganizer();
+      open: async (authorization) => {
+        const organizer = requireRecentOrganizer(authorization);
         if (!privateConfig)
           throw new Error("Save the protected event configuration first.");
-        await openSpecialReveal(organizer.functions, {
-          code,
+        await openSpecialRevealInBrowser({
+          ...organizer,
           expectedConfigRevision: privateConfig.revision,
-          expectedStateRevision: null,
         });
       },
-      lock: async () => {
-        const organizer = requireOrganizer();
+      lock: async (authorization) => {
+        const organizer = requireRecentOrganizer(authorization);
         if (!publicState)
           throw new Error("The prediction event has not opened.");
-        await lockPredictionEvent(organizer.functions, publicState);
+        await changePredictionStateInBrowser({
+          ...organizer,
+          state: publicState,
+          action: "lock",
+        });
       },
-      reopen: async () => {
-        const organizer = requireOrganizer();
+      reopen: async (authorization) => {
+        const organizer = requireRecentOrganizer(authorization);
         if (!publicState)
           throw new Error("The prediction event has not opened.");
-        await reopenPredictionEvent(organizer.functions, publicState);
+        await changePredictionStateInBrowser({
+          ...organizer,
+          state: publicState,
+          action: "reopen",
+        });
       },
-      resolve: async (code, correctOption) => {
-        const organizer = requireOrganizer();
+      resolve: async (authorization, correctOption) => {
+        const organizer = requireRecentOrganizer(authorization);
         if (!publicState || !privateConfig)
           throw new Error("The event state is incomplete.");
-        await resolveSpecialReveal(organizer.functions, {
-          code,
+        await resolveSpecialRevealInBrowser({
+          ...organizer,
+          state: publicState,
+          config: privateConfig,
           correctOption,
-          expectedStateRevision: publicState.revision,
-          expectedConfigRevision: privateConfig.revision,
         });
       },
-      correct: async (code, correctOption) => {
-        const organizer = requireOrganizer();
-        if (!publicState) throw new Error("The event state is incomplete.");
-        await correctSpecialRevealResolution(organizer.functions, {
-          code,
-          confirmation: "CORRECT RESULT",
+      correct: async (authorization, correctOption) => {
+        const organizer = requireRecentOrganizer(authorization);
+        if (!publicState || !privateConfig || !resolution)
+          throw new Error("The event state is incomplete.");
+        await correctSpecialRevealInBrowser({
+          ...organizer,
+          state: publicState,
+          config: privateConfig,
+          resolution,
           correctOption,
-          expectedStateRevision: publicState.revision,
-          expectedResolutionRevision: publicState.resolutionRevision,
         });
       },
-      reconcile: async () => {
-        const organizer = requireOrganizer();
-        if (!publicState) throw new Error("The event state is incomplete.");
-        await reconcilePredictionLedger(organizer.functions, publicState);
+      reconcile: async (authorization) => {
+        const organizer = requireRecentOrganizer(authorization);
+        if (!publicState || !privateConfig || !resolution)
+          throw new Error("The event state is incomplete.");
+        await reconcilePredictionLedgerInBrowser({
+          ...organizer,
+          state: publicState,
+          config: privateConfig,
+          resolution,
+        });
       },
     }),
     [
       auth.guest.status,
-      auth.organizer.status,
       connection,
       errorMessage,
       firebase.status,
+      isSpecialRevealOrganizer,
       malformedIds,
       opening,
       organizerState,
@@ -346,6 +381,7 @@ export function SpecialRevealProvider({ children }: { children: ReactNode }) {
       publicState,
       requireGuest,
       requireOrganizer,
+      requireRecentOrganizer,
       resolution,
       state,
     ],

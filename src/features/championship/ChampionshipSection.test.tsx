@@ -223,6 +223,36 @@ describe("realtime championship public experience", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("labels prediction awards as prediction events", () => {
+    const prediction = standing("player-1", "Alex", 3, 1);
+    const predictionAward = {
+      ...prediction.awards[0]!,
+      label: "Correct prediction",
+      awardType: "prediction-correct" as const,
+      sourceNamespace: "prediction" as const,
+      competitionId: null,
+      competitionTitle: null,
+      competitionFormat: null,
+      stage: null,
+    };
+    prediction.competitionPoints = 0;
+    prediction.predictionPoints = 3;
+    prediction.competitionsScored = 0;
+    prediction.contributions = [];
+    prediction.awards = [predictionAward];
+    prediction.recentAwards = [predictionAward];
+    setChampionship({ standings: [prediction] });
+
+    render(<ChampionshipSection />);
+
+    expect(
+      screen.getByText("Correct prediction · Prediction event"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Correct prediction · Organizer bonus"),
+    ).not.toBeInTheDocument();
+  });
+
   it("warns when a source is missing or malformed without crashing", () => {
     setChampionship({
       reconciliation: [

@@ -7,8 +7,8 @@ Each phase is a review gate, not only a task list. A phase starts only when its 
 Cross-cutting rules:
 
 - Keep game names as user data and use only `round-robin-knockout`, `all-hands`, and `group-knockout` as format identifiers.
-- Treat GitHub Pages as static delivery and Firebase as the authenticated state/backend boundary.
-- Add no sensitive reveal content, protected codes, exact address, or secrets to repository files, build output, fixtures, screenshots, logs, or client paths.
+- Treat GitHub Pages as static delivery and Firebase Authentication/Realtime Database/Rules as the shared-state and authorization boundary.
+- Add no sensitive reveal content, organizer passwords, exact address, or credentials to repository files, build output, fixtures, screenshots, logs, or client paths.
 - Display the complete 31 July–2 August 2026 range and only `Žižkov, Prague 3` as public accommodation information.
 - Use separate development and production Firebase projects; develop against the Emulator Suite wherever practical.
 - Derive championship totals from score entries. Never introduce a manually incremented total.
@@ -56,7 +56,7 @@ Cross-cutting rules:
 1. All eight required Markdown files exist and links resolve.
 2. The three exact identifiers and friendly labels are consistent across documents.
 3. Table points and championship points are separate; individual round wins award configurable championship points.
-4. Prediction scoring is backend-controlled, deterministic, and idempotent.
+4. Prediction scoring uses deterministic complete-source replacement and is idempotent.
 5. The full trip range, Friday/Saturday/Sunday roles, Saturday itinerary, free-attraction labels, delay strategy, and priority order match the approved brief.
 6. Public accommodation copy is `Žižkov, Prague 3`; no application source, scaffolding, credentials, exact address, or sensitive reveal detail exists.
 7. Each later phase includes measurable criteria, risks, and tests.
@@ -212,11 +212,11 @@ Cross-cutting rules:
 
 **Main technical risks:** Pairing/scheduling bugs; conflating rounds and matches; multi-way tiebreak ambiguity; correction fan-out; non-power-of-two brackets; two-admin score entry race.
 
-**Recommended tests:** Generator property tests over even/odd and randomized sizes; golden six-player fixture; scheduling invariant tests; series boundary table; standings/tiebreak fixtures; backend idempotency/rebuild tests; downstream invalidation tests; two-device live play rehearsal; Rules/admin tests.
+**Recommended tests:** Generator property tests over even/odd and randomized sizes; golden six-player fixture; scheduling invariant tests; series boundary table; standings/tiebreak fixtures; idempotency/rebuild tests; downstream invalidation tests; two-device live play rehearsal; Rules/admin tests.
 
 **Implemented tests/review:** Pure tests cover secure-random injection, participant counts 2/3/4/5/6/7/8/10/16, circle-method invariants, rest-aware ordering, single/best-of/first-to results, standings and unresolved ties, 2/4/6/8-seed brackets, byes, correction cascades, revisions, points, completion, reopen, and Realtime Database serialization normalization. Frontend tests cover activation gating, Control Room access, round-by-round entry, read-only live presentation, odd-field byes, offline/unconfigured/malformed states, and strong reopen confirmation. The 58-case Rules matrix covers runtime read/write roles, activation formats/states, snapshot and match validation, revisions, immutable fixtures, results/corrections, tie/bracket/completion/reopen/reset operations, append-only audit, and denial of deferred paths. Full cross-device rehearsal remains a Phase 11 hardening task.
 
-**Phase 4 boundary at completion:** Only `round-robin-knockout` executed at this gate. Phase 5 subsequently adds All Hands; Group Format, the global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
+**Phase 4 boundary at completion:** Only `round-robin-knockout` executed at this gate. Phase 5 subsequently adds All Hands; Group Format, the global score ledger, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
 
 ---
 
@@ -255,7 +255,7 @@ Cross-cutting rules:
 
 **Implemented tests/review:** Pure tests cover activation/config freezing, participant subsets, team membership and award expansion, all five result modes, shared/manual placements, opposite metric directions, secondary tiebreaks, decimals, permitted negative scores, custom bounds, repeated sessions, corrections, void/restore, fixed/open-ended completion, final tie ordering, completion/reopen, point breakdowns, and RTDB serialization quarantine. Frontend tests cover activation routing and frozen configuration while the shared competition regressions cover offline, malformed-runtime, public-read-only, Merry-Go-Round, and Group Format boundaries. The 65-case Rules matrix adds All Hands activation, session/result validation, correction, void/restore, atomic completion/reopen, immutable snapshots, and guest-write denial while preserving the complete Merry-Go-Round matrix. Full cross-device and production All Hands rehearsal remains a Phase 11 hardening task.
 
-**Phase 5 boundary at completion:** `round-robin-knockout` and `all-hands` executed at this gate. Phase 6 subsequently adds Group Format; the global score ledger, Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
+**Phase 5 boundary at completion:** `round-robin-knockout` and `all-hands` executed at this gate. Phase 6 subsequently adds Group Format; the global score ledger, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain unimplemented.
 
 ---
 
@@ -294,7 +294,7 @@ Cross-cutting rules:
 
 **Implemented tests/review:** Pure tests cover all automatic group-count boundaries, valid/invalid manual counts, injected deterministic shuffle, balanced assignments, group sizes 2–6 across one/two legs, reversed second-leg sides, interleaving, standings and exact-two head-to-head handling, explicit fingerprinted group/cross-group ties, qualification snapshots, normalized rank tiers, deterministic lower-tier rematch avoidance, golden A1–B2/B1–A2 pairings, BYEs, corrections, full-knockout invalidation, completion/reopen, points, and strict parser quarantine. Frontend tests cover the exact activation-preview handoff, Group Arena routing, persisted public draw/fixture/standings/points views, and guest read-only behavior. The 73-case emulator Rules matrix preserves all Phase 2–5 cases and adds Group activation/draw/group/result/qualification/seed/bracket/completion/reopen/reset, stale-write, malformed-field, and guest-write denial cases. Broader cross-device and production Group Format rehearsal remains Phase 11 hardening work.
 
-**Phase boundary:** All three competition formats execute in production. Cloud Functions, App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain outside Phase 6.
+**Phase boundary:** All three competition formats execute in production. App Check enforcement, private-message/prediction/reveal operations, and protected accommodation access remain outside Phase 6.
 
 ---
 
@@ -367,45 +367,46 @@ Cross-cutting rules:
 
 **Implemented tests/review:** Pure domain tests cover content normalization/bounds, receipts, moderation freshness, ordering normalization, named/anonymous snapshots, readiness, lifecycle, republish removal, and malformed quarantine. Frontend tests cover live guest states, form/preview, closed editing boundary, anonymous presentation, keyboard close, and organizer workspace access. The 154-case Rules matrix preserves every Phase 2–7 regression and adds 53 focused Birthday Vault authorization, privacy, revision, receipt, moderation, publication, audit, and deferred-path cases. Broader physical-device, multi-client, and production rehearsal remains Phase 11 hardening work.
 
-**Phase boundary:** Phase 8 introduces no Cloud Function, prediction data, special-reveal payload, protected code, scoring, App Check enforcement, or protected accommodation data. Phase 9 retains the trusted-backend boundary for prediction resolution and protected reveal publication.
+**Phase boundary:** Phase 8 introduces no prediction data, special-reveal payload, scoring, App Check enforcement, or protected accommodation data. Phase 9 defines its own dual-claim, recently reauthenticated browser boundary.
 
 ---
 
 ### Phase 9 — Prediction event and protected special reveal
 
-**Implementation status:** Complete in the repository. The neutral two-stage opening/resolution lifecycle, owner-scoped prediction/receipt writes, organizer Special Reveal workspace and private rehearsal, six Node.js 24 callable Functions, Secret Manager-backed code verification, persistent per-admin lockout, server-side publication/resolution/correction, deterministic prediction ledger, championship integration, default-deny Rules, and frontend/domain/Functions/emulator suites are implemented. Production verifier provisioning and Functions, Rules, and Pages deployment remain deliberate operator actions; no remote Firebase resource was modified by this implementation.
+**Implementation status:** Complete in the repository. The neutral two-stage opening/resolution lifecycle, owner-scoped prediction/receipt writes, organizer Special Reveal workspace and private rehearsal, Firebase password reauthentication, dedicated `specialRevealAdmin` claim, five-minute recent-auth Rules policy, browser-side atomic publication/resolution/correction, deterministic prediction ledger, championship integration, default-deny Rules, emergency local Admin SDK fallback, and frontend/domain/Rules suites are implemented. Rules and Pages deployment remain deliberate operator actions; no remote Firebase resource was modified by this implementation.
 
-**Goal:** Support one private neutral prediction per participant, backend-only reveal authorization/publication, and idempotent championship scoring.
+**Goal:** Support one private neutral prediction per participant, dual-claim recently reauthenticated reveal authorization/publication, and idempotent championship scoring on the zero-cost Firebase/GitHub Pages stack.
 
 **Inputs**
 
-- Phase 2 auth/rules; Phase 7 ledger; Phase 8 locked/reveal presentation pattern; reviewed neutral configuration; separately provisioned server-side verifier.
+- Phase 2 auth/rules; Phase 7 ledger; Phase 8 locked/reveal presentation pattern; reviewed neutral configuration; a designated Email/Password organizer with both required claims.
 
 **Outputs**
 
 - Dynamic safe labels with stored values only `option-a`/`option-b`.
 - Owner-scoped prediction create/update while open and organizer-controlled lock.
-- Callable protected opening, lock, reopen, resolution, correction, and ledger-reconciliation operations with admin claim, strict schemas, state/revision idempotency, protected verification where required, rate limiting, atomic publication/scoring, and audit.
+- Protected opening, lock, reopen, resolution, correction, and ledger reconciliation with password reauthentication, both custom claims, recent `auth_time`, strict schemas, revision-safe atomic publication/scoring, and neutral audit.
+- Trusted local Admin SDK recovery menu that reuses the same platform-neutral derivation and accepts credentials only from outside the repository.
 - Realtime neutral locked/published states, optional post-reveal aggregate, full-screen local replay.
 
-**Dependencies:** Satisfied in repository design. Production rollout still requires the Blaze plan, protected-code provisioning in Secret Manager, Functions service-account secret access, reviewed neutral content, Rules/Functions/frontend deployment in the documented order, and an operator smoke test.
+**Dependencies:** Satisfied in repository design. Production rollout requires claim provisioning, reviewed neutral content, Rules/frontend deployment in the documented order, and an operator rehearsal. No billing account or server deployment is required.
 
 **Acceptance criteria**
 
-1. A linked participant has at most one prediction and can replace it only while the event is `prediction-open`; private choices cannot be enumerated by another guest or organizer client.
+1. A linked participant has at most one prediction and can replace it only while the event is `prediction-open`; private choices cannot be enumerated by another guest or ordinary admin.
 2. The lock transition atomically prevents later writes, including stale/offline retries.
-3. Non-admin, invalid-condition, unlocked-event, stale-revision, and rate-limited reveal attempts make no public/ledger mutation. App Check enforcement is explicitly deferred to Phase 10.
-4. Successful call publishes only reviewed data, resolves predictions backend-side, and awards configured points (default 3) to correct selections.
+3. Missing/single claims, old authentication, wrong-password, invalid-condition, unlocked-event, and stale-revision attempts make no public/ledger mutation. App Check enforcement is explicitly deferred to Phase 10.
+4. A successful recent-auth browser operation publishes only reviewed data and atomically awards configured points (default 3) to correct selections.
 5. Each correct participant has at most one `prediction:{eventId}:{participantId}` logical score key; repeated same/new request IDs cannot duplicate points.
 6. Incorrect selections award 0 and cannot receive a stale/duplicate score.
-7. Connected clients update without refresh; replay makes no backend write.
-8. Repository, source maps, database export of public paths, logs, analytics, test fixtures, screenshots, names, and docs contain no protected prepublication content or code.
+7. Connected clients update without refresh; replay makes no database write.
+8. Repository, source maps, public database paths, logs, analytics, test fixtures, screenshots, names, and docs contain no protected prepublication content, credential, or actual label.
 
-**Main technical risks:** Secret leakage through build/log/error/metadata; resolving client-side; non-atomic partial publication; brute-force protected code; stale predictions crossing lock; duplicate trigger scoring.
+**Main technical risks:** Private content leakage through build/log/error/metadata; compromised reveal-organizer account or unlocked laptop; inspectable client calculation; non-atomic partial publication; stale predictions crossing lock; duplicate scoring.
 
-**Implemented tests/review:** The 199-case Rules matrix preserves all 154 Phase 2–8 cases and adds 45 focused Phase 9 privacy, ownership, receipt, lifecycle, backend-only, ledger, audit, schema, and default-deny cases. Functions domain and 13 callable emulator lifecycle tests cover verifier behavior, authorization, schemas, state/revision boundaries, lock/reopen, resolution/correction, atomic deterministic scoring, damaged-source reconciliation, retry no-ops, and persistent lockout. Frontend/domain tests cover parsing, locked/open/locked/resolved guest presentation, owner result visibility, organizer workspace access, all-neutral fixtures, and championship prediction totals. Physical-device, production, App Check, retention, load, alerting, and adversarial rollout remain Phase 10–11 work.
+**Implemented tests/review:** The Rules matrix preserves Phase 2–8 regressions and adds dual-claim/recent-auth privacy, ownership, receipt, lifecycle, public publication, ledger, audit, schema, and default-deny cases. Platform-neutral domain tests cover aggregate filtering, deterministic IDs/fingerprints, full-source replacement, correction, reconciliation, and retry no-ops. Frontend tests cover reauthentication/token refresh/password clearing, missing-role denial, confirmation/cancel/offline behavior, guest lifecycle presentation, owner result visibility, organizer workspace access, neutral fixtures, and championship totals. Physical-device, production, App Check, retention, load, alerting, and adversarial rollout remain Phase 10–11 work.
 
-**Phase boundary:** Phase 9 adds no App Check enforcement, general retention/deletion automation, protected accommodation data, analytics, or automated remote deployment. The Pages workflow validates Functions but deploys only `dist/`; Functions and Rules remain manual.
+**Phase boundary:** Phase 9 adds no App Check enforcement, general retention/deletion automation, protected accommodation data, analytics, or automated Rules deployment. The Pages workflow validates and deploys only the frontend `dist/`; Rules and claim provisioning remain manual. Phase 10 is not started.
 
 ---
 
@@ -415,12 +416,12 @@ Cross-cutting rules:
 
 **Inputs**
 
-- Feature-complete data paths/functions/rules; threat model; representative traffic; production Firebase project.
+- Feature-complete data paths and Rules; threat model; representative traffic; production Firebase project.
 
 **Outputs**
 
 - Complete least-privilege Rules and emulator suite; App Check monitoring then enforcement.
-- Final per-function rate limits, quotas, budget/abuse alerts, Secret Manager IAM, logging redaction.
+- Final abuse controls, quotas, operational alerts, credential handling, and logging redaction.
 - Dependency/action review, production Auth/domain configuration, data retention/deletion procedure.
 - Backup/export/restore runbook, admin provisioning/revocation runbook, incident/reveal recovery checklist.
 - Automated client-build/public-database sensitive-data scan.
@@ -430,16 +431,16 @@ Cross-cutting rules:
 **Acceptance criteria**
 
 1. Security matrix passes against emulators and a production-like staging project with root default deny.
-2. App Check is enforced on intended products/functions after legitimate-device monitoring shows readiness.
-3. Direct REST/SDK bypass attempts cannot perform an action meant for a callable function.
-4. Admin claim lifecycle, least-privilege function service accounts, Secret Manager access, allowed domains, and logging redaction are independently reviewed.
-5. Rate limits and budget alerts trigger in controlled tests without blocking the rehearsed normal flow.
+2. App Check is enforced on intended products after legitimate-device monitoring shows readiness.
+3. Direct REST/SDK bypass attempts cannot bypass Rules-authorized roles, recent authentication, lifecycle, or revision constraints.
+4. Admin/reveal-admin claim lifecycle, local Admin SDK credential handling, allowed domains, and logging redaction are independently reviewed.
+5. Abuse controls and alerts trigger in controlled tests without blocking the rehearsed normal flow.
 6. Backup restoration to an isolated project is demonstrated and reconciles source results/ledger.
 7. Exact address and protected reveal content remain absent from every public/client artifact and unauthorized response.
 
-**Main technical risks:** App Check blocking legitimate weekend devices; IAM overprivilege; false confidence in Firebase client config secrecy; rate limits too strict/loose; backups containing sensitive data without controls.
+**Main technical risks:** App Check blocking legitimate weekend devices; privileged credential overreach; false confidence in Firebase client config secrecy; abuse controls too strict/loose; backups containing sensitive data without controls.
 
-**Recommended tests:** Adversarial Rules tests; direct REST bypass; token replay/revocation; App Check valid/invalid; rate/abuse load; dependency/action audit; IAM review; log inspection; backup restore drill; OWASP-style client input/XSS review.
+**Recommended tests:** Adversarial Rules tests; direct REST bypass; token replay/revocation; App Check valid/invalid; abuse/load tests; dependency/action audit; privileged-credential review; log inspection; backup restore drill; OWASP-style client input/XSS review.
 
 ---
 
@@ -469,7 +470,7 @@ Cross-cutting rules:
 5. Initial load and realtime bandwidth meet agreed mobile budgets; listeners are scoped and cleaned up.
 6. Complete Friday, Saturday, Sunday departure summary, all three competition formats, birthday publication, prediction lock/reveal, ledger correction, and presentation runbook succeeds with synthetic protected content.
 7. Production deploy uses reviewed commit/artifacts, green CI, enforced Rules/App Check plan, backup, and a documented rollback point.
-8. A final scan confirms no sensitive content, protected code, exact address, credentials, or unintended source maps/public data.
+8. A final scan confirms no sensitive content, organizer password, exact address, credentials, or unintended source maps/public data.
 
 **Main technical risks:** Late animation regressions; effects replaying on reconnect; venue connectivity; device sleep/anonymous session loss; production-only configuration drift; an unrehearsed organizer correction during live play.
 
@@ -486,7 +487,7 @@ This order is an architecture decision, not permission to hard-code the engine t
 Production use is blocked until all of the following are true:
 
 - Phase 0 changes and all open security/product decisions marked production-blocking are approved.
-- Security Rules, callable authorization/idempotency, and privacy tests pass.
+- Security Rules, browser-operation idempotency, reauthentication, and privacy tests pass.
 - Organizer accounts/claims are provisioned and revocation is rehearsed.
 - Protected configuration and any restricted trip data are provisioned only out of band.
 - A current database backup exists and restore/rollback instructions are available offline to organizers.

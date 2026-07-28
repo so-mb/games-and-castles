@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-Phase 7 is complete, deployed, production-connected, and reconciled. The instructions below remain the operator runbook for a replacement environment or future source repair. Phase 8 implements Birthday Vault independently. Phase 9 now adds backend-owned prediction scoring and Special Reveal correction/reconciliation in the repository; production rollout remains manual. App Check and a final championship lock remain outside this phase.
+Phase 7 is complete, deployed, production-connected, and reconciled. The instructions below remain the operator runbook for a replacement environment or future source repair. Phase 8 implements Birthday Vault independently. Phase 9 adds recently reauthenticated dual-claim prediction scoring and Special Reveal correction/reconciliation in the repository; production rollout remains manual. App Check and a final championship lock remain outside this phase.
 
 ## Persisted paths
 
@@ -16,13 +16,13 @@ Phase 7 is complete, deployed, production-connected, and reconciled. The instruc
 /audit/{auditId}
 ```
 
-`competitionSources` and the active-only bonus projection are readable by authenticated guests. A prediction source becomes authenticated-readable only when its matching Special Reveal state is `resolved`. The complete bonus history is organizer-only, while prediction-source writes are Admin SDK-only. No mutable participant total, rank, recent-feed copy, or leaderboard cache is persisted.
+`competitionSources` and the active-only bonus projection are readable by authenticated guests. A prediction source becomes authenticated-readable only when its matching Special Reveal state is `resolved`. The complete bonus history is organizer-only. Prediction-source replacement requires `admin`, `specialRevealAdmin`, and a token authenticated within five minutes; the trusted local Admin SDK fallback is the emergency exception. No mutable participant total, rank, recent-feed copy, or leaderboard cache is persisted.
 
 ## Prediction normalization
 
 Resolution filters to submitted predictions whose owner/profile/active-participant linkage is still valid. Each correct selection maps to one `prediction-correct` entry with a deterministic ID and logical source identity `prediction:{eventId}:{participantId}`; incorrect or withdrawn selections map to no entry. The source fingerprint covers event/state/resolution identity and stable sorted entries, with award time fixed to the published resolution timestamp.
 
-Resolution and correction replace the complete prediction source in the same root transaction as public state/resolution and audit metadata. Reconciliation derives that source again from authoritative resolved data, verifies both metadata and the complete entry map, repairs damage when needed, and becomes a no-op once matched. No client can edit an individual prediction award.
+Resolution and correction replace the complete prediction source in the same root atomic update as public state/resolution and audit metadata. Reconciliation derives that source again from authoritative resolved data, verifies both metadata and the complete entry map, repairs damage when needed, and becomes a no-op once matched. No repository method can edit an individual prediction award.
 
 ## Competition normalization
 

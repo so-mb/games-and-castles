@@ -44,7 +44,7 @@ export function SpecialRevealRehearsal({
 
   return (
     <Modal
-      description="Private rehearsal only. These controls never write Firebase or invoke a callable."
+      description="Private rehearsal only. These controls never write to Firebase."
       onClose={() => {
         setPlaying(false);
         onClose();

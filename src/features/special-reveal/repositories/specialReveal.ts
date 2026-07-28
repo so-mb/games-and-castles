@@ -8,15 +8,24 @@ import {
   type Database,
   type Unsubscribe,
 } from "firebase/database";
-import { httpsCallable, type Functions } from "firebase/functions";
 import type {
   PredictionOption,
-  RevealCallableResult,
+  PredictionLedgerSnapshot,
+  RevealOperationResult,
   SpecialRevealConfigInput,
   SpecialRevealPrediction,
   SpecialRevealPrivateConfig,
+  SpecialRevealPublicResolution,
   SpecialRevealPublicState,
 } from "../domain/types";
+import {
+  buildCorrectRevealMutation,
+  buildOpenRevealMutation,
+  buildPredictionStateMutation,
+  buildReconcilePredictionMutation,
+  buildResolveRevealMutation,
+  type RevealUpdates,
+} from "../domain/operations";
 import {
   parsePrediction,
   parsePredictionLedgerSources,
@@ -281,92 +290,188 @@ export async function withdrawPrediction(input: {
   });
 }
 
-function callable<TRequest>(functions: Functions, name: string) {
-  return httpsCallable<TRequest, RevealCallableResult>(functions, name);
+function object(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
-export async function openSpecialReveal(
-  functions: Functions,
-  input: {
-    code: string;
-    expectedConfigRevision: number;
-    expectedStateRevision: null;
-  },
+async function applyRevealMutation(
+  database: Database,
+  mutation: { result: RevealOperationResult; updates: RevealUpdates | null },
 ) {
-  return (await callable<typeof input>(functions, "openSpecialReveal")(input))
-    .data;
+  if (mutation.updates) await update(ref(database), mutation.updates);
+  return mutation.result;
 }
 
-export async function lockPredictionEvent(
-  functions: Functions,
-  state: SpecialRevealPublicState,
-) {
-  return (
-    await callable<{ expectedStateRevision: number }>(
-      functions,
-      "lockPredictionEvent",
-    )({
-      expectedStateRevision: state.revision,
-    })
-  ).data;
+function parsePredictions(value: unknown) {
+  return Object.values(object(value))
+    .map(parsePrediction)
+    .filter((prediction) => prediction !== null);
 }
 
-export async function reopenPredictionEvent(
-  functions: Functions,
-  state: SpecialRevealPublicState,
-) {
-  return (
-    await callable<{ expectedStateRevision: number }>(
-      functions,
-      "reopenPredictionEvent",
-    )({
-      expectedStateRevision: state.revision,
-    })
-  ).data;
+async function loadResolutionInputs(database: Database, eventId: string) {
+  const [
+    configSnapshot,
+    stateSnapshot,
+    predictionsSnapshot,
+    participantsSnapshot,
+    profilesSnapshot,
+    resolutionSnapshot,
+    sourceSnapshot,
+  ] = await Promise.all([
+    get(ref(database, "specialReveal/privateConfig")),
+    get(ref(database, "specialReveal/publicState")),
+    get(ref(database, "specialReveal/predictions")),
+    get(ref(database, "participants")),
+    get(ref(database, "userProfiles")),
+    get(ref(database, "specialReveal/publicResolution")),
+    get(ref(database, `championshipLedger/predictionSources/${eventId}`)),
+  ]);
+  const config = parseSpecialRevealPrivateConfig(configSnapshot.val());
+  const state = parseSpecialRevealPublicState(stateSnapshot.val());
+  if (!config || !state)
+    throw new Error("The protected reveal data is incomplete or malformed.");
+  const resolution = parseSpecialRevealPublicResolution(
+    resolutionSnapshot.val(),
+  );
+  const parsedSources = parsePredictionLedgerSources(
+    sourceSnapshot.exists() ? { [eventId]: sourceSnapshot.val() } : null,
+  );
+  return {
+    config,
+    state,
+    predictions: parsePredictions(predictionsSnapshot.val()),
+    participants: object(participantsSnapshot.val()),
+    profiles: object(profilesSnapshot.val()),
+    resolution,
+    currentSource:
+      (parsedSources.sources[0] as PredictionLedgerSnapshot | undefined) ??
+      null,
+  };
 }
 
-export async function resolveSpecialReveal(
-  functions: Functions,
-  input: {
-    code: string;
-    correctOption: PredictionOption;
-    expectedStateRevision: number;
-    expectedConfigRevision: number;
-  },
-) {
-  return (
-    await callable<typeof input>(functions, "resolveSpecialReveal")(input)
-  ).data;
+export async function openSpecialRevealInBrowser(input: {
+  database: Database;
+  uid: string;
+  expectedConfigRevision: number;
+}) {
+  const [configSnapshot, stateSnapshot] = await Promise.all([
+    get(ref(input.database, "specialReveal/privateConfig")),
+    get(ref(input.database, "specialReveal/publicState")),
+  ]);
+  const config = parseSpecialRevealPrivateConfig(configSnapshot.val());
+  const state = parseSpecialRevealPublicState(stateSnapshot.val());
+  if (!config)
+    throw new Error("Save a valid protected configuration before opening.");
+  return applyRevealMutation(
+    input.database,
+    buildOpenRevealMutation({
+      config,
+      state,
+      expectedConfigRevision: input.expectedConfigRevision,
+      actorUid: input.uid,
+      auditId: pushKey(input.database, "audit"),
+      now: Date.now(),
+    }),
+  );
 }
 
-export async function correctSpecialRevealResolution(
-  functions: Functions,
-  input: {
-    code: string;
-    confirmation: "CORRECT RESULT";
-    correctOption: PredictionOption;
-    expectedStateRevision: number;
-    expectedResolutionRevision: number;
-  },
-) {
-  return (
-    await callable<typeof input>(
-      functions,
-      "correctSpecialRevealResolution",
-    )(input)
-  ).data;
+export async function changePredictionStateInBrowser(input: {
+  database: Database;
+  uid: string;
+  state: SpecialRevealPublicState;
+  action: "lock" | "reopen";
+}) {
+  return applyRevealMutation(
+    input.database,
+    buildPredictionStateMutation({
+      state: input.state,
+      expectedStateRevision: input.state.revision,
+      action: input.action,
+      actorUid: input.uid,
+      auditId: pushKey(input.database, "audit"),
+      now: Date.now(),
+    }),
+  );
 }
 
-export async function reconcilePredictionLedger(
-  functions: Functions,
-  state: SpecialRevealPublicState,
-) {
-  return (
-    await callable<{ expectedStateRevision: number }>(
-      functions,
-      "reconcilePredictionLedger",
-    )({
-      expectedStateRevision: state.revision,
-    })
-  ).data;
+export async function resolveSpecialRevealInBrowser(input: {
+  database: Database;
+  uid: string;
+  state: SpecialRevealPublicState;
+  config: SpecialRevealPrivateConfig;
+  correctOption: PredictionOption;
+}) {
+  const source = await loadResolutionInputs(
+    input.database,
+    input.config.eventId,
+  );
+  return applyRevealMutation(
+    input.database,
+    buildResolveRevealMutation({
+      ...source,
+      correctOption: input.correctOption,
+      expectedStateRevision: input.state.revision,
+      expectedConfigRevision: input.config.revision,
+      actorUid: input.uid,
+      auditId: pushKey(input.database, "audit"),
+      now: Date.now(),
+    }),
+  );
+}
+
+export async function correctSpecialRevealInBrowser(input: {
+  database: Database;
+  uid: string;
+  state: SpecialRevealPublicState;
+  config: SpecialRevealPrivateConfig;
+  resolution: SpecialRevealPublicResolution;
+  correctOption: PredictionOption;
+}) {
+  const source = await loadResolutionInputs(
+    input.database,
+    input.config.eventId,
+  );
+  if (!source.resolution)
+    throw new Error("The published resolution is unavailable.");
+  return applyRevealMutation(
+    input.database,
+    buildCorrectRevealMutation({
+      ...source,
+      currentResolution: source.resolution,
+      correctOption: input.correctOption,
+      expectedStateRevision: input.state.revision,
+      expectedResolutionRevision: input.resolution.resolutionRevision,
+      actorUid: input.uid,
+      auditId: pushKey(input.database, "audit"),
+      now: Date.now(),
+    }),
+  );
+}
+
+export async function reconcilePredictionLedgerInBrowser(input: {
+  database: Database;
+  uid: string;
+  state: SpecialRevealPublicState;
+  config: SpecialRevealPrivateConfig;
+  resolution: SpecialRevealPublicResolution;
+}) {
+  const source = await loadResolutionInputs(
+    input.database,
+    input.config.eventId,
+  );
+  if (!source.resolution)
+    throw new Error("The published resolution is unavailable.");
+  return applyRevealMutation(
+    input.database,
+    buildReconcilePredictionMutation({
+      ...source,
+      resolution: source.resolution,
+      expectedStateRevision: input.state.revision,
+      actorUid: input.uid,
+      auditId: pushKey(input.database, "audit"),
+      now: Date.now(),
+    }),
+  );
 }

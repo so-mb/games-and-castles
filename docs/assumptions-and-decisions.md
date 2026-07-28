@@ -13,18 +13,18 @@ This document records decisions without describing, naming, or inferring protect
 
 | ID | Confirmed decision | Rationale / consequence |
 |---|---|---|
-| CR-01 | GitHub Pages hosts only the static frontend. | Pages has no trusted server runtime. Authentication, shared state, authorization, protected operations, and secrets belong in Firebase/Google Cloud. Client assets are always inspectable. |
+| CR-01 | GitHub Pages hosts only the static frontend. | Pages has no trusted server runtime. Authentication, shared state, authorization, and protected data access belong in Firebase Auth/Realtime Database/Rules. Client assets and procedures are always inspectable. |
 | CR-02 | Firebase Realtime Database is the shared-state store. | The product has modest, tree-shaped live state and needs fast updates across phones for matches, standings, participant lists, counts, and publication. RTDB listeners and atomic multi-location writes fit this event-oriented weekend better than polling. Data must be denormalized carefully and listeners scoped. |
 | CR-03 | Guests use Firebase Anonymous Authentication. | It gives each device a UID for ownership/rules without adding account-creation friction during a private weekend. It does not prove identity and needs a participant-link/duplicate policy. |
-| CR-04 | Organizers use persistent sign-in and a Firebase custom claim. | A server-issued claim is enforceable in Rules/functions. The only role check is `auth.token.admin === true`; display names, emails in client code, PIN UI, or database booleans do not authorize. |
+| CR-04 | Organizers use persistent sign-in and Firebase custom claims. | Server-issued claims are enforceable in Rules. General organizer access requires `auth.token.admin === true`; protected reveal access additionally requires `specialRevealAdmin === true`. Display names, client-side email checks, PIN UI, or database booleans do not authorize. |
 | CR-05 | The application is mobile-first. | Participants primarily use phones during travel and live play. It affects content order, touch targets, score entry, bracket views, connectivity feedback, and performance budgets. Desktop remains important for organizer/presentation use. |
 | CR-06 | Competition formats are generic. | User-entered game names remain data, allowing different games without engine forks or trademark-specific rules. Only the three exact format identifiers select behavior. |
 | CR-07 | Overall totals are ledger-derived. | Individual entries make scoring explainable, idempotent, correctable, auditable, and rebuildable. A manually incremented total drifts under retries/corrections and cannot explain points. |
 | CR-08 | Individual round wins contribute to the overall championship. | Close losses still contribute and individual series rounds matter. These awards are separate from standings table points and configurable per competition. |
 | CR-09 | Confirmed fixture and group orders are persisted once. | All devices must share one official draw/order. Regenerating on render/reconnect creates disagreement and can erase the meaning of existing results. Reset is explicit, destructive, and audited. |
 | CR-10 | Result correction triggers full affected recalculation. | Standings, qualification, bracket dependencies, score entries, leaderboard, and read caches must reflect the authoritative corrected result. Adding manual compensation alone would leave invalid derived state. |
-| CR-11 | Sensitive reveal content is backend-only before publication. | Anything in React, Vite variables, public database paths, CSS, source maps, logs, examples, names, or repository history can be inspected. Cloud Functions must authorize, verify protected conditions, publish, and resolve. |
-| CR-12 | Prediction scoring is backend-controlled and idempotent. | Clients cannot know/decide the protected outcome authoritatively. The key `prediction:{eventId}:{participantId}` ensures retries never award twice. |
+| CR-11 | Sensitive reveal content is restricted Firebase data before publication. | Anything in React, Vite variables, public database paths, CSS, source maps, logs, examples, names, or repository history can be inspected. Dual-claim Rules protect private configuration; only the recently reauthenticated reveal organizer may publish. |
+| CR-12 | Prediction scoring is reveal-organizer-controlled and idempotent. | The privileged browser selects the outcome only during resolution and replaces a complete deterministic source. The key `prediction:{eventId}:{participantId}` ensures retries never award twice. |
 | CR-13 | Public accommodation information is limited to `Žižkov, Prague 3`; the exact address is excluded from the static application and repository. | A hidden frontend button is not security. The exact address must not appear in client data, mock data, public examples, or commits. A later authenticated implementation may retrieve it from restricted Firebase data after separate authorization review. |
 | CR-14 | Private birthday submissions are not downloaded to other guests. | Security is path- and Rules-based, not client filtering. Publication creates a separate approved snapshot; the public count derives only from identity-free receipts. |
 | CR-15 | The first implementation vertical slice prioritizes `round-robin-knockout`. | It exercises the shared hard parts early: generation, persistence, series, standings, tiebreaks, brackets, round scoring, corrections, audit, and live synchronization. Later formats reuse those primitives. |
@@ -60,11 +60,11 @@ This document records decisions without describing, naming, or inferring protect
 | CR-45 | Public correction visibility shows only current valid awards plus a verification warning for missing/stale/malformed sources. | This resolves OD-12 without exposing confusing before-values or pretending the current-award view is immutable history. |
 | CR-46 | Birthday Vault uses one UID-keyed message, an immutable opaque publication UUID, named/anonymous display, current-revision moderation, and sanitized full-set publication. | Guests can edit or withdraw only while collecting; edits stale prior approval; hidden/withdrawn entries do not publish; anonymous snapshots contain no participant or owner identity. This resolves former OD-13 except the general production retention policy retained in OD-19. |
 | CR-47 | Birthday Vault lifecycle is unopened, `collecting`, `closed`, then irreversibly `revealed`; a revealed vault may only republish a new complete snapshot revision. | Organizer authentication plus revision-checked Rules authorize transitions. Replay is local-only, and the exact non-secret confirmation phrase `REVEAL` prevents accidental publication. |
-| CR-48 | Organizers do not receive an individual-prediction browser view; before resolution, clients expose only the owner's selection and identity-free active receipts. | This resolves OD-14 with the least-privilege product behavior. The total active count may be shown, but the option distribution is published only as part of the backend resolution. |
+| CR-48 | The UI has no casual individual-prediction view; before resolution, ordinary clients expose only the owner's selection and identity-free active receipts. | This resolves OD-14 with the least-privilege product behavior. A recently reauthenticated reveal organizer can read the collection to resolve it; the option distribution becomes public only with resolution. |
 | CR-49 | Reviewed dynamic prompt and option labels remain organizer-only until the protected opening operation publishes them. | This resolves OD-15. Persisted selections and developer-facing fixtures remain `option-a` / `option-b`; no label or unselected resolution payload is returned before its lifecycle boundary. |
-| CR-50 | Protected Special Reveal opening, resolution, and correction require an organizer custom claim and a Secret Manager-backed, versioned scrypt verifier. Five failed attempts in 15 minutes lock that organizer for 15 minutes. | This resolves OD-16. The client submits a code only to callable Functions; neither the code nor verifier enters Vite data, Realtime Database public paths, logs, audit, GitHub Actions, or repository files. |
-| CR-51 | The Phase 9 lifecycle is unopened, `prediction-open`, `prediction-locked`, then `resolved`; lock may reopen before resolution, while resolution correction keeps predictions locked. | Backend transactions enforce one-step revisions. Resolution/correction atomically replace the selected public payload and complete deterministic prediction-ledger source. |
-| CR-52 | Phase 9 App Check hooks remain unenforced until Phase 10 monitoring and rollout. | Authentication, the admin custom claim, strict callable schemas, revision/state checks, the protected verifier, rate limiting, default-deny Rules, and Admin SDK validation are enforced now; App Check remains defense in depth rather than a Phase 9 completion claim. |
+| CR-50 | Protected Special Reveal actions require both `admin` and `specialRevealAdmin`, Firebase password reauthentication, and a token with `auth_time` no more than five minutes old. | There is no app-specific reveal credential or custom browser limiter. The password is cleared before persistence; Rules independently enforce claims, recent authentication, transitions, revisions, shapes, and bounds. |
+| CR-51 | The Phase 9 lifecycle is unopened, `prediction-open`, `prediction-locked`, then `resolved`; lock may reopen before resolution, while correction keeps predictions locked. | Recent-auth browser mutations and Rules enforce one-step revisions. Resolution/correction atomically replace the selected public payload and complete deterministic prediction-ledger source. |
+| CR-52 | Phase 9 App Check remains deferred until Phase 10 monitoring and rollout. | Authentication, both claims, password reauthentication, recent-auth Rules, revision/state checks, strict schemas, and atomic updates are enforced now; App Check remains defense in depth rather than a Phase 9 completion claim. |
 
 ## 3. Required terminology
 
@@ -86,7 +86,7 @@ Do not create aliases for the format identifiers in persisted data. Friendly lab
 | RD-01 | Round-robin table points: win 3, loss 0, supported draw 1 | Organizer before competition start | Familiar qualification model, separate from weekend points |
 | RD-02 | Championship: match win 2, individual round win 1 | Organizer before start | Rewards both overall result and round performance |
 | RD-03 | Completed-match participation bonus 0/off | Organizer before start | Avoids inflating totals unless participation is intentionally rewarded |
-| RD-04 | Correct prediction 3 championship points | Organizer before event opens | Meaningful but bounded contribution; backend-awarded |
+| RD-04 | Correct prediction 3 championship points | Reveal organizer before event opens | Meaningful but bounded contribution; atomically awarded from frozen configuration |
 | RD-05 | Six-player Merry-Go-Round qualifies top four: 1v4, 2v3, final, optional third place | Organizer in competition config | Clear seeded structure after complete league play |
 | RD-06 | Six-player Group Format uses two groups of three, top two, A1vB2/B1vA2 | Organizer in competition config | Balanced groups and cross-group semifinals |
 | RD-07 | Automatic groups: 4–5 one; 6–8 two; 9–12 three; 13–16 four | Organizer may choose validated manual count | Keeps groups practical and within one participant in size |
@@ -120,7 +120,7 @@ Phases 1–7 are deployed, production-connected, and reconciled. Phases 8–9 ar
 
 ## 6. Technical architecture decisions
 
-### AD-01 — Static frontend, managed backend
+### AD-01 — Static frontend, Firebase-managed services
 
 **Decision:** Deploy React assets to GitHub Pages; use Firebase services for all shared/authorized behavior.
 
@@ -154,11 +154,11 @@ Phases 1–7 are deployed, production-connected, and reconciled. Phases 8–9 ar
 
 ### AD-05 — Trusted publication snapshots
 
-**Decision:** Protected prepublication content is copied by a trusted function into a separate sanitized public snapshot only at publication. Phase 8 Birthday Vault publication is the narrowly documented exception in AD-14 because the authorized organizer already has permission to read every source message and Rules can validate the bounded snapshot operation without hidden knowledge.
+**Decision:** Protected prepublication content remains on restricted paths and is copied into a separate sanitized public snapshot only at publication. Phase 8 uses an admin-claim organizer; Phase 9 uses the recently reauthenticated dual-claim reveal organizer documented in AD-15.
 
 **Reason:** Toggling a boolean beside already-public data does not prevent prior reads/downloads.
 
-**Consequences:** Protected special-reveal publication remains an idempotent backend workflow. Birthday Vault presentation replay likewise reads a published snapshot without mutation, but its publication authority is defined separately in AD-14.
+**Consequences:** Special Reveal publication is one idempotent, Rules-validated root update. Birthday Vault presentation replay likewise reads a published snapshot without mutation, but its authority is defined separately in AD-14.
 
 ### AD-06 — Revision-based multi-admin control
 
@@ -166,7 +166,7 @@ Phases 1–7 are deployed, production-connected, and reconciled. Phases 8–9 ar
 
 **Reason:** Last-write-wins can erase another organizer's result or lock state.
 
-**Consequences:** Conflicts require explicit UI. Phase 3 configuration writes and Phase 4–5 competition runtime writes use Rules-enforced revision increments, atomic multi-path updates, and audit records. Merry-Go-Round and All Hands are compare-and-set rather than last-write-wins: stale runtime, match, session, or result revisions are denied and reloaded. Later ledger/private operations add backend idempotent request handling where retries could create cross-path awards or protected publication.
+**Consequences:** Conflicts require explicit UI. Configuration, competition runtime, ledger, Birthday Vault, and Special Reveal writes use Rules-enforced revision increments, atomic multi-path updates, and audit records. Stale runtime, match, session, result, or reveal revisions are denied and reloaded; complete-source replacement makes retries idempotent.
 
 ### AD-07 — Phase 1 is a typed, anchor-based static shell
 
@@ -188,7 +188,7 @@ Phases 1–7 are deployed, production-connected, and reconciled. Phases 8–9 ar
 
 **Decision:** Implement the current competition slice at `/competitionDrafts/{competitionId}`, `/competitions/{competitionId}`, and `/audit/{auditId}`. Drafts and audit history are organizer-readable; authenticated guests may read published competition records. Only `auth.token.admin === true` may mutate these branches. Phase 3 configuration operations use atomic Realtime Database multi-location writes and revision preconditions directly from the organizer client.
 
-**Reason:** These paths extend the flat Phase 2 participant/profile schema without prematurely creating the later full `/public`, `/organizer`, and `/backend` hierarchy. Competition configuration is public-safe after publication and has no trusted scoring, generated state, private submission, or protected reveal payload. A Cloud Function would add no authority beyond the Rules for this bounded slice.
+**Reason:** These paths extend the flat Phase 2 participant/profile schema without prematurely creating a later `/public` and `/organizer` hierarchy. Competition configuration is public-safe after publication and has no trusted scoring, generated state, private submission, or protected reveal payload; the Rules provide the required authority for this bounded slice.
 
 **Consequences:** Publishing atomically creates the scheduled record, removes its draft, and appends safe audit metadata. Reordering is part of versioned competition state, so each affected record advances its revision. Configuration readers reject malformed/unsupported records, guest UI filters archived records, and privileged writes are disabled offline. AD-10 supersedes only the former Phase 4 runtime reservation; ledger and protected publication paths remain denied.
 
@@ -196,9 +196,9 @@ Phases 1–7 are deployed, production-connected, and reconciled. Phases 8–9 ar
 
 **Decision:** Store the complete Merry-Go-Round runtime at `/competitionRuns/{competitionId}`. Pure TypeScript functions derive the next runtime from authoritative source results; the organizer client submits one atomic update across runtime, competition status when needed, and append-only audit entries. Realtime Database Rules authorize only `auth.token.admin === true` and enforce legal state, schema, immutable snapshot/fixture fields, participant/result shapes, and one-step revisions. Authenticated guests receive read-only runtime subscriptions through the isolated guest Firebase client.
 
-**Reason:** The Phase 4 data is public-safe to authenticated trip participants, deterministic, bounded to one competition, and fully verifiable through version/state/shape Rules. A callable would not add hidden knowledge for this slice. Keeping generation, standings, bracket progression, correction, and points derivation pure makes retries, tests, future migration, and Phase 7 reuse explainable.
+**Reason:** The Phase 4 data is public-safe to authenticated trip participants, deterministic, bounded to one competition, and fully verifiable through version/state/shape Rules. Keeping generation, standings, bracket progression, correction, and points derivation pure makes retries, tests, future migration, and Phase 7 reuse explainable.
 
-**Consequences:** Phase 4 production mutation depended on separately deploying its version-controlled Rules; that deployment is now complete. Two organizer devices cannot silently overwrite one another; the loser receives an actionable stale-state conflict. Runtime adapters quarantine malformed data and normalize RTDB-omitted nulls. Audit is compact and organizer-authored. AD-11 and AD-12 subsequently authorize the All Hands and Group Format runtime branches; persisted standings, the global ledger, Cloud Functions, App Check changes, private submissions, predictions, reveals, and protected trip-data access remain unauthorized.
+**Consequences:** Phase 4 production mutation depended on separately deploying its version-controlled Rules; that deployment is now complete. Two organizer devices cannot silently overwrite one another; the loser receives an actionable stale-state conflict. Runtime adapters quarantine malformed data and normalize RTDB-omitted nulls. Audit is compact and organizer-authored. AD-11 and AD-12 subsequently authorize the All Hands and Group Format runtime branches; persisted standings, the global ledger, App Check changes, private submissions, predictions, reveals, and protected trip-data access remained unauthorized at that phase gate.
 
 ### AD-11 — Phase 5 format-discriminated All Hands runtime
 
@@ -206,7 +206,7 @@ Phases 1–7 are deployed, production-connected, and reconciled. Phases 8–9 ar
 
 **Reason:** All Hands execution data is public-safe to authenticated trip participants, bounded to one competition, and deterministic from frozen configuration plus raw session results. A discriminated runtime preserves the deployed Merry-Go-Round path and avoids a duplicate public copy or prematurely introducing the Phase 7 ledger.
 
-**Consequences:** Team awards are `each-member`; shared places use competition ranking; numeric labels/directions are generic; custom points are bounded and contain no executable formula. Corrections replace source results and rederive all totals, while void/restore and new results invalidate stale final tie decisions. Completed runs reject ordinary session mutations until an explicit atomic reopen. The Phase 5 Rules are deployed and production-tested. AD-12 subsequently authorizes Group Format; global ledger persistence, Cloud Functions, App Check changes, private submissions, predictions, reveals, and protected trip data remain unauthorized.
+**Consequences:** Team awards are `each-member`; shared places use competition ranking; numeric labels/directions are generic; custom points are bounded and contain no executable formula. Corrections replace source results and rederive all totals, while void/restore and new results invalidate stale final tie decisions. Completed runs reject ordinary session mutations until an explicit atomic reopen. The Phase 5 Rules are deployed and production-tested. AD-12 subsequently authorizes Group Format; global ledger persistence, App Check changes, private submissions, predictions, reveals, and protected trip data remained unauthorized at that phase gate.
 
 ### AD-12 — Phase 6 frozen Group Format draw and qualification runtime
 
@@ -226,11 +226,19 @@ Phases 1–7 are deployed, production-connected, and reconciled. Phases 8–9 ar
 
 ### AD-14 — Phase 8 Rules-validated Birthday Vault publication
 
-**Decision:** Store Birthday Vault state, sanitized receipts, owner-private messages, organizer-only moderation, and sanitized published snapshots below `/birthdayVault`. Guest submission/withdrawal atomically writes the owner's message and matching opaque receipt. An admin-claim organizer client re-reads and validates the current private/moderation set, then atomically replaces the complete published set with public state and append-only audit metadata. No Cloud Function is added for Phase 8.
+**Decision:** Store Birthday Vault state, sanitized receipts, owner-private messages, organizer-only moderation, and sanitized published snapshots below `/birthdayVault`. Guest submission/withdrawal atomically writes the owner's message and matching opaque receipt. An admin-claim organizer client re-reads and validates the current private/moderation set, then atomically replaces the complete published set with public state and append-only audit metadata.
 
 **Reason:** Birthday publication has no server-only outcome, protected code, or hidden payload: the organizer is already authorized to read the source messages and decide moderation. Default-deny Rules can enforce owner/profile linkage, immutable publication identity, lifecycle/revision boundaries, receipt coupling, published shape, admin authorization, and the atomic state/snapshot boundary. Runtime readiness additionally blocks pending, stale, malformed, duplicate, offline, or missing-profile publication cases that Realtime Database Rules cannot safely quantify across arbitrary sibling collections.
 
-**Consequences:** One owner UID has one retained record and one stable UUID across edit/withdraw/resubmit. Other guests can read only public state, identity-free receipts, and revealed snapshots. Anonymous snapshots omit owner and participant identity. Approval becomes stale after a message revision. Reveal requires exact `REVEAL` confirmation and is irreversible; republish replaces the full set and advances `revealRevision`. Prediction resolution and the protected special reveal remain Phase 9 trusted-backend work and are not covered by this exception.
+**Consequences:** One owner UID has one retained record and one stable UUID across edit/withdraw/resubmit. Other guests can read only public state, identity-free receipts, and revealed snapshots. Anonymous snapshots omit owner and participant identity. Approval becomes stale after a message revision. Reveal requires exact `REVEAL` confirmation and is irreversible; republish replaces the full set and advances `revealRevision`. AD-15 defines the separate Phase 9 reveal boundary.
+
+### AD-15 — Phase 9 browser-first protected reveal
+
+**Decision:** Use Firebase Email/Password reauthentication plus `admin === true`, `specialRevealAdmin === true`, and a five-minute `auth_time` Rules window for protected reveal operations. The privileged organizer browser reads restricted configuration/predictions, reuses platform-neutral deterministic derivation, and submits one root atomic update. A local Admin SDK menu using credentials outside the repository is the emergency fallback.
+
+**Reason:** This preserves the protected lifecycle, private predictions, deterministic points, correction, reconciliation, and realtime presentation using the free Authentication and Realtime Database products. A second app-specific browser credential would be inspectable and provide false security.
+
+**Consequences:** The browser procedure is inspectable and the dual-claim organizer device is trusted to compute aggregates. Rules cannot recompute an arbitrary collection aggregate, but they independently enforce both claims, recent authentication, legal transitions, revisions, event relationships, strict shapes, configured point bounds, deterministic source structure where maintainable, and append-only audit. The password is never persisted or passed to database repositories. Ordinary admins cannot access private reveal data or controls. There is no custom password-attempt store; App Check and broader abuse policy remain deferred.
 
 ## 7. Assumptions currently used by the specification
 
@@ -271,7 +279,7 @@ Any change to scoring, qualification, reveal privacy, address access, roles, pub
 1. organizer approval;
 2. update to the relevant Phase 0 document and this register;
 3. migration/recalculation impact analysis for existing data;
-4. Security Rules/function/test updates where applicable;
+4. Security Rules and test updates where applicable;
 5. an audited administrative operation if live data changes.
 
 Visual copy and minor layout changes do not require an architecture decision unless they expose protected information, change accessible meaning, imply a new state transition, or contradict the approved itinerary/rules.

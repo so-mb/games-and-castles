@@ -4,7 +4,7 @@
 
 Games & Castles is a private, mobile-first, one-page web experience for 31 July–2 August 2026 that keeps a group weekend understandable, competitive, and celebratory. Friday is a flexible game night in Germany, Saturday is the scheduled Prague Quest, and Sunday is departure and onward travel. It combines the calm editorial feel of a premium European travel journal with the energy of an arcade tournament. Connected devices share live competition results, standings, participant changes, predictions, and published reveals while organizers retain control over consequential actions.
 
-The application is a static React frontend hosted on GitHub Pages. Firebase provides authentication, authorized writes, realtime data, protected operations, and server-side scoring. This boundary is fundamental: GitHub Pages distributes public client assets; it is not a trusted backend.
+The application is a static React frontend hosted on GitHub Pages. Firebase provides authentication, authorized realtime data, and Rules-enforced protected operations. GitHub Pages distributes inspectable client assets; it cannot protect content or grant authority. Phase 9 intentionally trusts the recently reauthenticated dual-claim reveal-organizer browser to derive aggregates while Rules independently enforce the write boundary.
 
 ### High-level architecture diagram
 
@@ -16,9 +16,9 @@ flowchart LR
     O <-->|"Auth + realtime SDK"| F
     F --> A["Authentication"]
     F --> R["Realtime Database"]
-    O -->|"Callable protected action"| C["Cloud Functions"]
-    C -->|"Verify admin claim and protected condition"| S["Secret Manager / backend-only data"]
-    C -->|"Atomic publish, resolve, score, audit"| R
+    O -->|"Password reauthentication"| A
+    O -->|"Dual-claim recent-auth atomic operation"| R
+    R -->|"Rules verify claims, auth_time, state, revisions"| R
     CI["GitHub Actions"] -->|"Build and deploy frontend"| P
 ```
 
@@ -31,7 +31,8 @@ See [security-model.md](security-model.md) for trust boundaries and [data-model.
 | Guest | A weekend participant authenticated anonymously on one device | Join, see plans and public state, play, submit messages and predictions, understand points |
 | Organizer | A persistently signed-in user with `auth.token.admin === true` | Configure competitions, control results and locks, moderate content, trigger protected operations, recover from mistakes |
 | Presenter | Usually an organizer using a shared display | Run full-screen reveals, brackets, podiums, and leaderboards without exposing controls |
-| Backend | Trusted Cloud Functions and Admin SDK | Publish protected data, resolve predictions, create idempotent ledger entries, write audit records |
+| Reveal organizer | Organizer with `admin`, `specialRevealAdmin`, and recent password authentication | Publish protected data, resolve predictions, create idempotent ledger entries, write neutral audit records |
+| Local fallback operator | Trusted Admin SDK credential stored outside the repository | Emergency inspection and recovery using the same deterministic domain logic |
 
 Anonymous guests are not inherently anonymous to the application: each session has a Firebase UID and may be linked to one participant. A participant is a domain record; a Firebase user is an authenticated actor.
 
@@ -55,7 +56,7 @@ Anonymous guests are not inherently anonymous to the application: each session h
 3. Preview and confirm generated fixtures/groups, then persist one shared order.
 4. Start, record, correct, lock, and archive competitions; derived scores are recalculated on correction.
 5. Review and moderate birthday submissions, then publish an approved snapshot.
-6. Lock predictions, confirm the reveal, satisfy the protected backend check, and invoke the callable operation.
+6. Lock predictions, reauthenticate the current organizer account, confirm the action phrase, and execute the atomic reveal operation.
 7. Review audit history and recover safely from stale or conflicting edits.
 
 ## 4. Experience model
@@ -127,25 +128,25 @@ sequenceDiagram
     O->>O: Replay presentation locally (no republish)
 ```
 
-Phase 8 intentionally uses no Cloud Function. Organizer authentication and strict Realtime Database Rules authorize and validate the bounded atomic operation because the organizer already has permission to read the source messages and no protected server-only outcome is involved. This exception does not apply to prediction resolution or the protected special reveal in section 4.6.
+Organizer authentication and strict Realtime Database Rules authorize and validate the bounded Phase 8 atomic operation because the organizer already has permission to read the source messages and no hidden outcome is involved. Section 4.6 adds a stronger role and recent-auth boundary for prediction resolution and the protected Special Reveal.
 
 ### 4.6 Special Reveal
 
 The section uses neutral terminology and a neutral locked state. Each linked participant can submit one selection, stored as `option-a` or `option-b`; reviewed user-facing labels are published dynamically with the opening. The participant can overwrite or withdraw their own selection only while `prediction-open`. Other guests and organizer clients cannot read individual selections. An identity-free total may be shown before resolution; the option distribution publishes only with the final result.
 
-The organizer first saves private configuration and uses a protected callable to publish the reviewed opening. The organizer later locks predictions, provides the protected organizer code, and calls the resolution Function. The backend verifies the custom admin claim, Secret Manager-backed verifier, persistent lockout, exact request, state, and revisions; it publishes only the selected resolution, resolves predictions, replaces the complete deterministic scoring source, and audits the action in one transaction. Correct predictions default to 3 championship points; incorrect predictions receive 0. Matching retries cannot duplicate points. Strong-confirmation correction and prediction-source reconciliation are also backend-owned.
+The organizer first saves private configuration. Every sensitive lifecycle action then requires the current Firebase Email/Password credential, a force-refreshed token with `admin === true` and `specialRevealAdmin === true`, and a token `auth_time` no more than five minutes old. The browser clears the password, re-reads authoritative state, derives the sanitized result and deterministic source, then submits one root atomic update. Rules independently validate authorization, recent authentication, state/revision relationships, strict shapes, and configured point bounds. Correct predictions default to 3 championship points; incorrect or withdrawn predictions receive 0. Complete-source replacement makes retries, correction, and reconciliation idempotent.
 
 The required organizer flow is:
 
 1. Open organizer mode.
 2. Save the reviewed private configuration.
-3. Provide the protected organizer code and open predictions through a callable Function.
+3. Reauthenticate the designated reveal organizer, type `OPEN REVEAL`, and atomically open predictions.
 4. Let linked guests submit one owner-private prediction while open.
 5. Lock predictions; reopen only if further submissions are intentionally allowed.
-6. Select the correct neutral option and provide the protected code.
-7. The resolution Function verifies organizer authorization, lockout, code, state, and revisions.
-8. The Function publishes only the selected resolution and identity-free aggregate.
-9. Correct predictions receive configured championship points through one complete deterministic backend source.
+6. Select the correct neutral option, reauthenticate, and type `RESOLVE PREDICTIONS`.
+7. The browser verifies both claims/recent token state and derives the complete expected result from authoritative data.
+8. Rules authorize one atomic update publishing only the selected resolution, identity-free aggregate, resolved state, deterministic source, and neutral audit.
+9. Correct predictions receive configured championship points through one complete deterministic source.
 10. All connected clients receive the new public state and leaderboard in realtime.
 11. Correction requires the strong confirmation `CORRECT RESULT`; reconciliation never changes the selected public resolution.
 
@@ -211,7 +212,7 @@ Delay behavior must be explicit in the UI: shorten or skip the museum first; ski
 | FR-10 | Accept private birthday submissions without granting guest read access to the private collection. |
 | FR-11 | Publish only organizer-approved birthday content to a separate guest-readable path. |
 | FR-12 | Accept one guest-owned prediction per linked participant and permit replacement only while open. |
-| FR-13 | Lock and resolve the prediction event through trusted operations; use idempotent backend scoring. |
+| FR-13 | Lock and resolve the prediction event through recent dual-claim operations; use idempotent complete-source scoring. |
 | FR-14 | Keep sensitive reveal content and exact accommodation details outside public assets and public database paths. |
 | FR-15 | Provide organizer confirmations for destructive or irreversible actions and append audit entries. |
 | FR-16 | Provide presentation modes that hide administrative controls and can replay animations without mutating state. |
@@ -226,7 +227,7 @@ Delay behavior must be explicit in the UI: shorten or skip the museum first; ski
 - **Maintainability:** discriminated TypeScript unions model formats; game names remain data; schema versions support migration.
 - **Observability:** actionable failures and synchronization state are visible; privileged changes produce non-public audit records without sensitive payloads.
 - **Browser support:** current evergreen mobile Safari and Chrome are primary; current desktop Safari, Chrome, Firefox, and Edge support organizer/presentation use.
-- **Deployment:** deterministic Vite base-path configuration for GitHub Pages; no backend configuration values treated as secrets merely because they are environment variables.
+- **Deployment:** deterministic Vite base-path configuration for GitHub Pages; public Firebase web configuration is not treated as secret merely because it is supplied through environment variables.
 
 ## 8. Accessibility requirements
 

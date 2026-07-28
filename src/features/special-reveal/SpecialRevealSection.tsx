@@ -113,7 +113,7 @@ export function SpecialRevealSection() {
       tone="locked"
     >
       <SectionHeading
-        description="A protected weekend moment and one private prediction, published only through the trusted backend."
+        description="A protected weekend moment and one private prediction, published only by the authorized reveal organizer."
         eyebrow="Protected moment"
         id="reveal-title"
         title={

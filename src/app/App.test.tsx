@@ -21,6 +21,13 @@ describe("Games & Castles static shell", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: /games & castles/i }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Skip to main content" }),
+    ).toHaveAttribute("href", "#main-content");
+    expect(document.getElementById("main-content")).toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
 
     const navigation = screen.getByRole("navigation", { name: "Primary" });
     navigationItems.forEach((item) => {

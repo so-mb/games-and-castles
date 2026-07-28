@@ -2,143 +2,147 @@
 
 ## Status and boundary
 
-Phase 9 is complete in the repository and validated against synthetic emulator data. Production verifier provisioning and Functions, Realtime Database Rules, and frontend deployment remain deliberate operator actions. No remote Firebase resource was modified during implementation.
+Phase 9 is complete in the repository and validated with neutral synthetic data. Its production architecture is browser-first and stays within GitHub Pages, Firebase Authentication, Realtime Database, and Realtime Database Security Rules. It requires no billing account or paid Firebase feature. Rules and frontend deployment remain deliberate operator actions; this implementation did not modify remote Firebase resources.
 
-This document uses neutral terminology only. The repository contains no actual reveal payload, actual option labels, correct outcome, protected organizer code, or verifier. App Check enforcement, general retention/deletion automation, load/alert tuning, and broader abuse hardening remain Phase 10 work.
+This document uses neutral terminology only. The repository contains no actual reveal payload, actual option labels, correct outcome, organizer password, service-account credential, or app-specific reveal code. App Check enforcement, general retention/deletion automation, load/alert tuning, and broader abuse hardening remain Phase 10 work.
+
+## Trust model
+
+Organizer Mode is the normal control surface. Private configuration and lifecycle controls require both custom claims:
+
+```text
+admin === true
+specialRevealAdmin === true
+```
+
+Opening, lock, reopen, resolution, correction, reconciliation, private-prediction enumeration, and public/ledger publication additionally require a Firebase ID token whose `auth_time` is no more than five minutes old. Before each sensitive action the organizer re-enters the password for the currently signed-in Email/Password account. The client calls Firebase `reauthenticateWithCredential`, force-refreshes the ID token, verifies both claims and `auth_time`, clears the password from React state, and only then executes one authorized database mutation. A typed action phrase protects against accidental clicks but is not authentication or a secret.
+
+Rules independently require both claims and recent `auth_time`. Private configuration editing requires both claims but does not require recent authentication; configuration freezes when public state exists. Ordinary admins cannot read private configuration or enumerate predictions and do not see the reveal workspace.
 
 ## Two-stage lifecycle
 
-The event begins with no public state, which renders a neutral locked card. An organizer creates the private configuration before opening; configuration freezes when the backend creates public state.
+Absence of public state renders the neutral locked card.
 
 ```text
-unopened
-  └─ openSpecialReveal ─→ prediction-open
-       ├─ lockPredictionEvent ─→ prediction-locked
-       │    ├─ reopenPredictionEvent ─→ prediction-open
-       │    └─ resolveSpecialReveal ─→ resolved
-       └─ guest submit/update/withdraw prediction while open only
+locked
+  └─ recent-auth open ─→ prediction-open
+       ├─ recent-auth lock ─→ prediction-locked
+       │    ├─ recent-auth reopen ─→ prediction-open
+       │    └─ recent-auth resolve ─→ resolved
+       └─ owner submit/update/withdraw while open only
 
 resolved
-  ├─ correctSpecialRevealResolution ─→ resolved at a new revision
-  └─ reconcilePredictionLedger ─→ resolved with repaired/no-op ledger source
+  ├─ recent-auth correction ─→ resolved at a new resolution revision
+  └─ recent-auth reconciliation ─→ resolved with repaired/no-op ledger source
 ```
 
-Opening publishes only the reviewed opening payload, prompt, and dynamic option labels. Resolution publishes only the selected resolution payload, correct option/label, configured points, and identity-free aggregate. The unselected resolution payload is never copied to a public path. Predictions remain locked after resolution and after correction.
+Opening publishes only the reviewed opening payload, prompt, and dynamic option labels. Resolution publishes only the chosen resolution payload, selected option/label, configured points, and identity-free aggregate. The unused resolution payload remains private. Predictions stay immutable after resolution; replay is presentation-only and writes nothing.
 
 ## Firebase paths and access
 
-| Path | Client access | Purpose |
+| Path | Access | Purpose |
 |---|---|---|
-| `/specialReveal/privateConfig` | Organizer read/write before opening only | Both reviewed variants, prompt, labels, scoring, revisions |
-| `/specialReveal/publicState` | Authenticated read; backend write | `prediction-open`, `prediction-locked`, or `resolved` lifecycle |
-| `/specialReveal/publicOpening` | Authenticated read after opening; backend write | Selected public opening copy and labels |
-| `/specialReveal/publicResolution` | Authenticated read only when resolved; backend write | Selected public result and identity-free aggregate |
-| `/specialReveal/predictions/{ownerUid}` | Owner read/write while open; backend read | One private neutral selection per linked participant |
-| `/specialReveal/predictionReceipts/{predictionId}` | Authenticated read; matching owner atomic write | Identity-free active count source; no selection or participant identity |
-| `/specialReveal/privateSecurity/attempts/{organizerUid}` | No client access | Persistent failed-code window and lockout |
-| `/championshipLedger/predictionSources/{eventId}` | Authenticated read only when resolved; backend write | Complete deterministic prediction scoring source |
-| `/audit/{auditId}` | Organizer read; bounded organizer create or backend write | Neutral, payload-free operation metadata |
+| `/specialReveal/privateConfig` | Dual-claim reveal organizer before opening | Both reviewed variants, prompt, labels, scoring, revisions |
+| `/specialReveal/publicState` | Authenticated read; recent dual-claim write | Lifecycle and revision source |
+| `/specialReveal/publicOpening` | Authenticated read after opening; recent dual-claim publish | Sanitized opening copy and labels |
+| `/specialReveal/publicResolution` | Authenticated read when resolved; recent dual-claim replace | Selected result and identity-free aggregate |
+| `/specialReveal/predictions/{ownerUid}` | Owner read/write while open; recent dual-claim collection read | One private neutral selection per linked participant |
+| `/specialReveal/predictionReceipts/{predictionId}` | Authenticated read; matching owner atomic write | Identity-free active count; no selection or identity |
+| `/championshipLedger/predictionSources/{eventId}` | Authenticated read when resolved; recent dual-claim replace | Complete deterministic prediction scoring source |
+| `/audit/{auditId}` | Organizer read; bounded append-only writes | Neutral, payload-free operation metadata |
 
-The organizer UI deliberately does not expose individual predictions. Before resolution, a guest can read only their own selection plus the identity-free receipt collection. The active total may be displayed, but the option distribution becomes public only with the final resolution.
+The organizer UI shows counts and validation summaries rather than casually listing individual choices. Before resolution, a guest can read only their own selection and identity-free receipts. The option distribution becomes public only in the final resolution.
 
-## Private configuration
+## Private configuration and inspection boundary
 
-The organizer configures one opaque event ID, opening copy/motif, prediction prompt, two dynamic labels, two possible resolution payloads, and 1–100 correct-prediction points. Rules enforce a strict schema, immutable event/creation metadata, one-step revisions, and the no-public-state editing boundary. Labels and payloads must be content-reviewed before entry. Developer data continues to use only `option-a` and `option-b`.
+The reveal organizer configures an opaque event ID, opening copy/motif, prompt, two dynamic labels, two possible resolution payloads, and 1–100 correct-prediction points. There is no stored preselected correct outcome. Developer fixtures use only `option-a` and `option-b`.
 
-Private rehearsal renders both possible flows entirely in local React state. It makes no Firebase write and does not authorize or resolve the event.
+The application bundle necessarily exposes the procedure, path names, schemas, action phrases, and scoring algorithm. It does not expose configured content because that data remains behind claim-restricted Rules. The privileged reveal-admin browser can read private configuration and predictions; a compromised account or unlocked organizer laptop can therefore perform reveal operations. Password reauthentication and the five-minute Rules window reduce session-theft and unattended-device risk, but this browser model is not equivalent to a private server. There is no trustworthy app-specific browser secret and no custom client-side security rate limiter; Firebase Authentication supplies password verification and its platform abuse protections.
 
-## Callable Functions
+## Atomic browser operations
 
-The Node.js 24 TypeScript Functions v2 codebase lives under `functions/`, runs in `europe-west1`, uses the Admin SDK, and exports:
+Platform-neutral domain helpers validate revisions and derive complete root updates. The browser repository reads the current authoritative state immediately after reauthentication and calls one root-level `update`:
 
-- `openSpecialReveal` — verifies the protected code, creates revision 1 state, and publishes the opening.
-- `lockPredictionEvent` — advances an open event to locked.
-- `reopenPredictionEvent` — advances a locked event back to open.
-- `resolveSpecialReveal` — verifies the code and locked/config revisions, then atomically publishes the selected resolution, resolved state, complete prediction source, and audit record.
-- `correctSpecialRevealResolution` — requires the exact non-secret confirmation `CORRECT RESULT`, protected code, and current state/resolution revisions; atomically replaces the selected resolution and complete source.
-- `reconcilePredictionLedger` — rebuilds the expected source from authoritative resolved data without changing public resolution; a matching source is a no-op.
+- Opening writes `publicOpening`, revision-1 `publicState`, and neutral audit together.
+- Lock/reopen writes the one-step state transition and audit together.
+- Resolution writes `publicResolution`, resolved `publicState`, the complete prediction source, and audit together.
+- Correction replaces the resolution and complete source, increments state and resolution revisions, and audits the replacement.
+- Reconciliation recalculates the complete source and writes only when missing or stale; a matching source is a no-op.
 
-Every callable requires Firebase Authentication and `auth.token.admin === true`. Requests use exact allowlisted keys and bounded values. The client receives generic actionable errors, never backend stacks, database paths, submitted codes, verifier details, or unselected payloads. App Check is intentionally configured but unenforced until the Phase 10 monitoring rollout.
-
-## Protected-code verification and rate limiting
-
-The secret name is `SPECIAL_REVEAL_CODE_VERIFIER`. The local provisioning utility prompts twice without echo, rejects weak values, creates a unique random salt, derives a versioned `scrypt$v1$…` verifier using Node crypto, and streams only that verifier to Firebase CLI over stdin. It prints neither the code nor verifier and saves neither to disk.
-
-Verification parses the versioned parameters and uses a timing-safe derived-key comparison. Failed verification is tracked per organizer UID under the backend-only security path. Five failures inside 15 minutes produce a 15-minute lockout; successful verification clears the record. A compact neutral audit event records the lockout without the attempted code.
-
-Provision separately for each non-demo environment from an interactive trusted terminal:
-
-```sh
-npm run reveal:set-code -- --project YOUR_DEVELOPMENT_PROJECT_ID
-npm run reveal:set-code -- --project YOUR_PRODUCTION_PROJECT_ID
-```
-
-The command prints the target and requires the operator to retype its project ID. Do not run it in CI, store the input in shell history, or put the raw code/verifier in GitHub variables, Vite variables, `.env` files, Realtime Database, screenshots, or chat.
+The organizer browser performs aggregate computation because Rules cannot practically recompute an arbitrary collection aggregate. Rules still enforce authorization, recent authentication, legal state transitions, one-step revisions, event/revision relationships, strict shapes, configured point bounds, deterministic entry structure where maintainable, and append-only neutral audit. Success appears only after Firebase confirms the atomic write.
 
 ## Prediction ownership and scoring
 
-One UID-keyed prediction belongs to the linked active participant and stores only `option-a` or `option-b`. Create, update, resubmit, or withdraw uses one root atomic update with its receipt and a one-step revision. Rules re-read current public state, user profile, participant ownership/status, immutable identity, and the matching receipt, so a stale/offline write cannot cross the lock boundary.
+One UID-keyed prediction belongs to the linked active participant and stores only `option-a` or `option-b`. Create, update, resubmit, or withdraw uses one atomic update with its identity-free receipt and one-step revision. Rules re-read public state, profile linkage, participant ownership/status, immutable IDs, and the matching receipt, so stale/offline writes cannot cross the lock boundary.
 
-On resolution the backend filters to valid submitted predictions still linked to active participants. Each correct participant receives one deterministic entry whose logical source identity is `prediction:{eventId}:{participantId}` and whose `sourceType` is `prediction-correct`. Incorrect or withdrawn predictions produce no entry. The complete `/championshipLedger/predictionSources/{eventId}` source replaces atomically with public resolution/state, so retry and correction cannot append duplicate points.
+Resolution includes only valid submitted predictions still linked to active participants. Each correct participant receives one deterministic entry derived from `prediction:{eventId}:{participantId}` with `sourceType` `prediction-correct`; incorrect and withdrawn predictions receive no entry. The source is a complete replacement containing event ID, state and resolution revisions, stable fingerprint, entry count, and schema version. Correction removes obsolete winners, repeated calculation cannot append duplicate points, and existing subscriptions update the public resolution, championship leaderboard, participant detail, and `Prediction Master` achievement in realtime.
 
-The global leaderboard validates and merges competition sources, active public bonuses, and resolved prediction sources. Participant detail shows a separate prediction subtotal, and the score-neutral `Prediction Master` achievement derives from a current correct-prediction entry. No mutable participant total is persisted.
+## Claim provisioning
 
-The source fingerprint covers the event/state/resolution identity and stable sorted entries. Award timestamps derive from the published resolution timestamp, so reconciliation is deterministic. Reconciliation also compares the complete entry map and revision metadata rather than trusting a stored fingerprint; it repairs missing/damaged content and becomes a no-op once the source matches.
-
-## Local validation
-
-Install both dependency trees, then run:
+Run the trusted Admin SDK claim script from a credentialed local terminal. It preserves unrelated claims and prints no credential or token:
 
 ```sh
-npm install
-npm --prefix functions install
-npm run functions:build
-npm run test:functions
-npm run test:functions:integration
-npm run test:rules
+npm run admin:set-claim -- \
+  --email organizer@example.com \
+  --admin true \
+  --special-reveal-admin true \
+  --project YOUR_PROJECT_ID
+
+npm run admin:set-claim -- \
+  --email organizer@example.com \
+  --special-reveal-admin false \
+  --project YOUR_PROJECT_ID
 ```
 
-`npm run emulators` starts Auth (`9099`), Realtime Database (`9000`), Functions (`5001`), and the Emulator UI (`4000`) for `demo-games-and-castles`. The integration wrapper creates a random synthetic code and verifier for that run, writes an ignored mode-`0600` Functions emulator secret file, and removes it in `finally`. It never touches a real Firebase project.
+After any change, sign out/in or force-refresh the organizer token.
 
-The emulator rehearsal should cover organizer/non-organizer calls, opening, guest own/other prediction access, lock/stale write rejection, reopen, resolution, retry, correction, damaged-source repair, repeated reconciliation, and persistent lockout. Browser rehearsal should use neutral synthetic content only.
+## Emergency local fallback
 
-## Manual deployment runbook
-
-Cloud Functions deployment requires the Firebase project to use the pay-as-you-go Blaze plan; enabling billing is a manual owner decision and this repository does not change it. See Firebase's official [Cloud Functions deployment guide](https://firebase.google.com/docs/functions/get-started#deploy-functions-to-a-production-environment).
-
-For each environment, deploy in this order:
-
-1. Configure the verifier secret.
-2. Deploy the Phase 9 Functions codebase.
-3. Deploy Realtime Database Rules.
-4. Deploy the frontend through the existing Pages workflow.
-
-Development:
+Organizer Mode is primary. A trusted local Admin SDK tool is available only for recovery from the organizer laptop:
 
 ```sh
-npm run reveal:set-code -- --project YOUR_DEVELOPMENT_PROJECT_ID
-npm run deploy:functions -- YOUR_DEVELOPMENT_PROJECT_ID
-npm run deploy:rules -- YOUR_DEVELOPMENT_PROJECT_ID
+GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/outside/repository.json \
+npm run reveal:admin-local -- --project YOUR_PROJECT_ID
 ```
 
-Production:
+Add `--dry-run` to suppress all writes. The interactive menu can inspect state, preview a resolution, open, lock, reopen, resolve, correct, or reconcile. It displays the exact target, prompts for the option instead of placing it in shell history, requires `APPLY` or `PREVIEW`, reuses the browser's domain calculations, performs the same atomic updates, emits neutral fallback audit metadata, and prints only sanitized counts/fingerprints. Never put the service-account file in this repository. The script is not run by CI or deployment.
+
+For a neutral emulator rehearsal:
 
 ```sh
-npm run reveal:set-code -- --project YOUR_PRODUCTION_PROJECT_ID
-npm run deploy:functions -- YOUR_PRODUCTION_PROJECT_ID
-npm run deploy:rules -- YOUR_PRODUCTION_PROJECT_ID
+npm run emulators
+npm run reveal:admin-local -- \
+  --project demo-games-and-castles \
+  --emulator \
+  --dry-run
 ```
 
-The Firebase CLI may prompt to enable required Google Cloud APIs and configure Artifact Registry cleanup. Review the target project and each prompt; do not enable billing/APIs or change IAM automatically. Functions need access to the named secret through the deployment-managed service identity. The Pages workflow validates the Functions build and unit suite but never deploys Functions or Rules and never stores the reveal verifier.
+## Deployment and rehearsal
 
-After deployment, publish the reviewed frontend from `master`, sign in with an authorized organizer, verify the **Special Reveal** workspace, and rehearse non-destructively in development. In production, configure real content only after privacy review; opening is a live irreversible publication boundary for configuration, so confirm state, labels, payload variants, scoring, and the selected project first.
+No server deployment, verifier provisioning, or billing setup is required.
+
+1. Add `admin: true` and `specialRevealAdmin: true` to the designated organizer.
+2. Sign out and back into Organizer Mode.
+3. Deploy reviewed Realtime Database Rules:
+
+   ```sh
+   npm run deploy:rules -- YOUR_PROJECT_ID
+   ```
+
+4. Push the frontend to `master` and verify the Pages workflow.
+5. Configure the real private content through Organizer Mode only after privacy review.
+6. Rehearse privately with the designated account and at least one guest device.
+7. Do not open the production event until the intended moment.
+
+During rehearsal verify an ordinary admin is denied, wrong-password and expired-auth attempts make no mutation, the password is cleared, private predictions remain isolated, lock/reopen works, resolution updates another browser and leaderboard, correction replaces points, reconciliation becomes a no-op once synchronized, and reduced-motion/keyboard behavior remains usable.
 
 ## Phase 9 limitations
 
-- Production deployment and live multi-device validation are not performed by repository implementation.
+- Production deployment and live multi-device validation are manual operator work.
 - App Check enforcement, abuse/load tuning, alerting, backup/restore, IAM review, and dependency hardening remain Phase 10.
-- Predictions and receipts are retained after resolution; deletion/anonymization periods remain the unresolved general retention decision.
-- The implementation supports one current Special Reveal event, not an archived multi-event CMS.
-- Private rehearsal is a visual local preview, not a security or backend test.
+- There is no custom failed-password limiter beyond Firebase Authentication's platform protections.
+- Predictions and receipts remain after resolution; deletion/anonymization periods remain part of the unresolved general retention decision.
+- One current Special Reveal is supported; this is not an archived multi-event CMS.
+- Private rehearsal is a local visual preview, not an authorization test.
 - Anonymous guest identity remains browser-local with no recovery or cross-device claim flow.
 - The exact accommodation address and protected trip retrieval remain unimplemented.
