@@ -116,7 +116,7 @@ function ControlMatchCard({
             <Button
               disabled={!canMutate || busy}
               onClick={() => onResult(match)}
-              variant="quiet"
+              variant="darkSecondary"
             >
               Correct result
             </Button>
@@ -145,7 +145,7 @@ function ControlMatchCard({
                   ),
                 )
               }
-              variant="quiet"
+              variant="darkSecondary"
             >
               Return to pending
             </Button>

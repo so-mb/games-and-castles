@@ -350,7 +350,7 @@ export function ChampionshipSection() {
                       <Button
                         className="mt-4"
                         href={`#competition-${source.meta.competitionId}`}
-                        variant="quiet"
+                        variant="dark"
                       >
                         Open competition
                       </Button>

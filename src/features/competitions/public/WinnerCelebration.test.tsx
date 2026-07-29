@@ -1,5 +1,5 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import type { Participant } from "../../participants/types";
 import { WinnerCelebration } from "./WinnerCelebration";
 
@@ -20,6 +20,7 @@ const participants: Participant[] = [
 
 describe("WinnerCelebration", () => {
   it("personalizes a new win for the private participant view", () => {
+    const onDismiss = vi.fn();
     render(
       <WinnerCelebration
         competitionTitle="Castle Cup"
@@ -30,6 +31,7 @@ describe("WinnerCelebration", () => {
           completedAt: 500,
           kind: "match",
         }}
+        onDismiss={onDismiss}
         ownParticipantId="p1"
         participants={participants}
       />,
@@ -40,6 +42,10 @@ describe("WinnerCelebration", () => {
     expect(
       screen.getByRole("img", { name: "Ada Castle avatar, winner" }),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dismiss win celebration" }),
+    );
+    expect(onDismiss).toHaveBeenCalledOnce();
   });
 
   it("renders the result without motion-only information", () => {
@@ -53,6 +59,7 @@ describe("WinnerCelebration", () => {
           completedAt: 500,
           kind: "match",
         }}
+        onDismiss={vi.fn()}
         ownParticipantId={null}
         participants={participants}
       />,

@@ -1,4 +1,4 @@
-import { renderHook } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { AnyCompetitionRun } from "../engine/types";
 import { useWinCelebration } from "./useWinCelebration";
@@ -27,14 +27,20 @@ describe("useWinCelebration", () => {
       { initialProps: { runs: [runWithResult(false)] } },
     );
 
-    expect(result.current).toBeNull();
+    expect(result.current.event).toBeNull();
 
     rerender({ runs: [runWithResult(true)] });
 
-    expect(result.current).toMatchObject({
+    expect(result.current.event).toMatchObject({
       id: "castle-cup:match:match1",
       participantIds: ["p1"],
     });
+
+    act(() => result.current.dismiss());
+    expect(result.current.event).toBeNull();
+
+    rerender({ runs: [runWithResult(true)] });
+    expect(result.current.event).toBeNull();
   });
 
   it("does not replay historical wins on first load", () => {
@@ -42,6 +48,6 @@ describe("useWinCelebration", () => {
       useWinCelebration([runWithResult(true)], true),
     );
 
-    expect(result.current).toBeNull();
+    expect(result.current.event).toBeNull();
   });
 });

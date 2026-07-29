@@ -1340,7 +1340,7 @@ export function AllHandsControlRoom({
                             ),
                           )
                         }
-                        variant="quiet"
+                        variant="darkSecondary"
                       >
                         Return to pending
                       </Button>
@@ -1353,7 +1353,7 @@ export function AllHandsControlRoom({
                           !competitions.canMutate || run.stage === "completed"
                         }
                         onClick={() => setResultSession(session)}
-                        variant="quiet"
+                        variant="darkSecondary"
                       >
                         Correct result
                       </Button>

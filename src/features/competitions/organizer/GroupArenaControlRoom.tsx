@@ -254,7 +254,11 @@ function MatchCard({
               <Play aria-hidden="true" size={16} /> Start
             </Button>
           ) : (
-            <Button disabled={disabled} onClick={onReturn} variant="quiet">
+            <Button
+              disabled={disabled}
+              onClick={onReturn}
+              variant="darkSecondary"
+            >
               <Pause aria-hidden="true" size={16} /> Return to pending
             </Button>
           )}
@@ -267,7 +271,7 @@ function MatchCard({
           className="mt-4 w-full"
           disabled={disabled}
           onClick={onResult}
-          variant="quiet"
+          variant="darkSecondary"
         >
           Correct result
         </Button>

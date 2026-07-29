@@ -1,8 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { AnyCompetitionRun } from "../engine/types";
 import { deriveWinEvents, type WinEvent } from "./winEvents";
-
-export const WIN_CELEBRATION_DURATION_MS = 2_600;
 
 export function useWinCelebration(runs: AnyCompetitionRun[], ready: boolean) {
   const knownRunIds = useRef(new Set<string>());
@@ -27,14 +25,7 @@ export function useWinCelebration(runs: AnyCompetitionRun[], ready: boolean) {
     }
   }, [ready, runs]);
 
-  useEffect(() => {
-    if (!event) return;
-    const timeout = window.setTimeout(
-      () => setEvent(null),
-      WIN_CELEBRATION_DURATION_MS,
-    );
-    return () => window.clearTimeout(timeout);
-  }, [event]);
+  const dismiss = useCallback(() => setEvent(null), []);
 
-  return event;
+  return { event, dismiss };
 }

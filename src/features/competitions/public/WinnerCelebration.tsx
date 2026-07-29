@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { Crown, Sparkles } from "lucide-react";
+import { Crown, Sparkles, X } from "lucide-react";
+import { IconButton } from "../../../components/ui/IconButton";
 import { ParticipantAvatar } from "../../../components/ui/ParticipantAvatar";
 import type { Participant } from "../../participants/types";
 import type { WinEvent } from "./winEvents";
@@ -45,11 +46,13 @@ export function WinnerCelebration({
   participants,
   ownParticipantId,
   competitionTitle,
+  onDismiss,
 }: {
   event: WinEvent | null;
   participants: Participant[];
   ownParticipantId: string | null;
   competitionTitle: string;
+  onDismiss: () => void;
 }) {
   const reducedMotion = useReducedMotion();
   const winners = event
@@ -75,16 +78,26 @@ export function WinnerCelebration({
       {event ? (
         <motion.aside
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          aria-atomic="true"
-          aria-live="polite"
-          className="pointer-events-none fixed right-3 bottom-20 left-3 z-[80] mx-auto max-w-sm overflow-hidden rounded-2xl border border-[var(--color-antique-gold-400)]/45 bg-[var(--color-night-900)]/96 p-4 text-white shadow-[var(--shadow-gold)] sm:right-5 sm:bottom-5 sm:left-auto sm:w-[22rem]"
+          aria-label="Win celebration"
+          className="fixed right-3 bottom-20 left-3 z-[80] mx-auto max-w-sm overflow-hidden rounded-2xl border border-[var(--color-antique-gold-400)]/45 bg-[var(--color-night-900)]/96 p-4 pr-14 text-white shadow-[var(--shadow-gold)] sm:right-5 sm:bottom-5 sm:left-auto sm:w-[22rem]"
           exit={reducedMotion ? undefined : { opacity: 0, scale: 0.98, y: 8 }}
           initial={reducedMotion ? false : { opacity: 0, scale: 0.96, y: 14 }}
           key={event.id}
-          role="status"
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
-          <div className="relative flex items-center gap-4">
+          <IconButton
+            className="absolute top-1.5 right-1.5 border-white/15 text-white/55 hover:text-white"
+            label="Dismiss win celebration"
+            onClick={onDismiss}
+          >
+            <X aria-hidden="true" size={16} />
+          </IconButton>
+          <div
+            aria-atomic="true"
+            aria-live="polite"
+            className="relative flex items-center gap-4"
+            role="status"
+          >
             <div className="relative">
               {winner ? (
                 <ParticipantAvatar

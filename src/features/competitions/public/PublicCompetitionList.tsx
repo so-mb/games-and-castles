@@ -138,10 +138,11 @@ export function PublicCompetitionList() {
     ...competitions.active,
     ...competitions.completed,
   ];
-  const winEvent = useWinCelebration(
+  const winCelebration = useWinCelebration(
     competitions.runs,
     firebase.status === "ready" && competitions.publicState === "ready",
   );
+  const winEvent = winCelebration.event;
   const winCompetition = winEvent
     ? runningCompetitions.find(
         (competition) => competition.id === winEvent.runId,
@@ -153,6 +154,7 @@ export function PublicCompetitionList() {
       <WinnerCelebration
         competitionTitle={winCompetition?.title ?? "Weekend competition"}
         event={winEvent}
+        onDismiss={winCelebration.dismiss}
         ownParticipantId={participants.ownParticipant?.id ?? null}
         participants={participants.championshipParticipants}
       />

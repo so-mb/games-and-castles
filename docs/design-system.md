@@ -254,7 +254,7 @@ Motion has a purpose: confirm state change, focus attention, explain progression
 | Podium reveal | Competition/weekend completion | Staged but skippable |
 | Achievement badge | First view of earned optional achievement | Small and nonblocking |
 | Vault opening | Publication state transition/replay | Neutral; no content hint |
-| Win celebration | Newly completed match/session with a canonical winner | Small avatar crown and controlled burst; brief, non-interactive, never replayed from initial history |
+| Win celebration | Newly completed match/session with a canonical winner | Small avatar crown and controlled burst; panel remains until dismissed, never replayed from initial history |
 | Confetti | Major reveal or final winner | Controlled burst, ≤ 2 seconds, never over score entry |
 
 Recommended motion tokens:
@@ -267,7 +267,7 @@ Recommended motion tokens:
 
 Under `prefers-reduced-motion: reduce`, remove parallax, count-up interpolation, connector drawing, shuffling paths, pulsing, and confetti. Crossfade or instantly settle while preserving all state labels. Animation must not block score entry, navigation, or access to itinerary. Sound is disabled by default and never contains essential information.
 
-Participant avatars use a bounded, Rules-validated set of recognizable Lucide motifs spanning travel, games, fantasy, animals, and playful technology. Winner meaning is never conveyed by motion or color alone: completed result cards retain a textual result and a crown-labelled avatar, while the transient live region announces the winner. The private participant variant may say **You won!** or **Your team won!** only when the signed-in participant ID is present in the authoritative winning entity.
+Participant avatars use a bounded, Rules-validated set of recognizable Lucide motifs spanning travel, games, fantasy, animals, and playful technology. Winner meaning is never conveyed by motion or color alone: completed result cards retain a textual result and a crown-labelled avatar, while a dismissible live-region panel announces the winner and remains available until its labelled close control is used. The private participant variant may say **You won!** or **Your team won!** only when the signed-in participant ID is present in the authoritative winning entity.
 
 Fun player titles and achievements must be opt-out-ready, kind, and based on transparent non-sensitive events. Avoid labels implying incompetence, intoxication, personal traits, or protected characteristics.
 
