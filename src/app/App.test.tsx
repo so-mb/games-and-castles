@@ -103,6 +103,10 @@ describe("Games & Castles static shell", () => {
       ).toBeInTheDocument();
     });
 
+    expect(screen.getByText("06:55")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Depart Germany for Prague" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Bus 207 to Staroměstská/)).toBeInTheDocument();
     expect(
       screen.getByText(/Shorten or skip the Army Museum first/),

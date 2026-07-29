@@ -78,7 +78,7 @@ Three day cards summarize the rhythm of the complete trip. Friday and Saturday a
 
 **Friday, 31 July 2026 — Game Night in Germany** has no fixed times. It is an unordered activity pool that may contain console, board and card games, food and drinks, a birthday moment, free play, and championship events. The UI uses labels such as “Any order” or “Pick as we go” and must not imply a schedule.
 
-**Saturday, 1 August 2026 — Prague Quest** links to the chronological timeline in section 5. It shows the arrival estimate, the next/high-priority item, the dinner reservation, and the cinema booking.
+**Saturday, 1 August 2026 — Prague Quest** links to the chronological timeline in section 5. It shows the 06:55 departure from Germany, the Prague arrival estimate, the next/high-priority item, the dinner reservation, and the cinema booking.
 
 **Sunday, 2 August 2026 — Departure and onward travel** uses three confirmed groups: first by **08:50**, second by **09:00**, and third by **09:20**. Every group departs Prague from **Prague (Central Bus Station Florenc)**. The UI may present these as a compact departure board, but must not add group members, onward destinations, bookings, or other Sunday activities.
 
@@ -154,6 +154,7 @@ No client asset, documentation example, path, component name, environment variab
 
 ### 4.7 Trip information
 
+- Saturday departure from Germany to Prague: **06:55**.
 - Public accommodation area: **Žižkov, Prague 3**.
 - Dinner: 18:00 at U Tří Prasátek (Three Piglets).
 - Cinema: 20:00 at Cinema City Flora, original-language Spider-Man screening with Czech subtitles.
@@ -163,6 +164,7 @@ No client asset, documentation example, path, component name, environment variab
 ## 5. Approved Saturday itinerary
 
 **Date:** Saturday, 1 August 2026  
+**Departure from Germany:** 06:55<br>
 **Expected arrival:** approximately 12:30 at Praha hlavní nádraží  
 **Accommodation area:** Žižkov, Prague 3
 
@@ -170,6 +172,7 @@ All planned tourist attractions below are free. Dinner, cinema, and transport ar
 
 | Time | Activity | Required details | Priority/flexibility |
 |---|---|---|---|
+| 06:55 | Depart Germany for Prague | Begin the Saturday morning journey from Germany | Confirmed departure time |
 | 12:30–13:15 | Arrival and luggage | Arrive at Prague Central Station; travel to accommodation; drop luggage | Arrival estimate; exact address protected |
 | 13:15–14:00 | Army Museum Žižkov | Free admission; focused visit; prioritize World War I, creation of Czechoslovakia, Nazi occupation, World War II, reconstructed scenes, and major exhibits | First activity to shorten or skip after a delay; attraction priority 5 |
 | 14:00–14:45 | Travel to Prague Castle | Walk to U Památníku; bus 207 to Staroměstská; Metro A to Malostranská; tram 22 to Pražský hrad | Route must be checked later against current conditions |

@@ -55,12 +55,13 @@ export const weekendDays: WeekendDay[] = [
     date: "Saturday, 1 August",
     title: "Prague Quest",
     summary:
-      "The main adventure day, from Žižkov to castle views and Old Town.",
+      "The main adventure day, from Germany to Žižkov, castle views and Old Town.",
     detail:
-      "A scheduled city route with free attractions, photography stops and two fixed evening bookings.",
+      "Leave Germany at 06:55, then follow a scheduled city route with free attractions, photography stops and two fixed evening bookings.",
     icon: "castle",
     tone: "quest",
     items: [
+      "Germany departure · 06:55",
       "Arrival around 12:30",
       "Free city highlights",
       "Dinner + cinema booked",
@@ -123,7 +124,7 @@ export const publicTripInformation: PublicTripInfoItem[] = [
     id: "dates",
     label: "Trip dates",
     value: tripMetadata.dateRange,
-    note: "Friday game night through Sunday departure.",
+    note: "Friday game night; Germany → Prague departs Saturday at 06:55; Sunday departure.",
     icon: "ticket",
   },
 ];

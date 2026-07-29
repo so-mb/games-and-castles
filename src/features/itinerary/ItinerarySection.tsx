@@ -16,7 +16,7 @@ export function ItinerarySection() {
     >
       <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
         <SectionHeading
-          description="A focused route through free city highlights, photography stops and two fixed evening bookings. Times are the approved plan—not live navigation."
+          description="Depart Germany at 06:55, then follow a focused route through free city highlights, photography stops and two fixed evening bookings. Times are the approved plan—not live navigation."
           eyebrow="Saturday, 1 August · Prague Quest"
           id="itinerary-title"
           title="One city, carefully paced"

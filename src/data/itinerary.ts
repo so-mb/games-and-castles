@@ -2,6 +2,23 @@ import type { ItineraryItem } from "../types/content";
 
 export const itineraryItems: ItineraryItem[] = [
   {
+    id: "depart-germany",
+    time: "06:55",
+    title: "Depart Germany for Prague",
+    summary: "The Prague Quest begins with the morning journey to Prague.",
+    details: ["Saturday departure from Germany."],
+    tags: [
+      {
+        id: "journey-start",
+        label: "Journey begins",
+        tone: "gold",
+        icon: "train",
+      },
+    ],
+    icon: "train",
+    variant: "travel",
+  },
+  {
     id: "arrival-luggage",
     time: "12:30–13:15",
     title: "Arrival, Žižkov & luggage drop",
