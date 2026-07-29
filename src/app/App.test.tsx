@@ -18,6 +18,12 @@ describe("Games & Castles static shell", () => {
   it("renders the application and every main navigation target", () => {
     renderApp();
 
+    const logoLink = screen.getByRole("link", {
+      name: "Games & Castles — back to top",
+    });
+    expect(logoLink.querySelector("img")?.getAttribute("src")).toMatch(
+      /\/favicon\.svg$/,
+    );
     expect(
       screen.getByRole("heading", { level: 1, name: /games & castles/i }),
     ).toBeInTheDocument();

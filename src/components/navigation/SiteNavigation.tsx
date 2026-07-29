@@ -1,4 +1,3 @@
-import { Castle } from "lucide-react";
 import { lazy, Suspense, useMemo } from "react";
 import { navigationItems } from "../../data/trip";
 import { cn } from "../../lib/cn";
@@ -27,9 +26,12 @@ export function SiteNavigation() {
           className="hidden min-h-11 shrink-0 items-center gap-2 rounded-lg px-2 font-bold tracking-tight focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-electric-cyan-400)] sm:flex"
           href="#top"
         >
-          <span className="flex size-8 items-center justify-center rounded-lg border border-[var(--color-antique-gold-400)]/30 bg-[var(--color-antique-gold-400)]/8 text-[var(--color-antique-gold-400)]">
-            <Castle aria-hidden="true" size={18} strokeWidth={1.8} />
-          </span>
+          <img
+            alt=""
+            aria-hidden="true"
+            className="size-8"
+            src={`${import.meta.env.BASE_URL}favicon.svg`}
+          />
           <span className="hidden lg:inline">Games &amp; Castles</span>
         </a>
 
