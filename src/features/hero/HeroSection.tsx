@@ -159,7 +159,11 @@ export function HeroSection() {
 
           <div className="hero-castle-stamp" aria-hidden="true">
             <Castle size={58} strokeWidth={1.35} />
-            <span>Prague quest</span>
+            <span>
+              Prague
+              <br />
+              quest
+            </span>
           </div>
         </motion.div>
       </Container>

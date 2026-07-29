@@ -289,6 +289,7 @@ button:disabled {
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  padding: 0.65rem;
   border: 2px solid rgb(210 176 106 / 50%);
   border-radius: 50%;
   background: var(--color-prague-red-700);
@@ -297,9 +298,12 @@ button:disabled {
 }
 
 .hero-castle-stamp span {
+  max-width: 100%;
   font-size: 0.62rem;
   font-weight: 900;
   letter-spacing: 0.14em;
+  line-height: 1.15;
+  text-align: center;
   text-transform: uppercase;
 }
 
@@ -730,11 +734,18 @@ button:disabled {
     bottom: 0.5rem;
     width: 6.5rem;
     height: 6.5rem;
+    gap: 0.28rem;
+    padding: 0.5rem;
   }
 
   .hero-castle-stamp svg {
     width: 2.75rem;
     height: 2.75rem;
+  }
+
+  .hero-castle-stamp span {
+    font-size: 0.52rem;
+    letter-spacing: 0.1em;
   }
 }
 
@@ -768,13 +779,23 @@ button:disabled {
   }
 
   .hero-castle-stamp {
-    width: 5rem;
-    height: 5rem;
+    right: -0.15rem;
+    bottom: 0.15rem;
+    width: 5.5rem;
+    height: 5.5rem;
+    gap: 0.2rem;
+    padding: 0.45rem;
   }
 
   .hero-castle-stamp svg {
-    width: 2rem;
-    height: 2rem;
+    width: 1.85rem;
+    height: 1.85rem;
+  }
+
+  .hero-castle-stamp span {
+    font-size: 0.48rem;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
   }
 
   .vault-dial {
