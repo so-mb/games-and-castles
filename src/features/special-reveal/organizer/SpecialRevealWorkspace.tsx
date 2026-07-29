@@ -459,10 +459,10 @@ function SpecialRevealWorkspaceEditor({
               Predictions remain locked. This replaces the selected payload and
               complete ledger source.
             </p>
-            <div className="mt-4 max-w-sm">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
               <select
                 aria-label="Corrected prediction option"
-                className="min-h-11 rounded-xl border border-white/15 bg-[var(--color-night-900)] px-3"
+                className="min-h-11 min-w-36 rounded-xl border border-white/15 bg-[var(--color-night-900)] px-3"
                 onChange={(event) =>
                   setCorrectOption(event.target.value as PredictionOption)
                 }
@@ -471,26 +471,25 @@ function SpecialRevealWorkspaceEditor({
                 <option value="option-a">Option A</option>
                 <option value="option-b">Option B</option>
               </select>
+              <Button
+                disabled={busy || !reveal.canOrganizerMutate}
+                onClick={() =>
+                  requestSensitiveAction({
+                    title: "Correct the published result",
+                    consequence:
+                      "Replaces the public resolution and complete prediction source. Previous winners lose those points and newly correct predictors receive them.",
+                    confirmationPhrase: "CORRECT RESULT",
+                    success: "Published resolution corrected and rescored.",
+                    execute: (authorization) =>
+                      reveal.correct(authorization, correctOption),
+                  })
+                }
+                variant="darkSecondary"
+              >
+                <ShieldCheck aria-hidden="true" size={17} />
+                Correct result
+              </Button>
             </div>
-            <Button
-              className="mt-3"
-              disabled={busy || !reveal.canOrganizerMutate}
-              onClick={() =>
-                requestSensitiveAction({
-                  title: "Correct the published result",
-                  consequence:
-                    "Replaces the public resolution and complete prediction source. Previous winners lose those points and newly correct predictors receive them.",
-                  confirmationPhrase: "CORRECT RESULT",
-                  success: "Published resolution corrected and rescored.",
-                  execute: (authorization) =>
-                    reveal.correct(authorization, correctOption),
-                })
-              }
-              variant="quiet"
-            >
-              <ShieldCheck aria-hidden="true" size={17} />
-              Correct result
-            </Button>
           </div>
         ) : null}
         {message ? (
