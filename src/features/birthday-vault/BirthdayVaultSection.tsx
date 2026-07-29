@@ -133,9 +133,9 @@ export function BirthdayVaultSection() {
                 {revealed ? "The guestbook is open" : "A note worth keeping"}
               </h3>
               <p className="mt-4 max-w-xl text-base leading-7 text-[var(--color-ink-600)]">
-                Messages are protected by account access and live database
-                rules before publication. This is private application data, not
-                a claim of cryptographic secrecy.
+                Messages are protected by account access and live database rules
+                before publication. This is private application data, not a
+                claim of cryptographic secrecy.
               </p>
             </div>
             <div className="min-w-36 rounded-2xl border border-[var(--color-ink-900)]/10 bg-white/60 px-5 py-4 text-center">

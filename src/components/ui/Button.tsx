@@ -3,12 +3,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "../../lib/cn";
 
 type ButtonVariant =
-  | "primary"
-  | "secondary"
-  | "quiet"
-  | "dark"
-  | "darkSecondary"
-  | "inverse";
+  "primary" | "secondary" | "quiet" | "dark" | "darkSecondary" | "inverse";
 
 interface SharedButtonProps {
   children: ReactNode;
