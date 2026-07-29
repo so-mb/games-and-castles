@@ -1,16 +1,18 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { Crown, RotateCcw, Sparkles, Swords, Trophy } from "lucide-react";
+import { RotateCcw, Sparkles, Swords, Trophy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../../../components/ui/Button";
 import { ParticipantAvatar } from "../../../components/ui/ParticipantAvatar";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { Surface } from "../../../components/ui/Surface";
 import type { Participant } from "../../participants/types";
+import { MerryGoRoundGrandWinner } from "../MerryGoRoundGrandWinner";
 import type { PublishedCompetition } from "../domain/types";
 import { deriveCompetitionPointBreakdown } from "../engine/points";
 import {
   matchScore,
   matchStatusLabel,
+  knockoutChampionParticipantId,
   runProgress,
   runStageLabel,
   seriesLabel,
@@ -169,6 +171,10 @@ function Standings({
       >
         Round-robin standings
       </h5>
+      <p className="mt-1 text-xs leading-5 text-white/45">
+        Qualification table only. These points set the knockout seeds; the
+        knockout final decides the Grand Winner.
+      </p>
       <div className="mt-3 overflow-x-auto rounded-2xl border border-white/10">
         <table className="w-full min-w-[42rem] border-collapse text-left text-sm">
           <thead className="bg-white/5 text-xs tracking-wide text-white/52 uppercase">
@@ -326,7 +332,7 @@ export function MerryGoRoundExperience({
         )
         .sort((a, b) => a.globalSequence - b.globalSequence)[0];
   const display = participantResolver(participants);
-  const champion = run.placements?.entries.find((entry) => entry.place === 1);
+  const grandWinnerId = knockoutChampionParticipantId(run);
   return (
     <Surface
       as="article"
@@ -351,22 +357,13 @@ export function MerryGoRoundExperience({
           {competition.status === "active" ? "Live competition" : "Final"}
         </StatusBadge>
       </div>
-      {champion ? (
-        <div className="mt-6 flex items-center gap-4 rounded-2xl border border-[var(--color-antique-gold-400)]/35 bg-[var(--color-antique-gold-400)]/8 p-5">
-          <Crown
-            aria-hidden="true"
-            className="text-[var(--color-antique-gold-400)]"
-            size={30}
-          />
-          <div>
-            <p className="text-xs font-bold tracking-wide text-white/48 uppercase">
-              Champion
-            </p>
-            <p className="mt-1 text-xl font-black">
-              {display(champion.participantId)!.displayName}
-            </p>
-          </div>
-        </div>
+      {grandWinnerId ? (
+        <MerryGoRoundGrandWinner
+          headingLevel={5}
+          id={`${run.competitionId}-grand-winner`}
+          participantId={grandWinnerId}
+          participants={participants}
+        />
       ) : null}
       {run.placements ? (
         <section

@@ -41,3 +41,15 @@ export function runProgress(run: CompetitionRun) {
         : Math.round((completed / playable.length) * 100),
   };
 }
+
+export function knockoutChampionParticipantId(run: CompetitionRun) {
+  const finalMatchId = run.knockout?.rounds.at(-1)?.matchIds[0];
+  const finalWinnerId = finalMatchId
+    ? run.matches[finalMatchId]?.result?.winnerId
+    : null;
+  const persistedWinnerId = run.placements?.entries.find(
+    (entry) => entry.place === 1,
+  )?.participantId;
+
+  return finalWinnerId ?? persistedWinnerId ?? null;
+}

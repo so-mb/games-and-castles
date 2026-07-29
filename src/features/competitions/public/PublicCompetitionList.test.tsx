@@ -1,7 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCompetitionRun } from "../engine/activation";
-import { recordMatchResult } from "../engine/lifecycle";
+import {
+  completeCompetitionRun,
+  generateRunKnockout,
+  recordMatchResult,
+} from "../engine/lifecycle";
 import {
   createAllHandsRun,
   createAllHandsSession,
@@ -187,6 +191,84 @@ describe("scheduled competition card", () => {
       screen.getByText(/championship table rebuilds from/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /record result/i })).toBeNull();
+  });
+
+  it("identifies the knockout champion as the Grand Winner even when another participant led the round robin", () => {
+    const values = {
+      ...createCompetitionFormValues(),
+      title: "Prague Circuit Final",
+      gameName: "Controller Duel",
+      participantIds: participants.map((participant) => participant.id),
+    };
+    if (values.formatConfig.kind === "round-robin-knockout") {
+      values.formatConfig = {
+        ...values.formatConfig,
+        qualificationCount: 2,
+        includeThirdPlace: false,
+      };
+    }
+    const draft = createDraftRecord(values, {
+      id: "prague-circuit-final",
+      uid: "admin",
+      now: 100,
+    });
+    const scheduled = publishDraftRecord(draft, "admin", 200, 100);
+    let run = createCompetitionRun(scheduled, "admin", 300, () => 0);
+    const roundRobinMatch = Object.values(run.matches).find(
+      (match) => !match.isBye,
+    )!;
+    const roundRobinLeaderId = roundRobinMatch.participantAId!;
+    run = recordMatchResult(run, roundRobinMatch.id, {
+      expectedMatchRevision: roundRobinMatch.revision,
+      roundWinnerIds: [roundRobinLeaderId, roundRobinLeaderId],
+      organizerUid: "admin",
+      now: 400,
+    });
+    run = generateRunKnockout(run, "admin", 500);
+    const finalId = run.knockout!.rounds.at(-1)!.matchIds[0]!;
+    const final = run.matches[finalId]!;
+    const grandWinnerId =
+      final.participantAId === roundRobinLeaderId
+        ? final.participantBId!
+        : final.participantAId!;
+    run = recordMatchResult(run, finalId, {
+      expectedMatchRevision: final.revision,
+      roundWinnerIds: [grandWinnerId, grandWinnerId],
+      organizerUid: "admin",
+      now: 600,
+    });
+    run = completeCompetitionRun(run, "admin", 700);
+    const grandWinner = participants.find(
+      (participant) => participant.id === grandWinnerId,
+    )!;
+    const roundRobinLeader = participants.find(
+      (participant) => participant.id === roundRobinLeaderId,
+    )!;
+    hookState.firebase = { status: "ready" };
+    hookState.competitions.completed = [
+      {
+        ...scheduled,
+        status: "completed" as const,
+        revision: scheduled.revision + 2,
+        updatedAt: 700,
+      },
+    ];
+    hookState.competitions.runs = [run];
+    hookState.participants.activeParticipants = participants;
+
+    render(<PublicCompetitionList />);
+
+    const result = screen.getByRole("region", { name: "Grand Winner" });
+    expect(
+      within(result).getByText(grandWinner.displayName),
+    ).toBeInTheDocument();
+    expect(
+      within(result).getByText(/knockout final determines/i),
+    ).toBeInTheDocument();
+    expect(within(result).queryByText(roundRobinLeader.displayName)).toBeNull();
+    expect(
+      screen.getByText(/points set the knockout seeds/i),
+    ).toBeInTheDocument();
   });
 
   it("celebrates a new result for the winning private participant", () => {

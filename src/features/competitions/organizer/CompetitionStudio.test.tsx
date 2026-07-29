@@ -201,7 +201,9 @@ describe("Phase 4 Competition Studio", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Merry-Go-Round Control Room")).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Live standings" }),
+      screen.getByRole("heading", {
+        name: "Round-robin qualification standings",
+      }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", {
@@ -493,6 +495,15 @@ describe("Phase 4 Competition Studio", () => {
         run={run}
       />,
     );
+    const finalWinner = participants.find(
+      (participant) =>
+        participant.id === run.matches[finalId]!.result!.winnerId,
+    )!.displayName;
+    const grandWinner = screen.getByRole("region", { name: "Grand Winner" });
+    expect(within(grandWinner).getByText(finalWinner)).toBeInTheDocument();
+    expect(
+      within(grandWinner).getByText(/round-robin points.*do not override/i),
+    ).toBeInTheDocument();
     const knockout = screen.getByRole("region", { name: "Knockout bracket" });
     fireEvent.click(
       within(knockout).getAllByRole("button", { name: "Correct result" })[0]!,

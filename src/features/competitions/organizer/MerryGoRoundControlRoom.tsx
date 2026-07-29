@@ -12,12 +12,14 @@ import { Modal } from "../../../components/ui/Modal";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import type { Participant } from "../../participants/types";
 import { useCompetitions } from "../CompetitionsProvider";
+import { MerryGoRoundGrandWinner } from "../MerryGoRoundGrandWinner";
 import type { PublishedCompetition } from "../domain/types";
 import { reviewActivation } from "../engine/activation";
 import { canCompleteCompetition } from "../engine/lifecycle";
 import {
   matchScore,
   matchStatusLabel,
+  knockoutChampionParticipantId,
   runProgress,
   runStageLabel,
   seriesLabel,
@@ -424,6 +426,7 @@ export function MerryGoRoundControlRoom({
   );
   const knockoutSlots = nextPowerOfTwo(run.configSnapshot.qualificationCount);
   const progress = runProgress(run);
+  const grandWinnerId = knockoutChampionParticipantId(run);
   const runtimeWarnings = run.participantIds.flatMap((id) => {
     const participant = participants.find((entry) => entry.id === id);
     return !participant
@@ -495,6 +498,13 @@ export function MerryGoRoundControlRoom({
         >
           {error}
         </p>
+      ) : null}
+      {grandWinnerId ? (
+        <MerryGoRoundGrandWinner
+          id={`${run.competitionId}-organizer-grand-winner`}
+          participantId={grandWinnerId}
+          participants={participants}
+        />
       ) : null}
       <section
         className="mt-6 rounded-2xl border border-white/10 bg-white/[0.025] p-5"
@@ -616,8 +626,12 @@ export function MerryGoRoundControlRoom({
       ) : null}
       <section className="mt-8" aria-labelledby="control-standings">
         <h4 className="text-xl font-extrabold" id="control-standings">
-          Live standings
+          Round-robin qualification standings
         </h4>
+        <p className="mt-1 text-xs leading-5 text-white/45">
+          These points determine qualification and knockout seeding only. The
+          knockout final decides the Grand Winner.
+        </p>
         <ol className="mt-3 grid gap-2 sm:grid-cols-2">
           {standings.rows.map((row, index) => (
             <li
