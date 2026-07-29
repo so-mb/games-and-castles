@@ -1398,18 +1398,14 @@
         },
         "optionLabels": {
           ".validate": "newData.hasChildren(['option-a', 'option-b'])",
-          "option-a": {
-            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50"
-          },
-          "option-b": {
-            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50"
-          },
-          "$other": { ".validate": false }
+          "$option": {
+            ".validate": "$option.matches(/^option-[a-h]$/) && newData.isString() && newData.val().length >= 1 && newData.val().length <= 50 && newData.parent().parent().child('resolutionPayloads').child($option).exists()"
+          }
         },
         "resolutionPayloads": {
           ".validate": "newData.hasChildren(['option-a', 'option-b'])",
           "$option": {
-            ".validate": "($option == 'option-a' || $option == 'option-b') && newData.hasChildren(['title', 'body', 'emojiKey'])",
+            ".validate": "$option.matches(/^option-[a-h]$/) && newData.parent().parent().child('optionLabels').child($option).exists() && newData.hasChildren(['title', 'body', 'emojiKey'])",
             "title": {
               ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 100"
             },
@@ -1478,7 +1474,7 @@
       },
       "publicOpening": {
         ".read": "auth != null && root.child('specialReveal').child('publicState').exists()",
-        ".write": "auth != null && auth.token.admin === true && auth.token.specialRevealAdmin === true && auth.token.auth_time != null && auth.token.auth_time * 1000 <= now && now - auth.token.auth_time * 1000 <= 300000 && !data.exists() && newData.exists() && newData.child('eventId').val() == newData.parent().child('privateConfig').child('eventId').val() && newData.child('eventId').val() == newData.parent().child('publicState').child('eventId').val() && newData.child('openRevision').val() == newData.parent().child('publicState').child('openRevision').val() && newData.child('title').val() == newData.parent().child('privateConfig').child('opening').child('title').val() && newData.child('body').val() == newData.parent().child('privateConfig').child('opening').child('body').val() && newData.child('emojiKey').val() == newData.parent().child('privateConfig').child('opening').child('emojiKey').val() && newData.child('predictionPrompt').val() == newData.parent().child('privateConfig').child('predictionPrompt').val() && newData.child('optionLabels').child('option-a').val() == newData.parent().child('privateConfig').child('optionLabels').child('option-a').val() && newData.child('optionLabels').child('option-b').val() == newData.parent().child('privateConfig').child('optionLabels').child('option-b').val()",
+        ".write": "auth != null && auth.token.admin === true && auth.token.specialRevealAdmin === true && auth.token.auth_time != null && auth.token.auth_time * 1000 <= now && now - auth.token.auth_time * 1000 <= 300000 && !data.exists() && newData.exists() && newData.child('eventId').val() == newData.parent().child('privateConfig').child('eventId').val() && newData.child('eventId').val() == newData.parent().child('publicState').child('eventId').val() && newData.child('openRevision').val() == newData.parent().child('publicState').child('openRevision').val() && newData.child('title').val() == newData.parent().child('privateConfig').child('opening').child('title').val() && newData.child('body').val() == newData.parent().child('privateConfig').child('opening').child('body').val() && newData.child('emojiKey').val() == newData.parent().child('privateConfig').child('opening').child('emojiKey').val() && newData.child('predictionPrompt').val() == newData.parent().child('privateConfig').child('predictionPrompt').val()",
         ".validate": "newData.hasChildren(['eventId', 'title', 'body', 'emojiKey', 'predictionPrompt', 'optionLabels', 'publishedAt', 'openRevision', 'schemaVersion'])",
         "eventId": {
           ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,80}$/)"
@@ -1496,15 +1492,9 @@
           ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 180"
         },
         "optionLabels": {
-          ".validate": "newData.hasChildren(['option-a', 'option-b'])",
-          "option-a": {
-            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50"
-          },
-          "option-b": {
-            ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50"
-          },
-          "$other": {
-            ".validate": false
+          ".validate": "newData.hasChildren(['option-a', 'option-b']) && newData.child('option-c').exists() == newData.parent().parent().child('privateConfig').child('optionLabels').child('option-c').exists() && newData.child('option-d').exists() == newData.parent().parent().child('privateConfig').child('optionLabels').child('option-d').exists() && newData.child('option-e').exists() == newData.parent().parent().child('privateConfig').child('optionLabels').child('option-e').exists() && newData.child('option-f').exists() == newData.parent().parent().child('privateConfig').child('optionLabels').child('option-f').exists() && newData.child('option-g').exists() == newData.parent().parent().child('privateConfig').child('optionLabels').child('option-g').exists() && newData.child('option-h').exists() == newData.parent().parent().child('privateConfig').child('optionLabels').child('option-h').exists()",
+          "$option": {
+            ".validate": "$option.matches(/^option-[a-h]$/) && newData.isString() && newData.val().length >= 1 && newData.val().length <= 50 && newData.val() == newData.parent().parent().parent().child('privateConfig').child('optionLabels').child($option).val()"
           }
         },
         "publishedAt": {
@@ -1528,7 +1518,7 @@
           ".validate": "newData.isString() && newData.val().matches(/^[A-Za-z0-9_-]{1,80}$/)"
         },
         "correctOption": {
-          ".validate": "newData.val() == 'option-a' || newData.val() == 'option-b'"
+          ".validate": "newData.isString() && newData.val().matches(/^option-[a-h]$/) && newData.parent().parent().child('privateConfig').child('optionLabels').child(newData.val()).exists()"
         },
         "correctOptionLabel": {
           ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50"
@@ -1543,12 +1533,30 @@
           ".validate": "newData.val().matches(/^(sparkles|star|crown|castle|confetti)$/)"
         },
         "aggregate": {
-          ".validate": "newData.hasChildren(['optionA', 'optionB', 'total']) && newData.child('total').val() == newData.child('optionA').val() + newData.child('optionB').val()",
+          ".validate": "newData.hasChildren(['optionA', 'optionB', 'total']) && newData.child('optionC').exists() == newData.parent().parent().child('publicOpening').child('optionLabels').child('option-c').exists() && newData.child('optionD').exists() == newData.parent().parent().child('publicOpening').child('optionLabels').child('option-d').exists() && newData.child('optionE').exists() == newData.parent().parent().child('publicOpening').child('optionLabels').child('option-e').exists() && newData.child('optionF').exists() == newData.parent().parent().child('publicOpening').child('optionLabels').child('option-f').exists() && newData.child('optionG').exists() == newData.parent().parent().child('publicOpening').child('optionLabels').child('option-g').exists() && newData.child('optionH').exists() == newData.parent().parent().child('publicOpening').child('optionLabels').child('option-h').exists() && newData.child('total').val() == newData.child('optionA').val() + newData.child('optionB').val() + (newData.child('optionC').exists() ? newData.child('optionC').val() : 0) + (newData.child('optionD').exists() ? newData.child('optionD').val() : 0) + (newData.child('optionE').exists() ? newData.child('optionE').val() : 0) + (newData.child('optionF').exists() ? newData.child('optionF').val() : 0) + (newData.child('optionG').exists() ? newData.child('optionG').val() : 0) + (newData.child('optionH').exists() ? newData.child('optionH').val() : 0)",
           "optionA": {
-            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+            ".validate": "newData.parent().parent().parent().child('publicOpening').child('optionLabels').child('option-a').exists() && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
           },
           "optionB": {
-            ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+            ".validate": "newData.parent().parent().parent().child('publicOpening').child('optionLabels').child('option-b').exists() && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+          },
+          "optionC": {
+            ".validate": "newData.parent().parent().parent().child('publicOpening').child('optionLabels').child('option-c').exists() && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+          },
+          "optionD": {
+            ".validate": "newData.parent().parent().parent().child('publicOpening').child('optionLabels').child('option-d').exists() && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+          },
+          "optionE": {
+            ".validate": "newData.parent().parent().parent().child('publicOpening').child('optionLabels').child('option-e').exists() && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+          },
+          "optionF": {
+            ".validate": "newData.parent().parent().parent().child('publicOpening').child('optionLabels').child('option-f').exists() && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+          },
+          "optionG": {
+            ".validate": "newData.parent().parent().parent().child('publicOpening').child('optionLabels').child('option-g').exists() && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
+          },
+          "optionH": {
+            ".validate": "newData.parent().parent().parent().child('publicOpening').child('optionLabels').child('option-h').exists() && newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
           },
           "total": {
             ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() % 1 == 0"
@@ -1587,7 +1595,7 @@
             ".validate": "newData.isString() && newData.val().matches(/^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/)"
           },
           "selection": {
-            ".validate": "newData.val() == 'option-a' || newData.val() == 'option-b'"
+            ".validate": "newData.isString() && newData.val().matches(/^option-[a-h]$/) && root.child('specialReveal').child('publicOpening').child('optionLabels').child(newData.val()).exists()"
           },
           "status": {
             ".validate": "newData.val() == 'submitted' || newData.val() == 'withdrawn'"

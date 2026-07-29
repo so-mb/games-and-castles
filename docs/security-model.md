@@ -165,7 +165,7 @@ Every writable field is allowlisted. Validation includes:
 - numeric bounds, finite integers where required, and array/map count limits;
 - immutable IDs, owner UID, creator, creation timestamp, generation revision, and source keys;
 - participant references exist and are active/eligible;
-- prediction value is exactly `option-a` or `option-b` and event status is `open`;
+- prediction value is one of the 2–8 configured neutral identifiers (`option-a` through `option-h`) and event status is `open`;
 - status transitions follow the lifecycle, not arbitrary strings;
 - guests cannot set moderation, resolution, organizer, ledger, audit, or publication fields;
 - organizer direct writes reach only the exact phase branches and transitions explicitly allowlisted by Rules; protected reveal writes additionally require both claims and recent `auth_time`.
@@ -210,7 +210,7 @@ sequenceDiagram
     A-->>O: Refreshed token with claims and recent auth_time
     O->>DB: Atomic opening + open state + audit
     DB->>DB: Rules verify claims, auth_time, config, and revision
-    G->>DB: Atomic own option-a/option-b + identity-free receipt
+    G->>DB: Atomic own configured option + identity-free receipt
     DB->>DB: Rules verify open state, ownership, linkage, revision, and receipt
     O->>A: Reauthenticate for resolution
     O->>DB: Read config, state, and private predictions
@@ -222,9 +222,9 @@ sequenceDiagram
 
 The implemented boundary:
 
-- accepts only the expected state/config/resolution revisions and an `option-a` / `option-b` choice for resolution/correction;
+- accepts only the expected state/config/resolution revisions and a configured `option-a` through `option-h` choice for resolution/correction;
 - blocks ordinary admins, stale sessions, malformed transitions, conflicting revisions, and arbitrary point values;
-- stores both possible payloads only in dual-claim private configuration, frozen after opening, and publishes only the reviewed opening or selected resolution fields;
+- stores one paired payload for each of 2–8 choices only in dual-claim private configuration, frozen after opening, and publishes only the reviewed opening or selected resolution fields;
 - resolves valid submitted predictions in the privileged browser and replaces one complete deterministic source whose logical identity is `prediction:{eventId}:{participantId}`;
 - writes no entry for incorrect/withdrawn predictions and cannot append duplicate points on retry;
 - uses one root atomic update for the resolution/correction state, selected payload, complete source, and neutral audit metadata;

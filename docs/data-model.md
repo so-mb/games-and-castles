@@ -860,7 +860,20 @@ No moderation record means pending. A moderation record is current only when `me
 ## 10. Prediction and reveal state
 
 ```ts
-type PredictionOption = 'option-a' | 'option-b';
+type PredictionOption =
+  | 'option-a'
+  | 'option-b'
+  | 'option-c'
+  | 'option-d'
+  | 'option-e'
+  | 'option-f'
+  | 'option-g'
+  | 'option-h';
+
+type PredictionOptionLabels = Partial<Record<PredictionOption, string>>;
+type PredictionResolutionPayloads = Partial<
+  Record<PredictionOption, RevealPayload>
+>;
 
 interface RevealPayload {
   title: string;
@@ -872,8 +885,8 @@ interface SpecialRevealPrivateConfig {
   eventId: EventId;
   opening: RevealPayload;
   predictionPrompt: string;
-  optionLabels: Record<PredictionOption, string>;
-  resolutionPayloads: Record<PredictionOption, RevealPayload>;
+  optionLabels: PredictionOptionLabels;
+  resolutionPayloads: PredictionResolutionPayloads;
   correctPredictionPoints: number;
   createdAt: UnixMs;
   createdByUid: UserId;
@@ -901,7 +914,7 @@ interface SpecialRevealPublicOpening {
   body: string;
   emojiKey: RevealPayload['emojiKey'];
   predictionPrompt: string;
-  optionLabels: Record<PredictionOption, string>;
+  optionLabels: PredictionOptionLabels;
   publishedAt: UnixMs;
   openRevision: number;
   schemaVersion: 1;
@@ -933,7 +946,17 @@ interface SpecialRevealPublicResolution {
   title: string;
   body: string;
   emojiKey: RevealPayload['emojiKey'];
-  aggregate: { optionA: number; optionB: number; total: number };
+  aggregate: {
+    optionA: number;
+    optionB: number;
+    optionC?: number;
+    optionD?: number;
+    optionE?: number;
+    optionF?: number;
+    optionG?: number;
+    optionH?: number;
+    total: number;
+  };
   correctPredictionPoints: number;
   resolvedAt: UnixMs;
   resolutionRevision: number;
@@ -943,9 +966,9 @@ interface SpecialRevealPublicResolution {
 
 The implemented paths are `/specialReveal/privateConfig`, `/specialReveal/publicState`, `/specialReveal/publicOpening`, `/specialReveal/publicResolution`, `/specialReveal/predictions/{ownerUid}`, and `/specialReveal/predictionReceipts/{predictionId}`. One owner UID has at most one current prediction. Its owner/participant/prediction identity and creation timestamp remain immutable; submit/update/withdraw advances one revision and writes the matching identity-free receipt atomically.
 
-Before resolution, only the owning UID may read an individual `Prediction`; a recently authenticated user with both reveal claims may read the full collection for resolution. Ordinary admins are denied. `selection` accepts only the two neutral enum values. The identity-free active receipt count may be shown before resolution, while the option distribution is derived by the privileged reveal-organizer browser and published only with `SpecialRevealPublicResolution`.
+Before resolution, only the owning UID may read an individual `Prediction`; a recently authenticated user with both reveal claims may read the full collection for resolution. Ordinary admins are denied. A configuration contains 2–8 paired labels and payloads, always including `option-a` and `option-b`; `selection` accepts only a neutral identifier present in the published opening. The identity-free active receipt count may be shown before resolution, while the option distribution is derived by the privileged reveal-organizer browser and published only with `SpecialRevealPublicResolution`.
 
-Option labels are dynamic values, not enum keys. They remain under dual-claim `privateConfig` until the recent-auth opening operation copies the reviewed opening/prompt/labels to `publicOpening`. The selected resolution payload becomes public only in the atomic resolution/correction update; the unselected payload stays private. There is no app-specific reveal credential in any database/domain type.
+Option labels are dynamic values, not enum keys. They remain under dual-claim `privateConfig` until the recent-auth opening operation copies the reviewed opening/prompt/labels to `publicOpening`. The selected resolution payload becomes public only in the atomic resolution/correction update; all unselected payloads stay private. Configuration remains frozen after opening, and existing two-option records stay valid without migration. There is no app-specific reveal credential in any database/domain type.
 
 ## 11. Settings, protected trip information, and audit
 

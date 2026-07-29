@@ -383,7 +383,7 @@ Cross-cutting rules:
 
 **Outputs**
 
-- Dynamic safe labels with stored values only `option-a`/`option-b`.
+- Two to eight dynamic safe labels with stable stored values `option-a` through `option-h`; only configured values are accepted.
 - Owner-scoped prediction create/update while open and organizer-controlled lock.
 - Protected opening, lock, reopen, resolution, correction, and ledger reconciliation with password reauthentication, both custom claims, recent `auth_time`, strict schemas, revision-safe atomic publication/scoring, and neutral audit.
 - Trusted local Admin SDK recovery menu that reuses the same platform-neutral derivation and accepts credentials only from outside the repository.

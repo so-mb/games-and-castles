@@ -124,6 +124,45 @@ describe("browser-first Special Reveal domain", () => {
     expect(result.validPredictions).toHaveLength(2);
   });
 
+  it("derives and scores an additional configured option", () => {
+    const multiOptionConfig: SpecialRevealPrivateConfig = {
+      ...config,
+      optionLabels: { ...config.optionLabels, "option-c": "Option C" },
+      resolutionPayloads: {
+        ...config.resolutionPayloads,
+        "option-c": {
+          title: "Option C resolution",
+          body: "Third selected presentation.",
+          emojiKey: "crown",
+        },
+      },
+    };
+    const result = buildPredictionResolution({
+      config: multiOptionConfig,
+      stateRevision: 3,
+      resolutionRevision: 1,
+      correctOption: "option-c",
+      predictions: [
+        ...predictions,
+        prediction("owner-c", "participant-c", "option-c"),
+      ],
+      participants,
+      profiles,
+      resolvedAt: now,
+      generatedAt: now,
+    });
+
+    expect(result.publicResolution).toMatchObject({
+      correctOption: "option-c",
+      correctOptionLabel: "Option C",
+      title: "Option C resolution",
+      aggregate: { optionA: 1, optionB: 1, optionC: 1, total: 3 },
+    });
+    expect(Object.values(result.source.entries)).toEqual([
+      expect.objectContaining({ participantId: "participant-c", points: 4 }),
+    ]);
+  });
+
   it("awards only correct predictors using configured points", () => {
     const result = derive("option-a");
     expect(Object.values(result.source.entries)).toEqual([
@@ -162,8 +201,12 @@ describe("browser-first Special Reveal domain", () => {
     });
     const published = JSON.stringify(mutation.updates);
     expect(published).toContain(config.opening.title);
-    expect(published).not.toContain(config.resolutionPayloads["option-a"].body);
-    expect(published).not.toContain(config.resolutionPayloads["option-b"].body);
+    expect(published).not.toContain(
+      config.resolutionPayloads["option-a"]!.body,
+    );
+    expect(published).not.toContain(
+      config.resolutionPayloads["option-b"]!.body,
+    );
     expect(published.match(/reveal-admin/g)).toHaveLength(1);
   });
 

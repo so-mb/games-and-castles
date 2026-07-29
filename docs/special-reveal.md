@@ -36,13 +36,13 @@ resolved
   └─ recent-auth reconciliation ─→ resolved with repaired/no-op ledger source
 ```
 
-Opening publishes only the reviewed opening payload, prompt, and dynamic option labels. Resolution publishes only the chosen resolution payload, selected option/label, configured points, and identity-free aggregate. The unused resolution payload remains private. Predictions stay immutable after resolution; replay is presentation-only and writes nothing.
+Opening publishes only the reviewed opening payload, prompt, and dynamic option labels. Resolution publishes only the chosen resolution payload, selected option/label, configured points, and identity-free aggregate. Every unselected resolution payload remains private. Predictions stay immutable after resolution; replay is presentation-only and writes nothing.
 
 ## Firebase paths and access
 
 | Path | Access | Purpose |
 |---|---|---|
-| `/specialReveal/privateConfig` | Dual-claim reveal organizer before opening | Both reviewed variants, prompt, labels, scoring, revisions |
+| `/specialReveal/privateConfig` | Dual-claim reveal organizer before opening | All reviewed variants, prompt, labels, scoring, revisions |
 | `/specialReveal/publicState` | Authenticated read; recent dual-claim write | Lifecycle and revision source |
 | `/specialReveal/publicOpening` | Authenticated read after opening; recent dual-claim publish | Sanitized opening copy and labels |
 | `/specialReveal/publicResolution` | Authenticated read when resolved; recent dual-claim replace | Selected result and identity-free aggregate |
@@ -55,7 +55,9 @@ The organizer UI shows counts and validation summaries rather than casually list
 
 ## Private configuration and inspection boundary
 
-The reveal organizer configures an opaque event ID, opening copy/motif, prompt, two dynamic labels, two possible resolution payloads, and 1–100 correct-prediction points. There is no stored preselected correct outcome. Developer fixtures use only `option-a` and `option-b`.
+The reveal organizer configures an opaque event ID, opening copy/motif, prompt, 2–8 dynamic labels, one paired resolution payload per choice, and 1–100 correct-prediction points. Stable neutral identifiers run from `option-a` through `option-h`; `option-a` and `option-b` are the permanent minimum, and only configured identifiers are valid. There is no stored preselected correct outcome. Existing two-option configurations remain compatible.
+
+Additional choices may be added or removed only before opening. Once public state exists, the complete configuration—including the option set—remains frozen so an organizer cannot silently change the choices after guests have seen or submitted predictions.
 
 The application bundle necessarily exposes the procedure, path names, schemas, action phrases, and scoring algorithm. It does not expose configured content because that data remains behind claim-restricted Rules. The privileged reveal-admin browser can read private configuration and predictions; a compromised account or unlocked organizer laptop can therefore perform reveal operations. Password reauthentication and the five-minute Rules window reduce session-theft and unattended-device risk, but this browser model is not equivalent to a private server. There is no trustworthy app-specific browser secret and no custom client-side security rate limiter; Firebase Authentication supplies password verification and its platform abuse protections.
 
@@ -73,7 +75,7 @@ The organizer browser performs aggregate computation because Rules cannot practi
 
 ## Prediction ownership and scoring
 
-One UID-keyed prediction belongs to the linked active participant and stores only `option-a` or `option-b`. Create, update, resubmit, or withdraw uses one atomic update with its identity-free receipt and one-step revision. Rules re-read public state, profile linkage, participant ownership/status, immutable IDs, and the matching receipt, so stale/offline writes cannot cross the lock boundary.
+One UID-keyed prediction belongs to the linked active participant and stores one configured neutral identifier from `option-a` through `option-h`. Create, update, resubmit, or withdraw uses one atomic update with its identity-free receipt and one-step revision. Rules re-read the published option set, public state, profile linkage, participant ownership/status, immutable IDs, and the matching receipt, so unconfigured selections and stale/offline writes cannot cross the opening or lock boundary.
 
 Resolution includes only valid submitted predictions still linked to active participants. Each correct participant receives one deterministic entry derived from `prediction:{eventId}:{participantId}` with `sourceType` `prediction-correct`; incorrect and withdrawn predictions receive no entry. The source is a complete replacement containing event ID, state and resolution revisions, stable fingerprint, entry count, and schema version. Correction removes obsolete winners, repeated calculation cannot append duplicate points, and existing subscriptions update the public resolution, championship leaderboard, participant detail, and `Prediction Master` achievement in realtime.
 

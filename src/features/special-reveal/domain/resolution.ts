@@ -1,9 +1,14 @@
 import type {
+  PredictionAggregate,
   PredictionLedgerSnapshot,
   PredictionOption,
   SpecialRevealPrediction,
   SpecialRevealPrivateConfig,
   SpecialRevealPublicResolution,
+} from "./types.ts";
+import {
+  configuredPredictionOptions,
+  predictionAggregateKeys,
 } from "./types.ts";
 
 type ObjectValue = Record<string, unknown>;
@@ -84,18 +89,24 @@ export function buildPredictionResolution(input: {
       profile.participantId === prediction.participantId,
     );
   });
+  const options = configuredPredictionOptions(input.config.optionLabels);
   const aggregate = {
-    optionA: valid.filter((prediction) => prediction.selection === "option-a")
-      .length,
-    optionB: valid.filter((prediction) => prediction.selection === "option-b")
-      .length,
+    ...Object.fromEntries(
+      options.map((option) => [
+        predictionAggregateKeys[option],
+        valid.filter((prediction) => prediction.selection === option).length,
+      ]),
+    ),
     total: valid.length,
-  };
+  } as PredictionAggregate;
   const selected = input.config.resolutionPayloads[input.correctOption];
+  const selectedLabel = input.config.optionLabels[input.correctOption];
+  if (!selected || !selectedLabel)
+    throw new Error("The selected prediction option is not configured.");
   const publicResolution: SpecialRevealPublicResolution = {
     eventId: input.config.eventId,
     correctOption: input.correctOption,
-    correctOptionLabel: input.config.optionLabels[input.correctOption],
+    correctOptionLabel: selectedLabel,
     title: selected.title,
     body: selected.body,
     emojiKey: selected.emojiKey,

@@ -4458,6 +4458,28 @@ describe("Realtime Database security rules", () => {
         ),
       );
     });
+    it("11a allows paired additional options in pre-open configuration", async () => {
+      await assertSucceeds(
+        set(
+          ref(contexts().revealAdmin, "specialReveal/privateConfig"),
+          revealConfig({
+            optionLabels: {
+              "option-a": "Option A",
+              "option-b": "Option B",
+              "option-c": "Option C",
+            },
+            resolutionPayloads: {
+              ...revealConfig().resolutionPayloads,
+              "option-c": {
+                title: "Option C resolution",
+                body: "Third selected presentation.",
+                emojiKey: "crown",
+              },
+            },
+          }),
+        ),
+      );
+    });
     it("12 denies guest configuration creation", async () => {
       await assertFails(
         set(
@@ -4472,6 +4494,20 @@ describe("Realtime Database security rules", () => {
           ref(contexts().revealAdmin, "specialReveal/privateConfig"),
           revealConfig({
             optionLabels: { "option-a": "", "option-b": "Option B" },
+          }),
+        ),
+      );
+    });
+    it("13a denies an additional option without a paired resolution", async () => {
+      await assertFails(
+        set(
+          ref(contexts().revealAdmin, "specialReveal/privateConfig"),
+          revealConfig({
+            optionLabels: {
+              "option-a": "Option A",
+              "option-b": "Option B",
+              "option-c": "Option C",
+            },
           }),
         ),
       );
@@ -4582,7 +4618,7 @@ describe("Realtime Database security rules", () => {
         submit(contexts().guest, prediction({ participantId: "guest-2" })),
       );
     });
-    it("28 denies an invalid prediction option", async () => {
+    it("28 denies an unconfigured prediction option", async () => {
       await seedReveal();
       await assertFails(
         submit(contexts().guest, prediction({ selection: "option-c" })),
@@ -5042,6 +5078,106 @@ describe("Realtime Database security rules", () => {
         applied: true,
         stateRevision: 3,
         resolutionRevision: 1,
+      });
+    });
+
+    it("51d supports a configured third option through opening, submission, and resolution", async () => {
+      const config = revealConfig({
+        optionLabels: {
+          "option-a": "Option A",
+          "option-b": "Option B",
+          "option-c": "Option C",
+        },
+        resolutionPayloads: {
+          "option-a": {
+            title: "Option A resolution",
+            body: "Selected presentation.",
+            emojiKey: "star",
+          },
+          "option-b": {
+            title: "Option B resolution",
+            body: "Selected presentation.",
+            emojiKey: "star",
+          },
+          "option-c": {
+            title: "Option C resolution",
+            body: "Third selected presentation.",
+            emojiKey: "crown",
+          },
+        },
+      }) as unknown as SpecialRevealPrivateConfig;
+      await seed({
+        participants: {
+          "guest-1": participant("guest-1", "guest-1"),
+        },
+        userProfiles: {
+          "guest-1": {
+            uid: "guest-1",
+            participantId: "guest-1",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+            schemaVersion: 1,
+          },
+        },
+        specialReveal: { privateConfig: config },
+      });
+      const opened = buildOpenRevealMutation({
+        config,
+        state: null,
+        expectedConfigRevision: 1,
+        actorUid: "reveal-admin",
+        auditId: "audit-open-multiple",
+        now: Date.now(),
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), opened.updates!),
+      );
+
+      const multiPrediction = prediction({ selection: "option-c" });
+      await assertSucceeds(submit(contexts().guest, multiPrediction));
+      const openState = opened.updates?.[
+        "specialReveal/publicState"
+      ] as SpecialRevealPublicState;
+      const locked = buildPredictionStateMutation({
+        state: openState,
+        expectedStateRevision: 1,
+        action: "lock",
+        actorUid: "reveal-admin",
+        auditId: "audit-lock-multiple",
+        now: Date.now(),
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), locked.updates!),
+      );
+
+      const lockedState = locked.updates?.[
+        "specialReveal/publicState"
+      ] as SpecialRevealPublicState;
+      const resolved = buildResolveRevealMutation({
+        config,
+        state: lockedState,
+        predictions: [multiPrediction as unknown as SpecialRevealPrediction],
+        participants: {
+          "guest-1": participant("guest-1", "guest-1"),
+        },
+        profiles: { "guest-1": { participantId: "guest-1" } },
+        correctOption: "option-c",
+        expectedStateRevision: 2,
+        expectedConfigRevision: 1,
+        actorUid: "reveal-admin",
+        auditId: "audit-resolve-multiple",
+        now: Date.now(),
+      });
+      await assertSucceeds(
+        update(ref(contexts().revealAdmin), resolved.updates!),
+      );
+      const resolution = await get(
+        ref(contexts().guest, "specialReveal/publicResolution"),
+      );
+      expect(resolution.val()).toMatchObject({
+        correctOption: "option-c",
+        correctOptionLabel: "Option C",
+        aggregate: { optionA: 0, optionB: 0, optionC: 1, total: 1 },
       });
     });
 

@@ -1,4 +1,8 @@
 import {
+  configuredPredictionOptions,
+  maximumPredictionOptionCount,
+  minimumPredictionOptionCount,
+  predictionAggregateKeys,
   predictionOptions,
   revealEmojiKeys,
   type PredictionLedgerSnapshot,
@@ -59,6 +63,11 @@ function option(value: unknown): value is PredictionOption {
   return predictionOptions.includes(value as PredictionOption);
 }
 
+function optionKeys(value: ObjectValue) {
+  const keys = Object.keys(value);
+  return keys.every(option) ? (keys as PredictionOption[]) : null;
+}
+
 function emoji(value: unknown) {
   return revealEmojiKeys.includes(value as (typeof revealEmojiKeys)[number]);
 }
@@ -80,6 +89,7 @@ function parsePayload(value: unknown): RevealPayloadInput | null {
 }
 
 export function validateSpecialRevealConfig(input: SpecialRevealConfigInput) {
+  const configuredOptions = configuredPredictionOptions(input.optionLabels);
   const normalized: SpecialRevealConfigInput = {
     eventId: input.eventId.trim(),
     opening: {
@@ -88,22 +98,29 @@ export function validateSpecialRevealConfig(input: SpecialRevealConfigInput) {
       emojiKey: input.opening.emojiKey,
     },
     predictionPrompt: input.predictionPrompt.trim(),
-    optionLabels: {
-      "option-a": input.optionLabels["option-a"].trim(),
-      "option-b": input.optionLabels["option-b"].trim(),
-    },
-    resolutionPayloads: {
-      "option-a": {
-        ...input.resolutionPayloads["option-a"],
-        title: input.resolutionPayloads["option-a"].title.trim(),
-        body: input.resolutionPayloads["option-a"].body.trim(),
-      },
-      "option-b": {
-        ...input.resolutionPayloads["option-b"],
-        title: input.resolutionPayloads["option-b"].title.trim(),
-        body: input.resolutionPayloads["option-b"].body.trim(),
-      },
-    },
+    optionLabels: Object.fromEntries(
+      configuredOptions.map((key) => [
+        key,
+        (input.optionLabels[key] ?? "").trim(),
+      ]),
+    ),
+    resolutionPayloads: Object.fromEntries(
+      configuredOptions.map((key) => {
+        const payload = input.resolutionPayloads[key] ?? {
+          title: "",
+          body: "",
+          emojiKey: "sparkles",
+        };
+        return [
+          key,
+          {
+            ...payload,
+            title: payload.title.trim(),
+            body: payload.body.trim(),
+          },
+        ];
+      }),
+    ),
     correctPredictionPoints: input.correctPredictionPoints,
   };
   const errors: string[] = [];
@@ -118,10 +135,29 @@ export function validateSpecialRevealConfig(input: SpecialRevealConfigInput) {
     !plain(normalized.predictionPrompt)
   )
     errors.push("Enter a plain-text prediction prompt of 1–180 characters.");
-  predictionOptions.forEach((key) => {
+  const labelKeys = Object.keys(input.optionLabels);
+  const resolutionKeys = Object.keys(input.resolutionPayloads);
+  if (
+    labelKeys.length < minimumPredictionOptionCount ||
+    labelKeys.length > maximumPredictionOptionCount ||
+    labelKeys.some((key) => !option(key)) ||
+    !Object.hasOwn(input.optionLabels, "option-a") ||
+    !Object.hasOwn(input.optionLabels, "option-b")
+  )
+    errors.push(
+      `Configure ${minimumPredictionOptionCount}–${maximumPredictionOptionCount} prediction options.`,
+    );
+  if (
+    resolutionKeys.length !== labelKeys.length ||
+    resolutionKeys.some((key) => !option(key) || !labelKeys.includes(key))
+  )
+    errors.push(
+      "Every prediction option needs exactly one reveal presentation.",
+    );
+  configuredOptions.forEach((key) => {
     if (
       !string(normalized.optionLabels[key], 1, 50) ||
-      !plain(normalized.optionLabels[key])
+      !plain(normalized.optionLabels[key] ?? "")
     )
       errors.push(`${key} needs a plain-text label of 1–50 characters.`);
     if (!parsePayload(normalized.resolutionPayloads[key]))
@@ -141,18 +177,19 @@ export function parseSpecialRevealPrivateConfig(
   const resolutions = object(item.resolutionPayloads);
   const labels = object(item.optionLabels);
   if (!opening || !resolutions || !labels) return null;
-  const optionAResolution = parsePayload(resolutions["option-a"]);
-  const optionBResolution = parsePayload(resolutions["option-b"]);
-  if (!optionAResolution || !optionBResolution) return null;
+  const labelKeys = optionKeys(labels);
+  const resolutionKeys = optionKeys(resolutions);
+  if (!labelKeys || !resolutionKeys) return null;
+  const parsedResolutions = Object.fromEntries(
+    resolutionKeys.map((key) => [key, parsePayload(resolutions[key])]),
+  );
+  if (Object.values(parsedResolutions).some((payload) => !payload)) return null;
   const candidate = {
     eventId: item.eventId,
     opening,
     predictionPrompt: item.predictionPrompt,
     optionLabels: labels,
-    resolutionPayloads: {
-      "option-a": optionAResolution,
-      "option-b": optionBResolution,
-    },
+    resolutionPayloads: parsedResolutions,
     correctPredictionPoints: item.correctPredictionPoints,
   } as unknown as SpecialRevealConfigInput;
   const result = validateSpecialRevealConfig(candidate);
@@ -200,6 +237,7 @@ export function parseSpecialRevealPublicOpening(
 ): SpecialRevealPublicOpening | null {
   const item = object(value);
   const labels = object(item?.optionLabels);
+  const labelKeys = labels ? optionKeys(labels) : null;
   if (
     !item ||
     !labels ||
@@ -208,8 +246,14 @@ export function parseSpecialRevealPublicOpening(
     !string(item.body, 1, 1500) ||
     !emoji(item.emojiKey) ||
     !string(item.predictionPrompt, 1, 180) ||
-    !string(labels["option-a"], 1, 50) ||
-    !string(labels["option-b"], 1, 50) ||
+    !labelKeys ||
+    labelKeys.length < minimumPredictionOptionCount ||
+    labelKeys.length > maximumPredictionOptionCount ||
+    !Object.hasOwn(labels, "option-a") ||
+    !Object.hasOwn(labels, "option-b") ||
+    !labelKeys.every(
+      (key) => string(labels[key], 1, 50) && plain(String(labels[key])),
+    ) ||
     !integer(item.publishedAt) ||
     !integer(item.openRevision, 1) ||
     item.schemaVersion !== 1
@@ -262,20 +306,40 @@ export function parseSpecialRevealPublicResolution(
 ): SpecialRevealPublicResolution | null {
   const item = object(value);
   const aggregate = object(item?.aggregate);
+  const correctOption = option(item?.correctOption) ? item.correctOption : null;
+  const allowedAggregateKeys = new Set<string>(
+    Object.values(predictionAggregateKeys),
+  );
+  const aggregateCountKeys = aggregate
+    ? Object.keys(aggregate).filter((key) => key !== "total")
+    : [];
+  const aggregateCountsValid = aggregateCountKeys.every(
+    (key) => allowedAggregateKeys.has(key) && integer(aggregate?.[key]),
+  );
   if (
     !item ||
     !aggregate ||
     !string(item.eventId, 1, 80) ||
-    !option(item.correctOption) ||
+    !correctOption ||
     !string(item.correctOptionLabel, 1, 50) ||
     !string(item.title, 1, 100) ||
     !string(item.body, 1, 1500) ||
     !emoji(item.emojiKey) ||
     !integer(aggregate.optionA) ||
     !integer(aggregate.optionB) ||
+    aggregateCountKeys.length < minimumPredictionOptionCount ||
+    aggregateCountKeys.length > maximumPredictionOptionCount ||
+    !aggregateCountsValid ||
+    !Object.hasOwn(aggregate, predictionAggregateKeys[correctOption]) ||
+    Object.keys(aggregate).some(
+      (key) => key !== "total" && !allowedAggregateKeys.has(key),
+    ) ||
     !integer(aggregate.total) ||
     Number(aggregate.total) !==
-      Number(aggregate.optionA) + Number(aggregate.optionB) ||
+      aggregateCountKeys.reduce(
+        (total, key) => total + Number(aggregate[key]),
+        0,
+      ) ||
     !integer(item.correctPredictionPoints, 1, 100) ||
     !integer(item.resolvedAt) ||
     !integer(item.resolutionRevision, 1) ||

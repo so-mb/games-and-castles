@@ -156,7 +156,7 @@ All variants define default, hover, active, focus-visible, disabled, and pending
 - Persistent top-aligned labels; placeholders only demonstrate format.
 - Input height at least 44 px; textareas show remaining character count near limits.
 - Help text precedes error text in reading order. Errors include an icon, concise correction, and `aria-describedby` association.
-- Radio cards are suitable for neutral `option-a`/`option-b` predictions; checked state uses indicator, border, label, and screen-reader state.
+- Radio cards are suitable for the 2–8 configured neutral prediction options; checked state uses indicator, border, label, and screen-reader state.
 - Score entry uses explicit participant labels, minus/plus only as optional helpers, and a visible numeric value. Provide a final result summary before save.
 - Organizer configuration groups format, participant snapshot, series, scoring, draw, and confirmation into short steps while preserving reviewability.
 - Never auto-submit a result, lock, reset, or reveal when a select/radio value changes.

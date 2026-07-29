@@ -1,6 +1,40 @@
-export const predictionOptions = ["option-a", "option-b"] as const;
+export const predictionOptions = [
+  "option-a",
+  "option-b",
+  "option-c",
+  "option-d",
+  "option-e",
+  "option-f",
+  "option-g",
+  "option-h",
+] as const;
 
 export type PredictionOption = (typeof predictionOptions)[number];
+export type PredictionOptionLabels = Partial<Record<PredictionOption, string>>;
+export type PredictionResolutionPayloads = Partial<
+  Record<PredictionOption, RevealPayloadInput>
+>;
+export const minimumPredictionOptionCount = 2;
+export const maximumPredictionOptionCount = predictionOptions.length;
+
+export const predictionAggregateKeys = {
+  "option-a": "optionA",
+  "option-b": "optionB",
+  "option-c": "optionC",
+  "option-d": "optionD",
+  "option-e": "optionE",
+  "option-f": "optionF",
+  "option-g": "optionG",
+  "option-h": "optionH",
+} as const satisfies Record<PredictionOption, string>;
+
+export function configuredPredictionOptions(labels: PredictionOptionLabels) {
+  return predictionOptions.filter((option) => Object.hasOwn(labels, option));
+}
+
+export function predictionOptionName(option: PredictionOption) {
+  return `Option ${option.slice(-1).toUpperCase()}`;
+}
 export type PredictionEventStatus =
   "prediction-open" | "prediction-locked" | "resolved";
 
@@ -24,8 +58,8 @@ export interface SpecialRevealConfigInput {
   eventId: string;
   opening: RevealPayloadInput;
   predictionPrompt: string;
-  optionLabels: Record<PredictionOption, string>;
-  resolutionPayloads: Record<PredictionOption, RevealPayloadInput>;
+  optionLabels: PredictionOptionLabels;
+  resolutionPayloads: PredictionResolutionPayloads;
   correctPredictionPoints: number;
 }
 
@@ -56,7 +90,7 @@ export interface SpecialRevealPublicOpening {
   body: string;
   emojiKey: RevealEmojiKey;
   predictionPrompt: string;
-  optionLabels: Record<PredictionOption, string>;
+  optionLabels: PredictionOptionLabels;
   publishedAt: number;
   openRevision: number;
   schemaVersion: 1;
@@ -65,7 +99,20 @@ export interface SpecialRevealPublicOpening {
 export interface PredictionAggregate {
   optionA: number;
   optionB: number;
+  optionC?: number;
+  optionD?: number;
+  optionE?: number;
+  optionF?: number;
+  optionG?: number;
+  optionH?: number;
   total: number;
+}
+
+export function predictionAggregateCount(
+  aggregate: PredictionAggregate,
+  option: PredictionOption,
+) {
+  return aggregate[predictionAggregateKeys[option]] ?? 0;
 }
 
 export interface SpecialRevealPublicResolution {

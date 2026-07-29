@@ -15,7 +15,11 @@ import { SectionHeading } from "../../components/ui/SectionHeading";
 import { StatusBadge } from "../../components/ui/StatusBadge";
 import { specialRevealState } from "../../data/lockedStates";
 import { friendlyFirebaseError } from "../../lib/firebase/errors";
-import type { PredictionOption } from "./domain/types";
+import {
+  configuredPredictionOptions,
+  predictionAggregateCount,
+  type PredictionOption,
+} from "./domain/types";
 import { SpecialRevealPresentation } from "./presentation/SpecialRevealPresentation";
 import { useSpecialReveal } from "./SpecialRevealProvider";
 
@@ -57,6 +61,9 @@ export function SpecialRevealSection() {
   const selected =
     selection ?? (submitted ? (reveal.ownPrediction?.selection ?? null) : null);
   const resolved = reveal.publicState?.status === "resolved";
+  const options = opening
+    ? configuredPredictionOptions(opening.optionLabels)
+    : [];
   const correct =
     resolved && submitted && reveal.resolution
       ? reveal.ownPrediction?.selection === reveal.resolution.correctOption
@@ -193,10 +200,23 @@ export function SpecialRevealSection() {
                   <p className="mt-2 text-xl font-extrabold text-white">
                     {reveal.resolution.correctOptionLabel}
                   </p>
-                  <p className="mt-2 text-sm text-white/55">
-                    Option A: {reveal.resolution.aggregate.optionA} · Option B:{" "}
-                    {reveal.resolution.aggregate.optionB}
-                  </p>
+                  <ul
+                    aria-label="Prediction distribution"
+                    className="mt-3 flex flex-wrap gap-2 text-xs text-white/60"
+                  >
+                    {options.map((option) => (
+                      <li
+                        className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5"
+                        key={option}
+                      >
+                        {opening.optionLabels[option]}:{" "}
+                        {predictionAggregateCount(
+                          reveal.resolution!.aggregate,
+                          option,
+                        )}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-black/15 p-5">
                   <p className="flex items-center gap-2 font-bold text-white">
@@ -214,7 +234,9 @@ export function SpecialRevealSection() {
                   {submitted ? (
                     <p className="mt-2 text-sm text-white/55">
                       Your private selection was{" "}
-                      {opening.optionLabels[reveal.ownPrediction!.selection]}.
+                      {opening.optionLabels[reveal.ownPrediction!.selection] ??
+                        "an unavailable option"}
+                      .
                     </p>
                   ) : null}
                 </div>
@@ -240,7 +262,7 @@ export function SpecialRevealSection() {
                   count contains no identity or choice.
                 </p>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {(["option-a", "option-b"] as const).map((option) => (
+                  {options.map((option) => (
                     <label
                       className={`flex min-h-16 cursor-pointer items-center gap-3 rounded-2xl border p-4 text-sm font-bold transition ${selected === option ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/10 text-white" : "border-white/12 bg-white/[0.025] text-white/65"}`}
                       key={option}

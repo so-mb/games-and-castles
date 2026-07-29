@@ -40,6 +40,41 @@ describe("special reveal runtime validation", () => {
     ).toBe(false);
   });
 
+  it("accepts matching additional options and rejects unpaired payloads", () => {
+    const withThirdOption = {
+      ...config,
+      optionLabels: { ...config.optionLabels, "option-c": "Option C" },
+      resolutionPayloads: {
+        ...config.resolutionPayloads,
+        "option-c": {
+          title: "Option C resolution",
+          body: "Third selected presentation.",
+          emojiKey: "crown" as const,
+        },
+      },
+    };
+    expect(validateSpecialRevealConfig(withThirdOption).valid).toBe(true);
+    expect(
+      validateSpecialRevealConfig({
+        ...withThirdOption,
+        resolutionPayloads: config.resolutionPayloads,
+      }).valid,
+    ).toBe(false);
+  });
+
+  it("keeps option A and option B as the required compatible minimum", () => {
+    expect(
+      validateSpecialRevealConfig({
+        ...config,
+        optionLabels: { "option-c": "Option C", "option-d": "Option D" },
+        resolutionPayloads: {
+          "option-c": config.resolutionPayloads["option-a"],
+          "option-d": config.resolutionPayloads["option-b"],
+        },
+      }).valid,
+    ).toBe(false);
+  });
+
   it("quarantines malformed public resolution aggregates", () => {
     expect(
       parseSpecialRevealPublicResolution({
@@ -50,6 +85,21 @@ describe("special reveal runtime validation", () => {
         body: "Selected presentation.",
         emojiKey: "star",
         aggregate: { optionA: 2, optionB: 1, total: 9 },
+        correctPredictionPoints: 3,
+        resolvedAt: 10,
+        resolutionRevision: 1,
+        schemaVersion: 1,
+      }),
+    ).toBeNull();
+    expect(
+      parseSpecialRevealPublicResolution({
+        eventId: "event-neutral",
+        correctOption: "option-c",
+        correctOptionLabel: "Option C",
+        title: "Option C resolution",
+        body: "Selected presentation.",
+        emojiKey: "star",
+        aggregate: { optionA: 2, optionB: 1, total: 3 },
         correctPredictionPoints: 3,
         resolvedAt: 10,
         resolutionRevision: 1,

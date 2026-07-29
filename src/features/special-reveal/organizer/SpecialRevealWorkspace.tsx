@@ -2,10 +2,12 @@ import { useMemo, useState } from "react";
 import {
   Eye,
   Lock,
+  Plus,
   RefreshCw,
   Save,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Unlock,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
@@ -19,7 +21,14 @@ import type {
   RevealEmojiKey,
   SpecialRevealConfigInput,
 } from "../domain/types";
-import { revealEmojiKeys } from "../domain/types";
+import {
+  configuredPredictionOptions,
+  maximumPredictionOptionCount,
+  minimumPredictionOptionCount,
+  predictionOptionName,
+  predictionOptions,
+  revealEmojiKeys,
+} from "../domain/types";
 import { validateSpecialRevealConfig } from "../domain/validation";
 import { useSpecialReveal } from "../SpecialRevealProvider";
 import { SensitiveActionDialog } from "./SensitiveActionDialog";
@@ -133,7 +142,45 @@ function SpecialRevealWorkspaceEditor({
     () => validateSpecialRevealConfig(config),
     [config],
   );
+  const options = configuredPredictionOptions(config.optionLabels);
   const frozen = reveal.publicState !== null;
+
+  function addOption() {
+    const option = predictionOptions.find(
+      (candidate) => !Object.hasOwn(config.optionLabels, candidate),
+    );
+    if (!option || options.length >= maximumPredictionOptionCount) return;
+    const name = predictionOptionName(option);
+    setConfig((current) => ({
+      ...current,
+      optionLabels: { ...current.optionLabels, [option]: name },
+      resolutionPayloads: {
+        ...current.resolutionPayloads,
+        [option]: {
+          title: `${name} reveal`,
+          body: "The selected reveal presentation appears here.",
+          emojiKey: "star",
+        },
+      },
+    }));
+  }
+
+  function removeOption(option: PredictionOption) {
+    if (
+      options.length <= minimumPredictionOptionCount ||
+      option === "option-a" ||
+      option === "option-b"
+    )
+      return;
+    setConfig((current) => {
+      const optionLabels = { ...current.optionLabels };
+      const resolutionPayloads = { ...current.resolutionPayloads };
+      delete optionLabels[option];
+      delete resolutionPayloads[option];
+      return { ...current, optionLabels, resolutionPayloads };
+    });
+    if (correctOption === option) setCorrectOption("option-a");
+  }
 
   async function saveConfiguration() {
     if (busy) return;
@@ -197,7 +244,7 @@ function SpecialRevealWorkspaceEditor({
             Protected event configuration
           </h3>
           <p className="mt-1 text-sm text-white/50">
-            Both resolution variants stay restricted to the dedicated reveal
+            Every possible resolution stays restricted to the dedicated reveal
             organizer until one is published. Configuration freezes after
             opening.
           </p>
@@ -263,53 +310,82 @@ function SpecialRevealWorkspaceEditor({
             />
           </label>
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {(["option-a", "option-b"] as const).map((option) => (
-              <label className="text-sm font-bold" key={option}>
-                {option} label
-                <input
-                  className="mt-2 min-h-11 w-full rounded-xl border border-white/15 bg-white/5 px-3"
-                  maxLength={50}
-                  onChange={(event) =>
-                    setConfig((current) => ({
-                      ...current,
-                      optionLabels: {
-                        ...current.optionLabels,
-                        [option]: event.target.value,
-                      },
-                    }))
-                  }
-                  value={config.optionLabels[option]}
-                />
-              </label>
+            {options.map((option, index) => (
+              <div
+                className="rounded-2xl border border-white/8 bg-white/[0.025] p-3"
+                key={option}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-black tracking-wide text-white/45 uppercase">
+                    {predictionOptionName(option)}
+                  </span>
+                  {index >= minimumPredictionOptionCount ? (
+                    <Button
+                      aria-label={`Remove ${predictionOptionName(option)}`}
+                      onClick={() => removeOption(option)}
+                      variant="quiet"
+                    >
+                      <Trash2 aria-hidden="true" size={15} /> Remove
+                    </Button>
+                  ) : null}
+                </div>
+                <label className="mt-2 block text-sm font-bold">
+                  Guest-facing label
+                  <input
+                    className="mt-2 min-h-11 w-full rounded-xl border border-white/15 bg-white/5 px-3"
+                    maxLength={50}
+                    onChange={(event) =>
+                      setConfig((current) => ({
+                        ...current,
+                        optionLabels: {
+                          ...current.optionLabels,
+                          [option]: event.target.value,
+                        },
+                      }))
+                    }
+                    value={config.optionLabels[option] ?? ""}
+                  />
+                </label>
+              </div>
             ))}
           </div>
+          <Button
+            className="mt-4"
+            disabled={
+              frozen || busy || options.length >= maximumPredictionOptionCount
+            }
+            onClick={addOption}
+            variant="quiet"
+          >
+            <Plus aria-hidden="true" size={16} /> Add another option
+          </Button>
+          <p className="mt-2 text-xs text-white/42">
+            {options.length}/{maximumPredictionOptionCount} options configured.
+            The first two options are permanent; additional options can be
+            removed before opening.
+          </p>
         </fieldset>
-        {payloadFields(
-          "Option A resolution",
-          config.resolutionPayloads["option-a"],
-          (value) =>
-            setConfig((current) => ({
-              ...current,
-              resolutionPayloads: {
-                ...current.resolutionPayloads,
-                "option-a": value,
+        {options.map((option) => (
+          <div key={option}>
+            {payloadFields(
+              `Reveal shown if ${config.optionLabels[option] || predictionOptionName(option)} is correct`,
+              config.resolutionPayloads[option] ?? {
+                title: "",
+                body: "",
+                emojiKey: "star",
               },
-            })),
-          frozen || busy,
-        )}
-        {payloadFields(
-          "Option B resolution",
-          config.resolutionPayloads["option-b"],
-          (value) =>
-            setConfig((current) => ({
-              ...current,
-              resolutionPayloads: {
-                ...current.resolutionPayloads,
-                "option-b": value,
-              },
-            })),
-          frozen || busy,
-        )}
+              (value) =>
+                setConfig((current) => ({
+                  ...current,
+                  resolutionPayloads: {
+                    ...current.resolutionPayloads,
+                    [option]: value,
+                  },
+                })),
+              frozen || busy,
+            )}
+          </div>
+        ))}
         {!validation.valid ? (
           <ul className="list-disc space-y-1 pl-5 text-sm text-[#ffc3c6]">
             {validation.errors.map((item) => (
@@ -407,8 +483,12 @@ function SpecialRevealWorkspaceEditor({
                 }
                 value={correctOption}
               >
-                <option value="option-a">Option A</option>
-                <option value="option-b">Option B</option>
+                {options.map((option) => (
+                  <option key={option} value={option}>
+                    {config.optionLabels[option] ||
+                      predictionOptionName(option)}
+                  </option>
+                ))}
               </select>
               <Button
                 disabled={busy || !reveal.canOrganizerMutate}
@@ -468,8 +548,12 @@ function SpecialRevealWorkspaceEditor({
                 }
                 value={correctOption}
               >
-                <option value="option-a">Option A</option>
-                <option value="option-b">Option B</option>
+                {options.map((option) => (
+                  <option key={option} value={option}>
+                    {config.optionLabels[option] ||
+                      predictionOptionName(option)}
+                  </option>
+                ))}
               </select>
               <Button
                 disabled={busy || !reveal.canOrganizerMutate}

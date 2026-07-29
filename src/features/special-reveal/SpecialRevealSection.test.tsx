@@ -38,7 +38,11 @@ const opening = {
   body: "Make one private prediction.",
   emojiKey: "sparkles",
   predictionPrompt: "Which option do you predict?",
-  optionLabels: { "option-a": "Option A", "option-b": "Option B" },
+  optionLabels: {
+    "option-a": "Option A",
+    "option-b": "Option B",
+    "option-c": "Option C",
+  },
   publishedAt: 10,
   openRevision: 1,
   schemaVersion: 1,
@@ -82,10 +86,11 @@ describe("SpecialRevealSection", () => {
     state.value.canGuestMutate = true;
     render(<SpecialRevealSection />);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Option B" }));
+    expect(screen.getAllByRole("radio")).toHaveLength(3);
+    fireEvent.click(screen.getByRole("radio", { name: "Option C" }));
     fireEvent.click(screen.getByRole("button", { name: "Save prediction" }));
     await waitFor(() =>
-      expect(state.value.submitPrediction).toHaveBeenCalledWith("option-b"),
+      expect(state.value.submitPrediction).toHaveBeenCalledWith("option-c"),
     );
     expect(
       screen.getByText("Your private prediction is saved."),
@@ -141,7 +146,7 @@ describe("SpecialRevealSection", () => {
       title: "Option A resolution",
       body: "Selected presentation.",
       emojiKey: "star",
-      aggregate: { optionA: 2, optionB: 1, total: 3 },
+      aggregate: { optionA: 2, optionB: 1, optionC: 0, total: 3 },
       correctPredictionPoints: 3,
       resolvedAt: 30,
       resolutionRevision: 1,
@@ -164,6 +169,8 @@ describe("SpecialRevealSection", () => {
       screen.getByRole("heading", { name: "Option A resolution" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Correct · +3 points")).toBeInTheDocument();
-    expect(screen.getByText(/Option A: 2 · Option B: 1/)).toBeInTheDocument();
+    expect(screen.getByText("Option A: 2")).toBeInTheDocument();
+    expect(screen.getByText("Option B: 1")).toBeInTheDocument();
+    expect(screen.getByText("Option C: 0")).toBeInTheDocument();
   });
 });

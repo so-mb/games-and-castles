@@ -11,7 +11,11 @@ const config: SpecialRevealConfigInput = {
     emojiKey: "sparkles",
   },
   predictionPrompt: "Which option do you predict?",
-  optionLabels: { "option-a": "Option A", "option-b": "Option B" },
+  optionLabels: {
+    "option-a": "Option A",
+    "option-b": "Option B",
+    "option-c": "Option C",
+  },
   resolutionPayloads: {
     "option-a": {
       title: "Option A resolution",
@@ -22,6 +26,11 @@ const config: SpecialRevealConfigInput = {
       title: "Option B resolution",
       body: "Selected payload.",
       emojiKey: "star",
+    },
+    "option-c": {
+      title: "Option C resolution",
+      body: "Third selected payload.",
+      emojiKey: "crown",
     },
   },
   correctPredictionPoints: 3,
@@ -44,6 +53,10 @@ describe("SpecialRevealRehearsal", () => {
     await act(() => vi.advanceTimersByTimeAsync(1800));
     expect(
       screen.getByRole("heading", { name: "Option B resolution" }),
+    ).toBeInTheDocument();
+    await act(() => vi.advanceTimersByTimeAsync(1800));
+    expect(
+      screen.getByRole("heading", { name: "Option C resolution" }),
     ).toBeInTheDocument();
     await act(() => vi.advanceTimersByTimeAsync(1800));
     expect(

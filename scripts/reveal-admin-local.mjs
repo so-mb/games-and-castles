@@ -11,6 +11,10 @@ import {
 } from "../src/features/special-reveal/domain/operations.ts";
 import { buildPredictionResolution } from "../src/features/special-reveal/domain/resolution.ts";
 import {
+  configuredPredictionOptions,
+  predictionOptionName,
+} from "../src/features/special-reveal/domain/types.ts";
+import {
   parsePrediction,
   parsePredictionLedgerSources,
   parseSpecialRevealPrivateConfig,
@@ -75,13 +79,21 @@ function addFallbackAudit(database, mutation, action, eventId, now) {
   };
 }
 
-async function chooseOption(prompt) {
-  const answer = (await prompt.question("Choose the correct option (a/b): "))
-    .trim()
-    .toLowerCase();
-  if (answer === "a") return "option-a";
-  if (answer === "b") return "option-b";
-  throw new Error("Choose only a or b.");
+async function chooseOption(prompt, config) {
+  const options = configuredPredictionOptions(config.optionLabels);
+  options.forEach((option, index) => {
+    console.log(
+      `${index + 1} ${config.optionLabels[option] || predictionOptionName(option)}`,
+    );
+  });
+  const answer = Number(
+    (
+      await prompt.question(`Choose the correct option (1–${options.length}): `)
+    ).trim(),
+  );
+  const option = options[answer - 1];
+  if (option) return option;
+  throw new Error(`Choose a number from 1 to ${options.length}.`);
 }
 
 async function load(database) {
@@ -184,7 +196,7 @@ try {
     if (choice === "8") {
       const config = required(data.config, "Private configuration is missing.");
       const state = required(data.state, "The event has not opened.");
-      const correctOption = await chooseOption(prompt);
+      const correctOption = await chooseOption(prompt, config);
       const nextStateRevision =
         state.status === "resolved" ? state.revision : state.revision + 1;
       const nextResolutionRevision =
@@ -248,7 +260,7 @@ try {
         "Private configuration is missing.",
       );
       const currentState = required(state, "The event has not opened.");
-      const correctOption = await chooseOption(prompt);
+      const correctOption = await chooseOption(prompt, currentConfig);
       action = "resolve event";
       eventId = currentConfig.eventId;
       mutation = buildResolveRevealMutation({
@@ -272,7 +284,7 @@ try {
         data.resolution,
         "The event has no published resolution.",
       );
-      const correctOption = await chooseOption(prompt);
+      const correctOption = await chooseOption(prompt, currentConfig);
       action = "correct result";
       eventId = currentConfig.eventId;
       mutation = buildCorrectRevealMutation({
