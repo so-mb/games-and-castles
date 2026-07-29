@@ -298,6 +298,19 @@ describe("scheduled competition card", () => {
     expect(
       screen.getByRole("columnheader", { name: "RW" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("columnheader", { name: "Last 5" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText(
+        "Ada Castle, last five results: No completed matches",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Bracket" }));
+    expect(
+      screen.getByText(/bracket appears after group qualification/i),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Points" }));
     expect(

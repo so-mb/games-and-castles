@@ -493,7 +493,7 @@ describe("Phase 4 Competition Studio", () => {
         run={run}
       />,
     );
-    const knockout = screen.getByRole("region", { name: "Knockout matches" });
+    const knockout = screen.getByRole("region", { name: "Knockout bracket" });
     fireEvent.click(
       within(knockout).getAllByRole("button", { name: "Correct result" })[0]!,
     );

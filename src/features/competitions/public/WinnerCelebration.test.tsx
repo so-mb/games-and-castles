@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Participant } from "../../participants/types";
 import { WinnerCelebration } from "./WinnerCelebration";
 
@@ -17,6 +17,10 @@ const participants: Participant[] = [
     schemaVersion: 1,
   },
 ];
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe("WinnerCelebration", () => {
   it("personalizes a new win for the private participant view", () => {
@@ -67,5 +71,31 @@ describe("WinnerCelebration", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("Ada Castle wins!");
     expect(screen.getByText("Round complete")).toBeInTheDocument();
+  });
+
+  it("dismisses automatically after 15 seconds", () => {
+    vi.useFakeTimers();
+    const onDismiss = vi.fn();
+    render(
+      <WinnerCelebration
+        competitionTitle="Castle Cup"
+        event={{
+          id: "castle-cup:match:match-1",
+          runId: "castle-cup",
+          participantIds: ["p1"],
+          completedAt: 500,
+          kind: "match",
+        }}
+        onDismiss={onDismiss}
+        ownParticipantId="p1"
+        participants={participants}
+      />,
+    );
+
+    expect(screen.getByTestId("win-celebration-countdown")).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(14_999));
+    expect(onDismiss).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(onDismiss).toHaveBeenCalledOnce();
   });
 });

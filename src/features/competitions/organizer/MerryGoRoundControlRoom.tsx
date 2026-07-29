@@ -28,6 +28,7 @@ import {
 } from "../engine/standings";
 import { nextPowerOfTwo } from "../engine/knockout";
 import type { CompetitionMatch, CompetitionRun } from "../engine/types";
+import { KnockoutBracket } from "../public/KnockoutBracket";
 import { SeriesResultDialog } from "./SeriesResultDialog";
 import { TieResolutionPanel } from "./TieResolutionPanel";
 
@@ -436,9 +437,6 @@ export function MerryGoRoundControlRoom({
   const roundRobinMatches = Object.values(run.matches)
     .filter((match) => match.stage === "round-robin")
     .sort((a, b) => a.globalSequence - b.globalSequence);
-  const knockoutMatches = Object.values(run.matches)
-    .filter((match) => match.stage !== "round-robin")
-    .sort((a, b) => a.globalSequence - b.globalSequence);
   const auditEntries = competitions.auditEntries
     .filter((entry) => entry.entityId === run.competitionId)
     .slice(0, 8);
@@ -663,24 +661,36 @@ export function MerryGoRoundControlRoom({
           ))}
         </div>
       </section>
-      {knockoutMatches.length ? (
-        <section className="mt-8" aria-labelledby="knockout-control">
-          <h4 className="text-xl font-extrabold" id="knockout-control">
-            Knockout matches
-          </h4>
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {knockoutMatches.map((match) => (
+      {run.knockout ? (
+        <div className="mt-8">
+          <KnockoutBracket
+            id={`${run.competitionId}-organizer-bracket`}
+            headingLevel={4}
+            matches={run.matches}
+            matchSlotHeight={240}
+            participants={participants}
+            renderMatch={(match) => (
               <ControlMatchCard
                 canMutate={competitions.canMutate && run.stage !== "completed"}
-                key={match.id}
                 match={match}
                 onResult={setResultMatch}
                 participants={participants}
                 run={run}
               />
-            ))}
-          </div>
-        </section>
+            )}
+            rounds={run.knockout.rounds}
+            sourceDescription="The confirmed round-robin table sets this seed order. Connected paths make each winner’s next match clear."
+            sourceEntries={run.knockout.seedOrder.map(
+              (participantId, index) => ({
+                participantId,
+                seed: index + 1,
+                context: `Table #${index + 1}`,
+              }),
+            )}
+            sourceLabel="Round-robin standings"
+            thirdPlaceMatchId={run.knockout.thirdPlaceMatchId}
+          />
+        </div>
       ) : null}
       <section
         className="mt-8 rounded-2xl border border-white/10 p-5"

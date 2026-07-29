@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Crown, Sparkles, X } from "lucide-react";
 import { IconButton } from "../../../components/ui/IconButton";
@@ -15,6 +16,10 @@ const burstPieces = [
   { x: -50, y: 8, rotate: -90 },
   { x: 52, y: 12, rotate: 135 },
 ];
+
+const autoDismissMs = 15_000;
+const countdownRadius = 19;
+const countdownCircumference = 2 * Math.PI * countdownRadius;
 
 function initials(name: string) {
   return name
@@ -55,6 +60,14 @@ export function WinnerCelebration({
   onDismiss: () => void;
 }) {
   const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    if (!event) return;
+
+    const timeout = window.setTimeout(onDismiss, autoDismissMs);
+    return () => window.clearTimeout(timeout);
+  }, [event, onDismiss]);
+
   const winners = event
     ? event.participantIds
         .map((id) => participants.find((participant) => participant.id === id))
@@ -85,13 +98,50 @@ export function WinnerCelebration({
           key={event.id}
           transition={{ duration: 0.2, ease: "easeOut" }}
         >
-          <IconButton
-            className="absolute top-1.5 right-1.5 border-white/15 text-white/55 hover:text-white"
-            label="Dismiss win celebration"
-            onClick={onDismiss}
-          >
-            <X aria-hidden="true" size={16} />
-          </IconButton>
+          <div className="absolute top-1.5 right-1.5 size-11">
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 size-11 -rotate-90"
+              viewBox="0 0 44 44"
+            >
+              <circle
+                className="stroke-white/12"
+                cx="22"
+                cy="22"
+                fill="none"
+                r={countdownRadius}
+                strokeWidth="2"
+              />
+              <motion.circle
+                animate={
+                  reducedMotion
+                    ? undefined
+                    : { strokeDashoffset: countdownCircumference }
+                }
+                className="stroke-[var(--color-antique-gold-400)]"
+                cx="22"
+                cy="22"
+                data-testid="win-celebration-countdown"
+                fill="none"
+                initial={{ strokeDashoffset: 0 }}
+                r={countdownRadius}
+                strokeDasharray={countdownCircumference}
+                strokeLinecap="round"
+                strokeWidth="2"
+                transition={{ duration: autoDismissMs / 1000, ease: "linear" }}
+              />
+            </svg>
+            <IconButton
+              className="absolute inset-0 border-transparent bg-white/[0.035] text-white/55 hover:text-white"
+              label="Dismiss win celebration"
+              onClick={onDismiss}
+            >
+              <X aria-hidden="true" size={16} />
+            </IconButton>
+          </div>
+          <span className="sr-only">
+            This notification closes automatically after 15 seconds.
+          </span>
           <div
             aria-atomic="true"
             aria-live="polite"

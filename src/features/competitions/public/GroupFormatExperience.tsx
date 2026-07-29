@@ -18,6 +18,9 @@ import type {
   GroupCompetitionMatch,
   GroupKnockoutRun,
 } from "../group-knockout/types";
+import { FormIndicator } from "./FormIndicator";
+import { deriveParticipantForm } from "./form";
+import { KnockoutBracket } from "./KnockoutBracket";
 
 function initials(displayName: string) {
   return displayName
@@ -499,7 +502,7 @@ export function GroupFormatExperience({
           ) : null}
 
           {tab === "standings" ? (
-            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-4">
               {standings.map((result) => {
                 const group = run.groups.find(
                   (candidate) => candidate.id === result.groupId,
@@ -513,7 +516,7 @@ export function GroupFormatExperience({
                       <Users aria-hidden="true" size={18} /> {group.label}
                     </h5>
                     <div className="mt-3 overflow-x-auto">
-                      <table className="w-full min-w-[590px] text-sm">
+                      <table className="w-full min-w-[710px] text-sm">
                         <thead className="text-left text-xs text-white/42">
                           <tr>
                             <th className="pb-2">#</th>
@@ -524,6 +527,7 @@ export function GroupFormatExperience({
                             <th className="pb-2 text-right">RW</th>
                             <th className="pb-2 text-right">RD</th>
                             <th className="pb-2 text-right">Pts</th>
+                            <th className="pb-2 text-right">Last 5</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -577,6 +581,22 @@ export function GroupFormatExperience({
                                 <td className="py-3 text-right font-bold">
                                   {row.tablePoints}
                                 </td>
+                                <td className="py-3 pl-4">
+                                  <FormIndicator
+                                    participantName={
+                                      participantResolver(participants)(
+                                        row.participantId,
+                                      )!.displayName
+                                    }
+                                    results={deriveParticipantForm(
+                                      groupMatches.filter(
+                                        (match) =>
+                                          match.groupId === result.groupId,
+                                      ),
+                                      row.participantId,
+                                    )}
+                                  />
+                                </td>
                               </tr>
                             );
                           })}
@@ -622,35 +642,29 @@ export function GroupFormatExperience({
           {tab === "bracket" ? (
             run.knockout ? (
               <div>
-                <div className="overflow-x-auto pb-3">
-                  <div className="flex min-w-max gap-5">
-                    {run.knockout.rounds.map((round) => (
-                      <section className="w-72" key={round.number}>
-                        <h5 className="mb-3 font-extrabold">{round.label}</h5>
-                        <div className="space-y-3">
-                          {round.matchIds.map((matchId) => (
-                            <ReadOnlyMatchCard
-                              key={matchId}
-                              match={run.matches[matchId]!}
-                              participants={participants}
-                              run={run}
-                            />
-                          ))}
-                        </div>
-                      </section>
-                    ))}
-                    {run.knockout.thirdPlaceMatchId ? (
-                      <section className="w-72">
-                        <h5 className="mb-3 font-extrabold">Third place</h5>
-                        <ReadOnlyMatchCard
-                          match={run.matches[run.knockout.thirdPlaceMatchId]!}
-                          participants={participants}
-                          run={run}
-                        />
-                      </section>
-                    ) : null}
-                  </div>
-                </div>
+                <KnockoutBracket
+                  id={`${run.competitionId}-group-bracket`}
+                  matches={run.matches}
+                  participants={participants}
+                  rounds={run.knockout.rounds}
+                  sourceDescription="Each group supplies its confirmed qualifiers. Cross-group seeding then creates the connected route to the final."
+                  sourceEntries={run.knockout.seedOrder.map(
+                    (participantId, index) => {
+                      const source = run.qualification?.entries.find(
+                        (entry) => entry.participantId === participantId,
+                      );
+                      return {
+                        participantId,
+                        seed: index + 1,
+                        context: source
+                          ? `${groupLabel(run, source.groupId)} · #${source.groupRank}`
+                          : "Qualified",
+                      };
+                    },
+                  )}
+                  sourceLabel="Group standings"
+                  thirdPlaceMatchId={run.knockout.thirdPlaceMatchId}
+                />
                 {run.knockout.sameGroupRematchWarning ? (
                   <p className="rounded-xl border border-[var(--color-warning-500)]/25 p-4 text-sm text-[var(--color-warning-500)]">
                     {run.knockout.sameGroupRematchWarning}

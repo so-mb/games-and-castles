@@ -31,6 +31,9 @@ import type {
   GroupKnockoutRun,
 } from "../group-knockout/types";
 import type { CompetitionMatch } from "../engine/types";
+import { FormIndicator } from "../public/FormIndicator";
+import { deriveParticipantForm } from "../public/form";
+import { KnockoutBracket } from "../public/KnockoutBracket";
 import { SeriesResultDialog } from "./SeriesResultDialog";
 import { TieResolutionPanel } from "./TieResolutionPanel";
 
@@ -655,7 +658,7 @@ export function GroupArenaControlRoom({
                     {group.label}
                   </h4>
                   <div className="mt-4 overflow-x-auto">
-                    <table className="w-full min-w-[430px] text-sm">
+                    <table className="w-full min-w-[570px] text-sm">
                       <thead className="text-left text-xs text-white/42">
                         <tr>
                           <th className="pb-2">#</th>
@@ -664,6 +667,7 @@ export function GroupArenaControlRoom({
                           <th className="pb-2 text-right">W</th>
                           <th className="pb-2 text-right">RD</th>
                           <th className="pb-2 text-right">Pts</th>
+                          <th className="pb-2 text-right">Last 5</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -688,6 +692,20 @@ export function GroupArenaControlRoom({
                             </td>
                             <td className="py-3 text-right font-bold">
                               {row.tablePoints}
+                            </td>
+                            <td className="py-3 pl-4">
+                              <FormIndicator
+                                participantName={participantName(
+                                  participants,
+                                  row.participantId,
+                                )}
+                                results={deriveParticipantForm(
+                                  groupMatches.filter(
+                                    (match) => match.groupId === result.groupId,
+                                  ),
+                                  row.participantId,
+                                )}
+                              />
                             </td>
                           </tr>
                         ))}
@@ -750,92 +768,64 @@ export function GroupArenaControlRoom({
                   {run.knockout.sameGroupRematchWarning}
                 </p>
               ) : null}
-              <div
-                className="overflow-x-auto pb-3"
-                aria-label="Knockout bracket"
-              >
-                <div className="flex min-w-max gap-5">
-                  {run.knockout.rounds.map((round) => (
-                    <section className="w-72" key={round.number}>
-                      <h4 className="mb-3 font-extrabold">{round.label}</h4>
-                      <div className="space-y-3">
-                        {round.matchIds.map((matchId) => (
-                          <MatchCard
-                            disabled={
-                              !competitions.canMutate ||
-                              busy ||
-                              run.stage === "completed"
-                            }
-                            key={matchId}
-                            match={run.matches[matchId]!}
-                            onResult={() =>
-                              setSelectedMatch(run.matches[matchId]!)
-                            }
-                            onReturn={() =>
-                              void perform(() =>
-                                competitions.returnGroupMatchToPending(
-                                  run,
-                                  matchId,
-                                  run.matches[matchId]!.revision,
-                                ),
-                              )
-                            }
-                            onStart={() =>
-                              void perform(() =>
-                                competitions.startGroupMatch(
-                                  run,
-                                  matchId,
-                                  run.matches[matchId]!.revision,
-                                ),
-                              )
-                            }
-                            participants={participants}
-                          />
-                        ))}
-                      </div>
-                    </section>
-                  ))}
-                  {run.knockout.thirdPlaceMatchId ? (
-                    <section className="w-72">
-                      <h4 className="mb-3 font-extrabold">Third place</h4>
-                      <MatchCard
-                        disabled={
-                          !competitions.canMutate ||
-                          busy ||
-                          run.stage === "completed"
-                        }
-                        match={run.matches[run.knockout.thirdPlaceMatchId]!}
-                        onResult={() =>
-                          setSelectedMatch(
-                            run.matches[run.knockout!.thirdPlaceMatchId!]!,
-                          )
-                        }
-                        onReturn={() =>
-                          void perform(() =>
-                            competitions.returnGroupMatchToPending(
-                              run,
-                              run.knockout!.thirdPlaceMatchId!,
-                              run.matches[run.knockout!.thirdPlaceMatchId!]!
-                                .revision,
-                            ),
-                          )
-                        }
-                        onStart={() =>
-                          void perform(() =>
-                            competitions.startGroupMatch(
-                              run,
-                              run.knockout!.thirdPlaceMatchId!,
-                              run.matches[run.knockout!.thirdPlaceMatchId!]!
-                                .revision,
-                            ),
-                          )
-                        }
-                        participants={participants}
-                      />
-                    </section>
-                  ) : null}
-                </div>
-              </div>
+              <KnockoutBracket
+                id={`${run.competitionId}-organizer-group-bracket`}
+                headingLevel={4}
+                matches={run.matches}
+                matchSlotHeight={260}
+                participants={participants}
+                renderMatch={(match) => (
+                  <MatchCard
+                    disabled={
+                      !competitions.canMutate ||
+                      busy ||
+                      run.stage === "completed"
+                    }
+                    match={match}
+                    onResult={() => setSelectedMatch(match)}
+                    onReturn={() =>
+                      void perform(() =>
+                        competitions.returnGroupMatchToPending(
+                          run,
+                          match.id,
+                          match.revision,
+                        ),
+                      )
+                    }
+                    onStart={() =>
+                      void perform(() =>
+                        competitions.startGroupMatch(
+                          run,
+                          match.id,
+                          match.revision,
+                        ),
+                      )
+                    }
+                    participants={participants}
+                  />
+                )}
+                rounds={run.knockout.rounds}
+                sourceDescription="Confirmed group qualifiers feed the cross-group seed order. The connected rounds show exactly where every winner advances."
+                sourceEntries={run.knockout.seedOrder.map(
+                  (participantId, index) => {
+                    const source = run.qualification?.entries.find(
+                      (entry) => entry.participantId === participantId,
+                    );
+                    const group = source
+                      ? run.groups.find((entry) => entry.id === source.groupId)
+                      : null;
+                    return {
+                      participantId,
+                      seed: index + 1,
+                      context: source
+                        ? `${group?.label ?? "Group"} · #${source.groupRank}`
+                        : "Qualified",
+                    };
+                  },
+                )}
+                sourceLabel="Group standings"
+                thirdPlaceMatchId={run.knockout.thirdPlaceMatchId}
+              />
               {run.stage !== "completed" ? (
                 <Button
                   className="mt-4"

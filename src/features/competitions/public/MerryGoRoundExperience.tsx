@@ -1,12 +1,5 @@
 import { motion, useReducedMotion } from "framer-motion";
-import {
-  Crown,
-  RotateCcw,
-  Route,
-  Sparkles,
-  Swords,
-  Trophy,
-} from "lucide-react";
+import { Crown, RotateCcw, Sparkles, Swords, Trophy } from "lucide-react";
 import { useState } from "react";
 import { Button } from "../../../components/ui/Button";
 import { ParticipantAvatar } from "../../../components/ui/ParticipantAvatar";
@@ -24,6 +17,7 @@ import {
 } from "../engine/presentation";
 import { deriveStandings } from "../engine/standings";
 import type { CompetitionMatch, CompetitionRun } from "../engine/types";
+import { KnockoutBracket } from "./KnockoutBracket";
 
 function initials(name: string) {
   return name
@@ -291,57 +285,20 @@ function Bracket({
 }) {
   if (!run.knockout) return null;
   return (
-    <section aria-labelledby={`${run.competitionId}-bracket`}>
-      <div className="flex items-center gap-2">
-        <Route
-          aria-hidden="true"
-          size={19}
-          className="text-[var(--color-electric-cyan-400)]"
-        />
-        <h5
-          className="text-lg font-extrabold"
-          id={`${run.competitionId}-bracket`}
-        >
-          Knockout bracket
-        </h5>
-      </div>
-      <div
-        aria-label="Knockout bracket rounds"
-        className="mt-3 overflow-x-auto pb-3"
-      >
-        <div className="grid w-max auto-cols-[17rem] grid-flow-col gap-4">
-          {run.knockout.rounds.map((round) => (
-            <section
-              aria-label={round.label}
-              className="space-y-3"
-              key={round.number}
-            >
-              <h6 className="text-xs font-bold tracking-wide text-white/52 uppercase">
-                {round.label}
-              </h6>
-              {round.matchIds.map((id) => (
-                <MatchCard
-                  key={id}
-                  match={run.matches[id]!}
-                  participants={participants}
-                />
-              ))}
-            </section>
-          ))}
-          {run.knockout.thirdPlaceMatchId ? (
-            <section aria-label="Third place" className="space-y-3">
-              <h6 className="text-xs font-bold tracking-wide text-white/52 uppercase">
-                Third place
-              </h6>
-              <MatchCard
-                match={run.matches[run.knockout.thirdPlaceMatchId]!}
-                participants={participants}
-              />
-            </section>
-          ) : null}
-        </div>
-      </div>
-    </section>
+    <KnockoutBracket
+      id={`${run.competitionId}-bracket`}
+      matches={run.matches}
+      participants={participants}
+      rounds={run.knockout.rounds}
+      sourceDescription="The final round-robin table sets the seed order. Each winner then follows the connected path towards the final."
+      sourceEntries={run.knockout.seedOrder.map((participantId, index) => ({
+        participantId,
+        seed: index + 1,
+        context: `Table #${index + 1}`,
+      }))}
+      sourceLabel="Round-robin standings"
+      thirdPlaceMatchId={run.knockout.thirdPlaceMatchId}
+    />
   );
 }
 
