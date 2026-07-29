@@ -80,6 +80,18 @@ describe("Games & Castles static shell", () => {
     const friday = document.getElementById("game-night");
     expect(friday).toBeInTheDocument();
     expect(friday?.textContent).not.toMatch(/\b\d{1,2}:\d{2}\b/);
+
+    const sundayDepartures = screen.getByRole("region", {
+      name: "Three groups. One departure point.",
+    });
+    expect(
+      within(sundayDepartures).getByText(
+        "Prague (Central Bus Station Florenc)",
+      ),
+    ).toBeInTheDocument();
+    ["08:50", "09:00", "09:20"].forEach((time) => {
+      expect(within(sundayDepartures).getByText(time)).toBeInTheDocument();
+    });
   });
 
   it("renders every required Saturday itinerary location", () => {

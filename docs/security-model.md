@@ -174,7 +174,7 @@ Rules must use `newData` and existing `data` to block ownership changes and dele
 
 ### 4.3 Public is not secret
 
-The `/public` branch is readable by every authenticated guest. It may contain published scores, itinerary, safe participant display data, safe aggregate counts, and published reveal snapshots. Authentication reduces casual exposure but does not make content secret from group members.
+The `/public` branch is readable by every authenticated guest. It may contain published scores, itinerary, safe participant display data, safe aggregate counts, and published reveal snapshots. The static Sunday departure board—three times and Prague (Central Bus Station Florenc)—is intentionally public-safe and requires no protected path. Authentication reduces casual exposure but does not make content secret from group members.
 
 ## 5. Why client-side hiding is not protection
 

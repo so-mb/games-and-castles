@@ -161,7 +161,7 @@ export function PublicCompetitionList() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-bold tracking-[0.16em] text-[var(--color-electric-cyan-400)] uppercase">
-            Real Firebase data
+            Real live data
           </p>
           <h3
             className="font-display mt-2 text-3xl font-semibold sm:text-4xl"
@@ -171,7 +171,7 @@ export function PublicCompetitionList() {
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
             Follow Merry-Go-Round matches, All Hands sessions, and Group Format
-            live. Friday remains flexible—competition cards never assign a fixed
+            live. Friday remains flexible, competition cards never assign a fixed
             start time.
           </p>
         </div>

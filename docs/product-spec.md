@@ -74,13 +74,13 @@ The site is one vertically scrollable application with a sticky, compact navigat
 
 ### 4.2 Weekend overview
 
-Three day cards summarize the rhythm of the complete trip. Friday and Saturday are the two major activity cards; Sunday is a concise departure card and must not imply an itinerary that has not been planned.
+Three day cards summarize the rhythm of the complete trip. Friday and Saturday are the two major activity cards; Sunday is a concise departure card that points to the confirmed Florenc departure board without implying additional activities or onward destinations.
 
 **Friday, 31 July 2026 — Game Night in Germany** has no fixed times. It is an unordered activity pool that may contain console, board and card games, food and drinks, a birthday moment, free play, and championship events. The UI uses labels such as “Any order” or “Pick as we go” and must not imply a schedule.
 
 **Saturday, 1 August 2026 — Prague Quest** links to the chronological timeline in section 5. It shows the arrival estimate, the next/high-priority item, the dinner reservation, and the cinema booking.
 
-**Sunday, 2 August 2026 — Departure and onward travel** contains only that concise status. No Sunday times, destinations, bookings, or activities are specified.
+**Sunday, 2 August 2026 — Departure and onward travel** uses three confirmed groups: first by **08:50**, second by **09:00**, and third by **09:20**. Every group departs Prague from **Prague (Central Bus Station Florenc)**. The UI may present these as a compact departure board, but must not add group members, onward destinations, bookings, or other Sunday activities.
 
 ### 4.3 Live Championship
 
@@ -216,7 +216,7 @@ Delay behavior must be explicit in the UI: shorten or skip the museum first; ski
 | FR-14 | Keep sensitive reveal content and exact accommodation details outside public assets and public database paths. |
 | FR-15 | Provide organizer confirmations for destructive or irreversible actions and append audit entries. |
 | FR-16 | Provide presentation modes that hide administrative controls and can replay animations without mutating state. |
-| FR-17 | Display 31 July–2 August 2026 and the confirmed Friday/Saturday/Sunday roles without inventing a Sunday itinerary. |
+| FR-17 | Display 31 July–2 August 2026 and the confirmed Friday/Saturday/Sunday roles, including the three Florenc departure groups, without inventing other Sunday itinerary details. |
 
 ## 7. Non-functional requirements
 
@@ -283,14 +283,14 @@ Delay behavior must be explicit in the UI: shorten or skip the museum first; ski
 - Rich achievement automation, sound-on-by-default, or uncontrolled effects.
 - Guest self-service account recovery across devices; anonymous account linking is an open implementation decision.
 - Automated adjudication of organizer-defined playoff/final tiebreak decisions.
-- A detailed Sunday itinerary beyond “Departure and onward travel.”
+- A detailed Sunday itinerary beyond the three confirmed Florenc departure groups and onward travel.
 
 ## 12. Release acceptance criteria
 
 The first release is accepted when:
 
 1. The seven sections show the complete 31 July–2 August 2026 trip range and exact approved Saturday itinerary on primary mobile browsers.
-2. Friday is clearly flexible, Saturday is clearly scheduled with delay priorities and fixed bookings preserved, and Sunday is limited to departure and onward travel.
+2. Friday is clearly flexible, Saturday is clearly scheduled with delay priorities and fixed bookings preserved, and Sunday shows only the three confirmed Florenc departure groups plus onward travel.
 3. Guests and organizers authenticate and can perform only the actions allowed in [security-model.md](security-model.md).
 4. All three generic formats can be configured without hard-coded game names; their identifiers match [game-rules.md](game-rules.md).
 5. Confirmed draws are persisted, duplicate pairings are prevented, and regeneration is explicit and destructive.

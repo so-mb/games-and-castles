@@ -78,7 +78,7 @@ Cross-cutting rules:
 **Outputs**
 
 - React/TypeScript/Vite/Tailwind shell with all one-page section anchors.
-- Complete 31 July–2 August 2026 overview: flexible Friday outline, full Saturday itinerary, and Sunday departure/onward-travel summary rendered from non-sensitive static data.
+- Complete 31 July–2 August 2026 overview: flexible Friday outline, full Saturday itinerary, and the three confirmed Sunday Florenc departure groups rendered from non-sensitive static data.
 - Public accommodation copy limited to `Žižkov, Prague 3`, with no exact address in source, mock data, or build output.
 - Neutral locked placeholders for Birthday Vault and special reveal.
 - Static representative championship cards/empty states using synthetic data.
@@ -90,7 +90,7 @@ Cross-cutting rules:
 
 1. A clean checkout builds reproducibly and deploys under the repository base path with no broken asset or anchor URLs.
 2. 320 px through desktop layouts have no page-level horizontal overflow; the complete date range and Saturday details/priority behavior are exact.
-3. Friday communicates no fixed times, Saturday uses a scheduled vertical timeline, and Sunday states only departure and onward travel.
+3. Friday communicates no fixed times, Saturday uses a scheduled vertical timeline, and Sunday shows the confirmed 08:50, 09:00, and 09:20 groups from Prague (Central Bus Station Florenc) without additional invented itinerary details.
 4. Public accommodation copy is exactly `Žižkov, Prague 3`; locked sections are neutral and contain no sensitive clues or exact address.
 5. Keyboard navigation, headings, focus, contrast, reduced-motion baseline, and 44 px targets pass an initial audit.
 6. No Firebase dependency, credential, application secret, or faux protected content is introduced.

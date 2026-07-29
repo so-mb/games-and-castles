@@ -1,6 +1,6 @@
 # Games & Castles
 
-Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and Sunday departure and onward travel. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
+Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and three Sunday departure groups leaving Prague from Central Bus Station Florenc. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
 
 > **Status:** Phase 11 UI/UX polish complete in the repository — shared controls and modal focus are stable, organizer workspaces are less crowded, participant avatars offer a broader themed selection, and new competition wins receive accessible dismissible celebrations without replaying old results on refresh. Phase 9 is deployed and production-tested; Phase 10 and Phase 11 repository changes still require deliberate rollout and final physical-device rehearsal.
 
@@ -16,7 +16,7 @@ Games & Castles is a private, mobile-first companion for 31 July–2 August 2026
 
 ## Feature areas
 
-- Three-day weekend overview and detailed Saturday itinerary
+- Three-day weekend overview, detailed Saturday itinerary, and Sunday Florenc departure board
 - Generic competition configuration plus complete live Merry-Go-Round, All Hands, and Group Format engines
 - Birthday Vault guestbook and presentation
 - Prediction event and protected special reveal

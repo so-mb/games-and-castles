@@ -52,6 +52,18 @@ export interface TripMetadata {
   publicAccommodationArea: string;
 }
 
+export interface SundayDepartureGroup {
+  id: string;
+  label: string;
+  time: string;
+}
+
+export interface SundayDeparturePlan {
+  date: string;
+  location: string;
+  groups: SundayDepartureGroup[];
+}
+
 export interface WeekendDay {
   id: "friday" | "saturday" | "sunday";
   eyebrow: string;

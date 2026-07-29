@@ -244,7 +244,7 @@ export function GroupFormatExperience({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold tracking-[0.15em] text-[var(--color-antique-gold-400)] uppercase">
-              Group Format · live Firebase data
+              Group Format · live data
             </p>
             <h4 className="mt-2 text-2xl font-extrabold">
               {competition.title}

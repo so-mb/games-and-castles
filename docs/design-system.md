@@ -186,7 +186,7 @@ Use one strong Prague travel image/illustration with a protective gradient for t
 
 ### 5.2 Weekend overview
 
-Friday's card uses an unordered tile cloud/list and an “Any order” chip; no times or vertical connector. Saturday's card uses a mini route/timeline and next fixed booking. Sunday's compact card states only “Departure and onward travel” and contains no invented timeline or activity list. The structural contrast communicates flexibility and scheduling without relying on color.
+Friday's card uses an unordered tile cloud/list and an “Any order” chip; no times or vertical connector. Saturday's card uses a mini route/timeline and next fixed booking. Sunday's compact card links to a simple three-group departure board: first by 08:50, second by 09:00, and third by 09:20, all from Prague (Central Bus Station Florenc). It contains no invented group members, onward destinations, or activity list. The structural contrast communicates flexibility and scheduling without relying on color.
 
 ### 5.3 Timeline
 

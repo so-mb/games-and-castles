@@ -133,7 +133,7 @@ export function BirthdayVaultSection() {
                 {revealed ? "The guestbook is open" : "A note worth keeping"}
               </h3>
               <p className="mt-4 max-w-xl text-base leading-7 text-[var(--color-ink-600)]">
-                Messages are protected by account access and Firebase database
+                Messages are protected by account access and live database
                 rules before publication. This is private application data, not
                 a claim of cryptographic secrecy.
               </p>

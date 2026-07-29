@@ -1,6 +1,7 @@
 import type {
   NavigationItem,
   PublicTripInfoItem,
+  SundayDeparturePlan,
   TripMetadata,
   WeekendDay,
 } from "../types/content";
@@ -22,6 +23,16 @@ export const navigationItems: NavigationItem[] = [
   { id: "itinerary", label: "Prague", shortLabel: "Prague", icon: "castle" },
   { id: "trip-info", label: "Info", shortLabel: "Info", icon: "luggage" },
 ];
+
+export const sundayDeparturePlan: SundayDeparturePlan = {
+  date: "Sunday, 2 August 2026",
+  location: "Prague (Central Bus Station Florenc)",
+  groups: [
+    { id: "departure-first", label: "First group", time: "08:50" },
+    { id: "departure-second", label: "Second group", time: "09:00" },
+    { id: "departure-third", label: "Third group", time: "09:20" },
+  ],
+};
 
 export const weekendDays: WeekendDay[] = [
   {
@@ -62,12 +73,13 @@ export const weekendDays: WeekendDay[] = [
     eyebrow: "Day three",
     date: "Sunday, 2 August",
     title: "Departure",
-    summary: "A quiet final page before everyone continues onward.",
-    detail: "Flexible morning, departure and onward travel.",
+    summary: "Three small departure groups leave Prague from Florenc.",
+    detail: "First by 08:50, second by 09:00, and third by 09:20.",
     icon: "train",
     tone: "departure",
-    items: ["Flexible morning", "Departure", "Onward travel"],
-    status: "Keep it simple",
+    items: ["Florenc", "08:50–09:20", "Onward travel"],
+    status: "Three groups",
+    actionTarget: "trip-info",
   },
 ];
 
