@@ -14,6 +14,7 @@ const BirthdayVaultSection = lazy(() =>
 );
 import { ConnectionStatus } from "../features/live/ConnectionStatus";
 import { LiveProviders } from "../features/live/LiveProviders";
+import { VersionUpdateBanner } from "../features/operations/VersionUpdateBanner";
 
 export function App() {
   return (
@@ -43,6 +44,7 @@ export function App() {
         <TripInformationSection />
       </main>
       <ConnectionStatus />
+      <VersionUpdateBanner />
     </LiveProviders>
   );
 }

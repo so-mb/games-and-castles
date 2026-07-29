@@ -1,15 +1,11 @@
 import { applicationDefault, getApps, initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-
-function argument(name) {
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
+import { argument, validateAdminEnvironment } from "./lib/admin-safety.mjs";
 
 function usage(message) {
   if (message) console.error(message);
   console.error(
-    "Usage: npm run admin:set-claim -- (--email person@example.com | --uid UID) [--admin true|false] [--special-reveal-admin true|false] --project PROJECT_ID",
+    "Usage: npm run admin:set-claim -- (--email person@example.com | --uid UID) [--admin true|false] [--special-reveal-admin true|false] --project PROJECT_ID --confirm-project PROJECT_ID",
   );
   process.exitCode = 1;
 }
@@ -35,6 +31,11 @@ if ((!email && !uid) || (email && uid)) {
 } else if (adminValue === undefined && specialRevealAdminValue === undefined) {
   usage("Provide at least one claim change.");
 } else {
+  await validateAdminEnvironment({
+    projectId,
+    emulator: false,
+    confirmedProjectId: argument("confirm-project"),
+  });
   if (getApps().length === 0) {
     initializeApp({ credential: applicationDefault(), projectId });
   }

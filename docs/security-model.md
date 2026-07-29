@@ -2,9 +2,9 @@
 
 ## 1. Security goals and trust boundary
 
-The frontend is inspectable. Every visitor can inspect JavaScript, network requests, DOM, styles, source maps, and Firebase configuration. GitHub Pages cannot protect a value or grant authority. For the Phase 9 browser-first model, Firebase Authentication proves the organizer identity and recent password authentication, while Realtime Database Rules authorize the exact read/write boundary and validate the strongest practical invariants.
+The frontend is inspectable. Every visitor can inspect JavaScript, network requests, DOM, styles, and Firebase configuration. Production source maps are disabled, but GitHub Pages still cannot protect a value or grant authority. Firebase Authentication proves organizer identity and recent password authentication, while Realtime Database Rules authorize the exact read/write boundary and validate the strongest practical invariants.
 
-Security is enforced by Firebase Authentication, default-deny Realtime Database Security Rules, and App Check as later defense in depth. Protected reveal configuration remains in claim-restricted Realtime Database data. The privileged reveal-organizer browser performs aggregate calculation and atomic writes only after password reauthentication; a trusted local Admin SDK tool exists as an emergency fallback.
+Security is enforced by Firebase Authentication and default-deny Realtime Database Security Rules. Phase 10 can stage App Check on both clients as optional defense in depth, but enforcement remains off and App Check never replaces claims, recent authentication, or Rules. Protected reveal configuration remains in claim-restricted Realtime Database data. The privileged reveal-organizer browser performs aggregate calculation and atomic writes only after password reauthentication; trusted local Admin SDK tools exist for bounded emergency/backup/cleanup operations.
 
 ### Protected assets
 
@@ -38,12 +38,13 @@ auth != null && auth.token.admin === true
 - The UI refreshes the ID token after claim provisioning/revocation, but Authentication and Rules verification is authoritative.
 - No database field such as `isAdmin`, email comparison in client code, URL parameter, or local-storage flag can grant access.
 - Guest and organizer sessions use separate Firebase Auth instances so organizer sign-in/out cannot replace the same browser's anonymous UID.
+- Guest identity uses local persistence; organizer identity uses browser-session persistence and a 30-minute activity deadline with a warning for the final five minutes. Supported tabs exchange activity/expiry signals through `BroadcastChannel`.
 
-### Phase 2–9 implemented boundary
+### Phase 2–10 implemented boundary
 
 Phase 2 permits narrowly scoped direct Realtime Database writes for participant/profile onboarding, guest-owned display-field edits, and custom-claim organizer participant management. Phase 3 additionally permits claim-authorized organizer writes to `/competitionDrafts`, `/competitions`, and append-only `/audit`. Phases 4–6 open authenticated read-only access to `/competitionRuns` and claim-authorized organizer writes for exact `round-robin-knockout`, `all-hands`, and `group-knockout` runtimes. The guest UI selects `scheduled`, `active`, and `completed` records; archived records contain no private payload and remain omitted.
 
-Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Phase 7 adds a bounded admin-claim client exception for complete competition-ledger sources and manual bonuses. Phase 8 adds a separately bounded Birthday Vault exception: an owner may atomically update only their UID-keyed message and matching identity-free receipt while collecting; an organizer may moderate, change lifecycle state, and atomically replace the complete sanitized published set. Phase 9 adds one owner-scoped prediction plus identity-free receipt write while `prediction-open`. A recently password-reauthenticated user with both `admin` and `specialRevealAdmin` may read all predictions and atomically publish reveal state, the selected resolution, and the complete prediction-ledger source. Direct writes remain denied for persisted totals, protected trip data, ordinary admins, stale reveal sessions, and every unspecified path.
+Competition Rules validate exact enums and schemas, conservative field/index/score bounds, immutable creation/publication/activation metadata, legal lifecycle transitions, and one-step runtime/match/session/result revisions. Phase 7 adds a bounded admin-claim client exception for complete competition-ledger sources and manual bonuses. Phase 8 adds a separately bounded Birthday Vault exception: an owner may atomically update only their UID-keyed message and matching identity-free receipt while collecting; an organizer may moderate and change lifecycle state. Phase 10 strengthens sanitized full-set reveal/republish with recent password authentication. Phase 9 adds one owner-scoped prediction plus identity-free receipt write while `prediction-open`. A recently password-reauthenticated user with both `admin` and `specialRevealAdmin` may read all predictions and atomically publish reveal state, the selected resolution, and the complete prediction-ledger source. Direct writes remain denied for persisted totals, protected trip data, ordinary admins, stale sensitive sessions, and every unspecified path.
 
 Organizer accounts and custom claims are provisioned out of band with the Admin SDK utility documented in [Firebase setup](firebase-setup.md). That utility preserves unrelated custom claims, supports grant/revoke by email or UID, requires an explicit non-demo project ID, and never exposes credentials to Vite.
 
@@ -55,7 +56,7 @@ flowchart TD
     A --> T{"Valid ID token?"}
     T -->|"No"| X["No protected reads or writes"]
     T -->|"Anonymous token"| G["Guest role"]
-    T -->|"Persistent token"| C{"auth.token.admin === true?"}
+    T -->|"Session token"| C{"auth.token.admin === true?"}
     C -->|"No"| G
     C -->|"Yes"| O["Organizer role"]
     G --> GP["Public reads + own permitted submissions"]
@@ -193,7 +194,7 @@ Competition operations use admin-claim checks, structural/state validation, revi
 
 Phase 8 uses a Rules-validated client operation. A guest atomic update writes `/birthdayVault/privateMessages/{auth.uid}` and the receipt at the message's immutable UUID. Rules require a collecting vault, owner/profile/participant linkage, immutable identity, valid content, one-step revision, and matching receipt state/timestamp. Authenticated guests may read receipts for counting but receive no identity or content through them.
 
-An authorized organizer reads the private and moderation collections, verifies the current expected revisions and reveal-readiness checklist, and derives a complete sanitized snapshot. One root update replaces `/birthdayVault/publishedMessages`, advances `/birthdayVault/publicState`, and appends safe audit metadata. Rules require the admin claim, legal state/reveal revisions, valid anonymous/named published shapes, and the post-write revealed state. Anonymous records omit participant and owner identity. Realtime Database Rules cannot quantify arbitrary sibling collections or map an opaque publication UUID back through a UID-keyed private collection; pending/stale/duplicate/order readiness is therefore also enforced by strict runtime validation and covered by domain/frontend tests.
+An authorized organizer reads the private and moderation collections, verifies the current expected revisions and reveal-readiness checklist, and derives a complete sanitized snapshot. Immediately before reveal/republish, the organizer re-enters the current Firebase password; the password is cleared before any database access. One root update replaces `/birthdayVault/publishedMessages`, advances `/birthdayVault/publicState`, and appends safe audit metadata. Rules require the admin claim, a five-minute `auth_time`, legal state/reveal revisions, valid anonymous/named published shapes, and the post-write revealed state. Anonymous records omit participant and owner identity. Realtime Database Rules cannot quantify arbitrary sibling collections or map an opaque publication UUID back through a UID-keyed private collection; pending/stale/duplicate/order readiness is therefore also enforced by strict runtime validation and covered by domain/frontend tests.
 
 ### 6.3 Prediction and special reveal
 
@@ -229,7 +230,7 @@ The implemented boundary:
 - uses one root atomic update for the resolution/correction state, selected payload, complete source, and neutral audit metadata;
 - supports typed-confirmation correction and deterministic damaged-source reconciliation without changing the public outcome during reconciliation.
 
-This does not make the browser equivalent to a private server. The calculation procedure is inspectable, the reveal-admin browser can read private predictions, and a compromised reveal-admin account or unlocked laptop is privileged. Rules cannot practically recompute every aggregate, so they validate authorization, recent authentication, revisions, relationships, strict shapes, and bounded configured values. The emergency local Admin SDK tool is the stronger-trust recovery path. App Check remains deferred to Phase 10.
+This does not make the browser equivalent to a private server. The calculation procedure is inspectable, the reveal-admin browser can read private predictions, and a compromised reveal-admin account or unlocked laptop is privileged. Rules cannot practically recompute every aggregate, so they validate authorization, recent authentication, revisions, relationships, strict shapes, and bounded configured values. The emergency local Admin SDK tool is the stronger-trust recovery path. Optional staged App Check does not change that trust boundary.
 
 ## 7. Exact accommodation-address privacy
 
@@ -239,9 +240,9 @@ A later authenticated implementation may store the exact address under a restric
 
 ## 8. App Check and abuse controls
 
-App Check remains a Phase 10 monitoring and rollout decision. It may reduce abuse from non-genuine clients but does not replace Authentication, custom claims, password reauthentication, or Rules.
+Phase 10 supports optional `ReCaptchaEnterpriseProvider` initialization for the guest and organizer Firebase apps. It is disabled by default, rejects production debug mode, reports only token availability, and degrades without blocking the static page while enforcement is off. The repository never stores a debug token. Firebase Console enforcement cannot be read from the browser and is reported as unknown.
 
-Phase 9 has no custom app-specific credential and no pretend browser rate limiter. Firebase Authentication performs password verification and supplies its own platform abuse protections. The UI only disables duplicate submissions while an operation is pending. Broader guest submission/prediction bursts, IP/device signals, alerting, quota policy, and App Check remain Phase 10 work. Rules continue to enforce structural ceilings, allowed field sizes, lifecycle boundaries, and no guest rewrites outside policy.
+App Check may reduce abuse from non-genuine clients but does not replace Authentication, custom claims, password reauthentication, Rules, quotas, or operational review. Because Enterprise assessments can exceed a no-cost quota, remote registration/monitoring is permitted only when available without billing or paid API activation. Enforcement requires a separate device-tested zero-cost decision; Phase 10 does not enable it. There is no custom app-specific credential or pretend browser rate limiter. Rules continue to enforce structural ceilings, allowed field sizes, lifecycle boundaries, and no guest rewrites outside policy.
 
 ## 9. Audit logging
 
@@ -265,7 +266,7 @@ Use separate Firebase projects for development and production, with different da
 
 GitHub Actions receives only public Firebase web configuration through repository variables. Vite build variables may contain public project configuration but never service-account JSON, organizer passwords, exact addresses, or prepublication content. Production deploy review includes searching the built output and source maps for forbidden sensitive terms/data.
 
-The emergency local Admin SDK tool uses `GOOGLE_APPLICATION_CREDENTIALS` pointing to a file stored outside the repository. It never runs in CI or Pages deployment. There is no app-specific reveal credential in source, Firebase, environment variables, GitHub configuration, or Rules.
+Trusted local Admin SDK tools use `GOOGLE_APPLICATION_CREDENTIALS` pointing to a mode-`600` file outside the repository. They parse its `project_id`, reject a target mismatch, require an exact repeated remote project ID, and separate `demo-*` emulator use from remote use. They never run in CI or Pages deployment. There is no app-specific reveal credential in source, Firebase, environment variables, GitHub configuration, or Rules.
 
 ## 12. Security Rules emulator testing
 
@@ -280,11 +281,13 @@ Rules are version-controlled and tested in the Firebase Emulator Suite before de
 | Guest enumerate private birthday submissions or predictions | Denied |
 | Guest submit invalid enum, oversized content, forged owner, moderation/outcome field | Denied by Rules |
 | Guest change prediction after lock | Denied even with stale client state |
-| Non-admin persistent user access organizer branch | Denied |
+| Non-admin session user access organizer branch | Denied |
 | Admin read organizer and audit branches | Allowed |
 | Ordinary admin read private reveal config/all predictions | Denied |
 | Dual-claim reveal admin with old `auth_time` | Sensitive read/write denied |
 | Recently reauthenticated dual-claim reveal admin | Legal operation allowed |
+| Admin with old `auth_time` reveals/republishes Birthday Vault | Denied |
+| Recently reauthenticated admin publishes valid Birthday snapshot | Allowed |
 | Reveal operation with stale revision | Denied; no partial write |
 | Repeated matching reveal/correction | Terminal no-op; no extra score entries |
 | Reconciliation against matching source | No write; deterministic score key remains single |
@@ -293,18 +296,18 @@ Rules are version-controlled and tested in the Firebase Emulator Suite before de
 
 Tests also cover deletes, partial updates, unknown child fields, null transitions, query indexes, archived records, token claim absence/false/true, claim revocation after token refresh, and concurrent emulator transactions.
 
-The expanded Phase 2–9 Rules matrix preserves all participant, configuration, competition-runtime, ledger, bonus, and Birthday Vault regressions while adding reveal cases for dual claims, recent/expired `auth_time`, private configuration, public state/opening/resolution, owner-only predictions, recent reveal-admin enumeration, open/lock boundaries, resolved-only prediction sources, audit, strict schemas, deterministic point constraints, and default denial. Platform-neutral domain and frontend tests cover reauthentication ordering/password clearing, strict state/revision boundaries, aggregate calculation, resolution/correction, deterministic scoring, damaged-source reconciliation, and no-op retry. Production deployment remains a separately authorized operator action and is never performed by the Pages workflow.
+The expanded Phase 2–10 Rules matrix preserves all participant, configuration, competition-runtime, ledger, bonus, Birthday Vault, and Special Reveal regressions. It covers claim absence/roles, recent/expired `auth_time`, private configuration, owner isolation, lifecycle/publication, resolved-only prediction sources, audit, strict schemas, deterministic point constraints, recent-auth Birthday publication, and default denial. Platform-neutral domain and frontend tests cover reauthentication ordering/password clearing, strict state/revision boundaries, aggregate calculation, resolution/correction, deterministic scoring, damaged-source reconciliation, and no-op retry. Production deployment remains a separately authorized operator action and is never performed by the Pages workflow.
 
 ## 13. Hardening checklist
 
 - Default-deny Rules deployed before data is written; test mode never enabled.
 - Authorized domains, Auth providers, and admin accounts minimized.
 - Custom claim provisioning is out-of-band and audited.
-- Reveal controls require `admin`, `specialRevealAdmin`, Firebase password reauthentication, token refresh, and the Rules-enforced five-minute `auth_time` window. App Check remains a Phase 10 task.
+- Reveal controls require `admin`, `specialRevealAdmin`, Firebase password reauthentication, token refresh, and the Rules-enforced five-minute `auth_time` window; Birthday publication requires the corresponding admin recent-auth boundary.
 - Ordinary admins cannot read private reveal configuration, enumerate predictions, or write reveal lifecycle/source paths.
-- Public database and built assets automatically scanned for forbidden protected data.
-- App Check enforcement, broader abuse monitoring, quotas, and alerts are enabled only after monitoring and rehearsal.
-- Dependency and GitHub Actions pinning/review performed in implementation phases.
-- Production data backup/export and tested recovery procedure exist before the weekend.
+- Tracked files and built assets are scanned for high-confidence credentials and ignored local forbidden terms.
+- App Check stays disabled or enforcement-off during staging; future enforcement follows legitimate-device monitoring and a separate rollback decision.
+- Dependencies are audited; official Actions use verified SHA pins and Dependabot review.
+- Encrypted backup/inspection and dry-run-first private cleanup are rehearsed before the weekend; automated live restore remains deliberately absent.
 - Organizer accounts use strong provider security; typed confirmation phrases are never treated as authentication.
 - The local Admin SDK fallback credential remains outside the repository and is used only by a trusted operator.

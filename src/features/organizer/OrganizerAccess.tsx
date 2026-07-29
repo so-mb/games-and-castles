@@ -5,6 +5,7 @@ import {
   ShieldCheck,
   Trophy,
   Award,
+  Activity,
   CakeSlice,
   LockKeyhole,
   UserPlus,
@@ -44,6 +45,12 @@ const SpecialRevealWorkspace = lazy(() =>
   ),
 );
 
+const OperationsWorkspace = lazy(() =>
+  import("../operations/OperationsWorkspace").then((module) => ({
+    default: module.OperationsWorkspace,
+  })),
+);
+
 function initials(name: string) {
   return name
     .split(/\s+/)
@@ -71,6 +78,7 @@ export function OrganizerAccess() {
     | "championship"
     | "birthday"
     | "special-reveal"
+    | "operations"
   >("competitions");
 
   if (firebase.status !== "ready") return null;
@@ -185,6 +193,21 @@ export function OrganizerAccess() {
                 className="flex flex-wrap gap-2"
                 role="tablist"
               >
+                <button
+                  aria-controls="organizer-panel-operations"
+                  aria-selected={activeTool === "operations"}
+                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "operations" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
+                  id="organizer-tab-operations"
+                  onClick={() => {
+                    setEditor(null);
+                    setActiveTool("operations");
+                  }}
+                  role="tab"
+                  type="button"
+                >
+                  <Activity aria-hidden="true" size={17} />
+                  Operations
+                </button>
                 {specialRevealAccess ? (
                   <button
                     aria-controls="organizer-panel-special-reveal"
@@ -269,7 +292,28 @@ export function OrganizerAccess() {
               </Button>
             </div>
 
-            {activeTool === "special-reveal" && specialRevealAccess ? (
+            {activeTool === "operations" ? (
+              <div
+                aria-labelledby="organizer-tab-operations"
+                id="organizer-panel-operations"
+                role="tabpanel"
+              >
+                <Suspense
+                  fallback={
+                    <p
+                      className="py-12 text-center text-sm text-white/55"
+                      role="status"
+                    >
+                      Opening Operations…
+                    </p>
+                  }
+                >
+                  <OperationsWorkspace
+                    onOpenWorkspace={(workspace) => setActiveTool(workspace)}
+                  />
+                </Suspense>
+              </div>
+            ) : activeTool === "special-reveal" && specialRevealAccess ? (
               <div
                 aria-labelledby="organizer-tab-special-reveal"
                 id="organizer-panel-special-reveal"

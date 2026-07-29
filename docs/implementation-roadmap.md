@@ -404,15 +404,17 @@ Cross-cutting rules:
 
 **Main technical risks:** Private content leakage through build/log/error/metadata; compromised reveal-organizer account or unlocked laptop; inspectable client calculation; non-atomic partial publication; stale predictions crossing lock; duplicate scoring.
 
-**Implemented tests/review:** The Rules matrix preserves Phase 2–8 regressions and adds dual-claim/recent-auth privacy, ownership, receipt, lifecycle, public publication, ledger, audit, schema, and default-deny cases. Platform-neutral domain tests cover aggregate filtering, deterministic IDs/fingerprints, full-source replacement, correction, reconciliation, and retry no-ops. Frontend tests cover reauthentication/token refresh/password clearing, missing-role denial, confirmation/cancel/offline behavior, guest lifecycle presentation, owner result visibility, organizer workspace access, neutral fixtures, and championship totals. Physical-device, production, App Check, retention, load, alerting, and adversarial rollout remain Phase 10–11 work.
+**Implemented tests/review:** The Rules matrix preserves Phase 2–8 regressions and adds dual-claim/recent-auth privacy, ownership, receipt, lifecycle, public publication, ledger, audit, schema, and default-deny cases. Platform-neutral domain tests cover aggregate filtering, deterministic IDs/fingerprints, full-source replacement, correction, reconciliation, and retry no-ops. Frontend tests cover reauthentication/token refresh/password clearing, missing-role denial, confirmation/cancel/offline behavior, guest lifecycle presentation, owner result visibility, organizer workspace access, neutral fixtures, and championship totals. Phase 9 is deployed and production-tested. Optional App Check, retention, local recovery, and broader hardening are Phase 10; final physical-device rehearsal remains Phase 11.
 
-**Phase boundary:** Phase 9 adds no App Check enforcement, general retention/deletion automation, protected accommodation data, analytics, or automated Rules deployment. The Pages workflow validates and deploys only the frontend `dist/`; Rules and claim provisioning remain manual. Phase 10 is not started.
+**Phase boundary:** Phase 9 adds no App Check enforcement, general retention/deletion automation, protected accommodation data, analytics, or automated Rules deployment. The Pages workflow validates and deploys only the frontend `dist/`; Rules and claim provisioning remain manual. Phase 9 is complete, deployed, and production-tested.
 
 ---
 
 ### Phase 10 — Security hardening
 
-**Goal:** Turn feature-level controls into a reviewed production security posture with enforced abuse protections, environment isolation, and recovery.
+**Status:** Complete in the repository. Remote rollout, App Check registration/monitoring, Rules deployment, and Pages deployment remain deliberate operator actions. No remote resources or production data were changed during implementation.
+
+**Goal:** Turn feature-level controls into a reviewed zero-cost production security posture with staged defense in depth, environment isolation, diagnostics, and recoverable local operations.
 
 **Inputs**
 
@@ -420,27 +422,30 @@ Cross-cutting rules:
 
 **Outputs**
 
-- Complete least-privilege Rules and emulator suite; App Check monitoring then enforcement.
-- Final abuse controls, quotas, operational alerts, credential handling, and logging redaction.
-- Dependency/action review, production Auth/domain configuration, data retention/deletion procedure.
-- Backup/export/restore runbook, admin provisioning/revocation runbook, incident/reveal recovery checklist.
-- Automated client-build/public-database sensitive-data scan.
+- Complete least-privilege Rules audit and emulator suite, including recent-auth Birthday publication.
+- Optional App Check initialization for both clients, safe diagnostics/degraded mode, and an enforcement-off monitoring runbook.
+- Session-scoped organizer persistence, 30-minute idle expiry, five-minute warning, and practical multi-tab coordination.
+- Lazy read-only Operations workspace, sanitized preflight/copy, build metadata, `version.json`, and visible-only update polling.
+- `noindex`/referrer/robots controls, verified-SHA Actions, grouped Dependabot updates, production dependency audit, and tracked/artifact sensitive-data scanning.
+- Hardened local credential/project checks, encrypted backup/inspection, bounded idempotent private cleanup, privacy retention, incident, and pre-event runbooks.
 
-**Dependencies:** Phases 2–9 complete; production ownership and monitoring contacts.
+**Dependencies:** Satisfied. Phases 2–9 are complete, deployed, and production-tested; production ownership exists. Phase 10 remains within Authentication, Realtime Database, Rules, and GitHub Pages with no billing expansion.
 
 **Acceptance criteria**
 
-1. Security matrix passes against emulators and a production-like staging project with root default deny.
-2. App Check is enforced on intended products after legitimate-device monitoring shows readiness.
-3. Direct REST/SDK bypass attempts cannot bypass Rules-authorized roles, recent authentication, lifecycle, or revision constraints.
-4. Admin/reveal-admin claim lifecycle, local Admin SDK credential handling, allowed domains, and logging redaction are independently reviewed.
-5. Abuse controls and alerts trigger in controlled tests without blocking the rehearsed normal flow.
-6. Backup restoration to an isolated project is demonstrated and reconciles source results/ledger.
-7. Exact address and protected reveal content remain absent from every public/client artifact and unauthorized response.
+1. Security matrix passes against emulators with root default deny, owner/claim isolation, recent/stale authentication, exact lifecycle/revision/schema constraints, and Phase 2–9 regressions.
+2. App Check is disabled by default, can initialize both clients only with complete configuration, rejects production debug, degrades without breaking the static page, reports no token, and is not automatically enforced.
+3. Organizer persistence is session-scoped; inactivity warning/expiry, explicit organizer-only sign-out, and recent-auth Birthday/Special Reveal actions are tested.
+4. Operations, build metadata/version polling, indexing/referrer controls, dependency/action review, security scan, and CSP deferral rationale are documented/tested.
+5. Admin scripts verify credentials, file permissions, credential project, explicit target confirmation, and demo/remote separation.
+6. Backup encryption/inspection detects wrong passphrases/corruption without plaintext output; cleanup defaults to dry-run, requires a recent verified backup plus typed phrase, preserves public history, uses one update, and is idempotent.
+7. Exact address, Firebase privileged credentials, App Check debug token, PIN/secret values, and protected reveal content remain absent from repository, build, diagnostics, and public examples.
 
-**Main technical risks:** App Check blocking legitimate weekend devices; privileged credential overreach; false confidence in Firebase client config secrecy; abuse controls too strict/loose; backups containing sensitive data without controls.
+**Main technical risks:** Future App Check enforcement blocking legitimate weekend devices; browser background/timer differences; privileged credential overreach; false confidence in indexing metadata or Firebase client-config secrecy; encrypted-backup custody; operator misuse of destructive cleanup.
 
-**Recommended tests:** Adversarial Rules tests; direct REST bypass; token replay/revocation; App Check valid/invalid; abuse/load tests; dependency/action audit; privileged-credential review; log inspection; backup restore drill; OWASP-style client input/XSS review.
+**Implemented tests/review:** App Check disabled/enabled/degraded/invalid configurations; organizer idle state; shared recent authentication; Birthday publication ordering; Operations access; version comparison; Rules recent/stale publication and full regression matrix; AES-256-GCM/scrypt round-trip/wrong-pass/corruption; cleanup scope/idempotence; dependency/action/security scans; production artifact inspection. CSP, enforcement, remote restore, and load/alert tuning remain future explicit work.
+
+**Phase boundary:** Phase 10 enables no App Check enforcement, billing/Blaze, Functions, Firestore, Storage, Scheduler, paid API, analytics, protected accommodation storage, remote restore, automated Rules deployment, or production mutation. Phase 11 is not started.
 
 ---
 

@@ -17,20 +17,16 @@ import {
   parseSpecialRevealPublicResolution,
   parseSpecialRevealPublicState,
 } from "../src/features/special-reveal/domain/validation.ts";
-
-function argument(name) {
-  const index = process.argv.indexOf(`--${name}`);
-  return index >= 0 ? process.argv[index + 1] : undefined;
-}
-
-function hasFlag(name) {
-  return process.argv.includes(`--${name}`);
-}
+import {
+  argument,
+  hasFlag,
+  validateAdminEnvironment,
+} from "./lib/admin-safety.mjs";
 
 function usage(message) {
   if (message) console.error(message);
   console.error(
-    "Usage: npm run reveal:admin-local -- --project PROJECT_ID [--dry-run] [--emulator]",
+    "Usage: npm run reveal:admin-local -- --project PROJECT_ID [--dry-run] [--emulator] [--confirm-project PROJECT_ID]",
   );
   process.exit(1);
 }
@@ -144,8 +140,11 @@ const emulator = hasFlag("emulator");
 if (!projectId) usage("Provide the exact target project with --project.");
 if (!emulator && projectId.startsWith("demo-"))
   usage("Demo project IDs require --emulator.");
-if (!emulator && !process.env.GOOGLE_APPLICATION_CREDENTIALS)
-  usage("Set GOOGLE_APPLICATION_CREDENTIALS outside the repository first.");
+await validateAdminEnvironment({
+  projectId,
+  emulator,
+  confirmedProjectId: argument("confirm-project"),
+});
 
 if (emulator) process.env.FIREBASE_DATABASE_EMULATOR_HOST = "127.0.0.1:9000";
 if (getApps().length === 0) {

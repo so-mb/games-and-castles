@@ -60,7 +60,7 @@ Database object maps use `Record<string, T>` and omit absent keys rather than wr
 ```ts
 interface UserProfile extends AuditFields {
   id: UserId;
-  authKind: 'anonymous' | 'persistent';
+  authKind: 'anonymous' | 'organizer-session';
   participantId?: ParticipantId;
   displayName?: string; // convenience only, never authorization
   status: RecordStatus;
@@ -1110,8 +1110,8 @@ Safe denormalization includes participant display snapshots in historical presen
 - A draft with no references may be hard-deleted by an organizer after confirmation. A confirmed draw reset archives the old generation and results or records tombstones before deleting active paths.
 - A result correction creates a revision/audit record and deterministically replaces the complete current competition source. It does not erase safe correction metadata from audit.
 - Birthday submissions may be hidden rather than deleted during moderation. A privacy deletion request may hard-delete private content, but an already published copy requires a separate audited unpublish/redaction operation.
-- Predictions are retained privately through resolution for audit, then removed or anonymized according to a retention period that organizers must decide before production.
-- Audit metadata has its own retention policy and must avoid personal/sensitive payloads so retention does not become unintended disclosure.
+- Private birthday sources/receipts/moderation and Special Reveal private configuration/predictions/receipts are retained through the event correction window, then removed with the Phase 10 one-update cleanup within seven days after the trip. Published snapshots, public resolution, competition history, and current championship sources are preserved.
+- Encrypted backups are retained 30 days after cleanup by default. Safe audit metadata is reviewed after 90 days. Audit must avoid personal/sensitive payloads so retention does not become unintended disclosure.
 - Referential checks prevent deleting a participant referenced by results; use `inactive`/`archived` instead.
 
 ## 16. Schema evolution

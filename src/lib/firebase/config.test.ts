@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFirebaseRuntimeConfig } from "./config";
+import { readAppCheckRuntimeConfig, readFirebaseRuntimeConfig } from "./config";
 
 const configuredEnvironment = {
   VITE_FIREBASE_API_KEY: "public-api-key",
@@ -25,6 +25,7 @@ describe("Firebase runtime configuration", () => {
     if (result.status === "configured") {
       expect(result.options.projectId).toBe("demo-project");
       expect(result.useEmulators).toBe(false);
+      expect(result.appCheck).toEqual({ status: "disabled" });
     }
   });
 
@@ -42,5 +43,42 @@ describe("Firebase runtime configuration", () => {
       VITE_FIREBASE_DATABASE_URL: "not a URL",
     });
     expect(result).toMatchObject({ status: "unconfigured", reason: "invalid" });
+  });
+
+  it("stages Enterprise App Check only with an explicit complete config", () => {
+    expect(
+      readAppCheckRuntimeConfig(
+        {
+          VITE_FIREBASE_APP_CHECK_ENABLED: "true",
+          VITE_FIREBASE_APP_CHECK_PROVIDER: "enterprise",
+          VITE_FIREBASE_APP_CHECK_SITE_KEY: "public-site-key",
+        },
+        false,
+      ),
+    ).toEqual({
+      status: "enabled",
+      provider: "recaptcha-enterprise",
+      siteKey: "public-site-key",
+      debug: false,
+    });
+  });
+
+  it("rejects production debug mode and incomplete App Check settings", () => {
+    expect(
+      readAppCheckRuntimeConfig(
+        {
+          VITE_FIREBASE_APP_CHECK_ENABLED: "true",
+          VITE_FIREBASE_APP_CHECK_SITE_KEY: "public-site-key",
+          VITE_FIREBASE_APP_CHECK_DEBUG: "true",
+        },
+        true,
+      ),
+    ).toEqual({ status: "invalid", reason: "production-debug" });
+    expect(
+      readAppCheckRuntimeConfig(
+        { VITE_FIREBASE_APP_CHECK_ENABLED: "true" },
+        false,
+      ),
+    ).toEqual({ status: "invalid", reason: "missing-site-key" });
   });
 });

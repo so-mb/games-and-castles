@@ -3346,12 +3346,22 @@ describe("Realtime Database security rules", () => {
 
   describe("Phase 8 Birthday Vault", () => {
     function contexts() {
+      const recentAuthTime = Math.floor(Date.now() / 1000);
       return {
         unauthenticated: environment.unauthenticatedContext().database(),
         guest: environment.authenticatedContext("guest-1").database(),
         otherGuest: environment.authenticatedContext("guest-2").database(),
         admin: environment
-          .authenticatedContext("admin", { admin: true })
+          .authenticatedContext("admin", {
+            admin: true,
+            auth_time: recentAuthTime,
+          })
+          .database(),
+        oldAdmin: environment
+          .authenticatedContext("admin", {
+            admin: true,
+            auth_time: recentAuthTime - 301,
+          })
           .database(),
       };
     }
@@ -3956,6 +3966,38 @@ describe("Realtime Database security rules", () => {
           },
           "audit/birthday-reveal": auditEntry(
             "birthday-reveal",
+            "birthday-vault",
+            {
+              action: "birthday-vault-revealed",
+              entityType: "birthday-vault",
+              beforeRevision: 2,
+              afterRevision: 3,
+              summary: "Birthday Vault revealed to authenticated guests.",
+            },
+          ),
+        }),
+      );
+    });
+
+    it("43a denies Birthday Vault reveal from a stale organizer session", async () => {
+      const closed = birthdayState("closed", {
+        closedAt: Date.now() - 120_000,
+        closedByUid: "another-admin",
+      });
+      await seedCollecting({ publicState: closed });
+      await assertFails(
+        update(ref(contexts().oldAdmin), {
+          "birthdayVault/publicState": birthdayState("revealed", {
+            openedAt: closed.openedAt,
+            openedByUid: closed.openedByUid,
+            closedAt: closed.closedAt,
+            closedByUid: closed.closedByUid,
+          }),
+          "birthdayVault/publishedMessages": {
+            [birthdayPublicationId]: publishedBirthdayMessage(),
+          },
+          "audit/birthday-stale-reveal": auditEntry(
+            "birthday-stale-reveal",
             "birthday-vault",
             {
               action: "birthday-vault-revealed",

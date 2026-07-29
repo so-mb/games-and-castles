@@ -1,12 +1,12 @@
 # Firebase setup and operations
 
-## 1. Phase 2–9 scope
+## 1. Phase 2–10 scope
 
-Firebase powers anonymous guest identity, the shared participant roster, organizer email/password authentication, organizer participant management, competition configuration, all three competition runtimes, the Phase 7 championship ledger, the Phase 8 Birthday Vault, and the Phase 9 protected Special Reveal. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
+Firebase powers anonymous guest identity, the shared participant roster, organizer email/password authentication, organizer participant management, competition configuration, all three competition runtimes, the Phase 7 championship ledger, the Phase 8 Birthday Vault, and the Phase 9 protected Special Reveal. Phase 10 adds optional staged App Check client initialization, session-scoped organizer Auth, recent-auth Birthday publication, sanitized Operations diagnostics, and trusted local backup/cleanup tools. The static itinerary and all Phase 1 presentation sections continue to render when Firebase is unconfigured or unavailable.
 
-Phases 4–6 store public-safe active/completed competition records and format-discriminated `/competitionRuns/{competitionId}` data. Phase 7 stores one replaceable normalized source per valid active/completed run under `/championshipLedger/competitionSources/{competitionId}`. Phase 8 stores lifecycle state, identity-free receipts, owner-private messages, organizer-only moderation, and sanitized revealed snapshots under `/birthdayVault`. Phase 9 stores owner-private predictions, identity-free receipts, claim-protected public opening/resolution state, and one complete prediction ledger source. The recently reauthenticated reveal-organizer browser performs protected atomic operations; Rules independently enforce authorization, lifecycle, revisions, shape, and bounded values. App Check enforcement, the exact accommodation address, analytics, and service-worker behavior remain unimplemented.
+Phases 4–6 store public-safe active/completed competition records and format-discriminated `/competitionRuns/{competitionId}` data. Phase 7 stores one replaceable normalized source per valid active/completed run under `/championshipLedger/competitionSources/{competitionId}`. Phase 8 stores lifecycle state, identity-free receipts, owner-private messages, organizer-only moderation, and sanitized revealed snapshots under `/birthdayVault`. Phase 9 stores owner-private predictions, identity-free receipts, claim-protected public opening/resolution state, and one complete prediction ledger source. The recently reauthenticated reveal-organizer browser performs protected atomic operations; Rules independently enforce authorization, lifecycle, revisions, shape, and bounded values. Phase 10 also requires recent authentication for Birthday reveal/republish. App Check enforcement, the exact accommodation address, analytics, and service-worker behavior remain unimplemented.
 
-> **Production status (28 July 2026):** Phases 2–7 are deployed, production-connected, and reconciled. The production Firebase project and organizer access are provisioned, all six public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. Phases 8–9 are complete in the repository only; their Rules and frontend deployment remain deliberate operator actions. This implementation did not deploy Rules, change remote Firebase data, or publish the frontend.
+> **Production status (28 July 2026):** Phases 2–9 are deployed, production-connected, and production-tested. The production Firebase project and organizer access are provisioned, all six core public Firebase web-configuration values are present as GitHub Actions repository variables, and the deployed GitHub Pages site is successfully connected to Firebase. Phase 10 is complete in the repository; its Rules/frontend/App Check-variable rollout remains a deliberate operator action. This implementation did not deploy Rules, change remote Firebase/GitHub/billing configuration, mutate production data, or publish the frontend.
 
 ## 2. Create the Firebase projects
 
@@ -32,9 +32,13 @@ VITE_FIREBASE_PROJECT_ID
 VITE_FIREBASE_APP_ID
 VITE_FIREBASE_MESSAGING_SENDER_ID
 VITE_FIREBASE_USE_EMULATORS
+VITE_FIREBASE_APP_CHECK_ENABLED
+VITE_FIREBASE_APP_CHECK_SITE_KEY
+VITE_FIREBASE_APP_CHECK_PROVIDER
+VITE_FIREBASE_APP_CHECK_DEBUG
 ```
 
-Use `VITE_FIREBASE_USE_EMULATORS=true` only for local emulator work. All six public web-app values are required together. Missing or malformed configuration intentionally produces a polished unconfigured state in the live roster while preserving the static page.
+Use `VITE_FIREBASE_USE_EMULATORS=true` only for local emulator work. All six core public web-app values are required together. App Check defaults to disabled; when enabled it also requires the public site key and `enterprise` provider (`recaptcha-enterprise` remains an accepted compatibility alias). `VITE_FIREBASE_APP_CHECK_DEBUG=true` is local-only and makes a production config invalid. Missing or malformed core configuration intentionally produces a polished unconfigured state in the live roster while preserving the static page; App Check misconfiguration is surfaced as a safe Operations diagnostic without claiming enforcement.
 
 Never place service-account JSON, access tokens, passwords, exact accommodation details, reveal content, protected codes, or private booking information in a `VITE_*` variable. Every `VITE_*` value is compiled into inspectable browser assets.
 
@@ -83,8 +87,8 @@ auth.token.specialRevealAdmin === true
 The Admin SDK utility uses Application Default Credentials or `GOOGLE_APPLICATION_CREDENTIALS`; credentials stay outside this repository. Authenticate locally with a suitably restricted administrative identity, verify the target project, then grant by email or UID:
 
 ```sh
-npm run admin:set-claim -- --email organizer@example.invalid --admin true --project YOUR_PROJECT_ID
-npm run admin:set-claim -- --uid FIREBASE_AUTH_UID --admin true --project YOUR_PROJECT_ID
+npm run admin:set-claim -- --email organizer@example.invalid --admin true --project YOUR_PROJECT_ID --confirm-project YOUR_PROJECT_ID
+npm run admin:set-claim -- --uid FIREBASE_AUTH_UID --admin true --project YOUR_PROJECT_ID --confirm-project YOUR_PROJECT_ID
 ```
 
 Grant the dedicated reveal role only to the designated reveal organizer:
@@ -94,19 +98,20 @@ npm run admin:set-claim -- \
   --email organizer@example.invalid \
   --admin true \
   --special-reveal-admin true \
-  --project YOUR_PROJECT_ID
+  --project YOUR_PROJECT_ID \
+  --confirm-project YOUR_PROJECT_ID
 ```
 
 Remove the claim without disturbing any other custom claims:
 
 ```sh
-npm run admin:set-claim -- --uid FIREBASE_AUTH_UID --admin false --project YOUR_PROJECT_ID
-npm run admin:set-claim -- --uid FIREBASE_AUTH_UID --special-reveal-admin false --project YOUR_PROJECT_ID
+npm run admin:set-claim -- --uid FIREBASE_AUTH_UID --admin false --project YOUR_PROJECT_ID --confirm-project YOUR_PROJECT_ID
+npm run admin:set-claim -- --uid FIREBASE_AUTH_UID --special-reveal-admin false --project YOUR_PROJECT_ID --confirm-project YOUR_PROJECT_ID
 ```
 
-The user must sign in again or refresh their ID token after a claim change. The script refuses demo project IDs and requires the production/development project ID explicitly. Creating Auth users and deciding who receives organizer access remain controlled console/operations tasks.
+The user must sign in again or refresh their ID token after a claim change. The script refuses demo project IDs, requires the exact target twice, verifies the service-account `project_id`, rejects group/other-readable credential files, and warns if credentials are inside the repository. Creating Auth users and deciding who receives organizer access remain controlled console/operations tasks.
 
-The frontend uses separate Firebase app/auth instances for guest and organizer sessions. Signing an organizer in or out therefore does not replace the anonymous guest UID stored in the same browser.
+The frontend uses separate Firebase app/auth instances for guest and organizer sessions. Guest Auth remains browser-local; organizer Auth uses browser-session persistence plus a 30-minute idle expiry/five-minute warning. Signing an organizer in or out therefore does not replace the anonymous guest UID stored in the same browser.
 
 ## 6. Database rules deployment
 
@@ -189,8 +194,24 @@ The production repository has the following Actions variables configured. For a 
 - `VITE_FIREBASE_APP_ID`
 - `VITE_FIREBASE_MESSAGING_SENDER_ID`
 
-The Pages workflow sets emulator mode to false. The current deployed build receives all six variables and its live participant features are connected to production Firebase. A future build with missing variables would still deploy the static page, but its live participant features would remain unconfigured.
+Phase 10 additionally maps these public/staging variables. Add them only for an intentional App Check rehearsal; disabled/blank is the safe baseline:
+
+- `VITE_FIREBASE_APP_CHECK_ENABLED`
+- `VITE_FIREBASE_APP_CHECK_SITE_KEY`
+- `VITE_FIREBASE_APP_CHECK_PROVIDER`
+
+Use `VITE_FIREBASE_APP_CHECK_ENABLED=false` for Stage 1. For an explicitly rehearsed Stage 2 build, use `true`, set `VITE_FIREBASE_APP_CHECK_PROVIDER=enterprise`, and set `VITE_FIREBASE_APP_CHECK_SITE_KEY` to the public web registration key copied from Firebase Console. Leave the site-key variable blank while disabled if preferred. Do not create `VITE_FIREBASE_APP_CHECK_DEBUG` in GitHub; the workflow fixes it to `false`.
+
+The Pages workflow sets emulator mode and App Check debug to false. It also injects commit/ref/time into a public `version.json`. The current deployed build receives all six core variables and its live participant features are connected to production Firebase. A future build with missing core variables would still deploy the static page, but its live participant features would remain unconfigured. App Check variables are not secrets; never store a debug token in them.
 
 ## 9. Identity and recovery limitation
 
 Anonymous guest identity persists in the current browser profile. Clearing site data, using private browsing, or switching browser/device can create a new UID. Phase 2 has no guest identity recovery, cross-device claim, account linking, or display-name-as-proof mechanism. An organizer can add a separate organizer-managed participant, but cannot relink a lost anonymous identity in this phase.
+
+## 10. Phase 10 rollout and local operations
+
+Deploy the reviewed Phase 10 Rules separately before relying on recent-auth Birthday publication. Then publish the frontend through the existing `master` Pages workflow. Verify Organizer Mode → **Operations**, the session warning/expiry, Birthday reveal/republish reauthentication, `version.json`, `robots.txt`, and production-subpath assets. This repository does not perform either deployment automatically beyond the normal Pages push workflow.
+
+App Check stays disabled unless an operator deliberately completes the enforcement-off staging procedure in [Security hardening](security-hardening.md). Do not activate a billable API or attach billing for this product. If the preferred provider cannot be configured inside the zero-cost boundary, leave `VITE_FIREBASE_APP_CHECK_ENABLED=false`.
+
+Trusted local backup, inspection, cleanup, incident, and credential instructions are centralized in the [Operations runbook](operations-runbook.md). These commands never belong in CI. Remote commands require `GOOGLE_APPLICATION_CREDENTIALS` outside the repository, mode `600`, a matching credential `project_id`, and `--confirm-project` equal to `--project`. Emulator mode accepts only `demo-*` IDs and uses no production credential.

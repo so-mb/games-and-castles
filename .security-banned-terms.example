@@ -1,0 +1,3 @@
+# Copy this file to .security-banned-terms.local and add one literal sensitive
+# fragment per line. The local file is ignored by git, and the scanner reports
+# only the file and line containing a match—not the configured term itself.

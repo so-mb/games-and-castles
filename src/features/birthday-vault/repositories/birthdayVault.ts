@@ -10,6 +10,10 @@ import {
 } from "firebase/database";
 import type { Participant } from "../../participants/types";
 import {
+  assertFreshOrganizerAuthorization,
+  type RecentOrganizerAuthorization,
+} from "../../auth/recentAuthorization";
+import {
   combineBirthdayModeration,
   createPublishedBirthdaySnapshot,
   deriveBirthdayRevealReadiness,
@@ -570,7 +574,9 @@ export async function publishBirthdayVault(input: {
   items: BirthdayModerationItem[];
   participants: Participant[];
   republish: boolean;
+  authorization: RecentOrganizerAuthorization;
 }) {
+  assertFreshOrganizerAuthorization(input.authorization, input.uid);
   const [stateSnapshot, messagesSnapshot, moderationSnapshot] =
     await Promise.all([
       get(ref(input.database, "birthdayVault/publicState")),
@@ -629,6 +635,7 @@ export async function publishBirthdayVault(input: {
   });
   if (!readiness.ready)
     throw new Error("The Birthday Vault is not ready to publish.");
+  assertFreshOrganizerAuthorization(input.authorization, input.uid);
   const now = Date.now();
   const revealRevision = state.revealRevision + 1;
   const published = createPublishedBirthdaySnapshot({

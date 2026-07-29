@@ -2,9 +2,9 @@
 
 ## Status and boundary
 
-Phase 9 is complete in the repository and validated with neutral synthetic data. Its production architecture is browser-first and stays within GitHub Pages, Firebase Authentication, Realtime Database, and Realtime Database Security Rules. It requires no billing account or paid Firebase feature. Rules and frontend deployment remain deliberate operator actions; this implementation did not modify remote Firebase resources.
+Phase 9 is implemented, deployed, and production-tested. Its production architecture is browser-first and stays within GitHub Pages, Firebase Authentication, Realtime Database, and Realtime Database Security Rules. It requires no billing account or paid Firebase feature. Phase 10 adds optional staged App Check, organizer session expiry, encrypted backup, and post-event cleanup without changing the dual-claim/recent-auth boundary.
 
-This document uses neutral terminology only. The repository contains no actual reveal payload, actual option labels, correct outcome, organizer password, service-account credential, or app-specific reveal code. App Check enforcement, general retention/deletion automation, load/alert tuning, and broader abuse hardening remain Phase 10 work.
+This document uses neutral terminology only. The repository contains no actual reveal payload, actual option labels, correct outcome, organizer password, service-account credential, App Check debug token, or app-specific reveal code. App Check enforcement remains an optional future operator decision; Phase 10 defines private-source retention/cleanup. Load/alert tuning remains future work.
 
 ## Trust model
 
@@ -138,10 +138,10 @@ During rehearsal verify an ordinary admin is denied, wrong-password and expired-
 
 ## Phase 9 limitations
 
-- Production deployment and live multi-device validation are manual operator work.
-- App Check enforcement, abuse/load tuning, alerting, backup/restore, IAM review, and dependency hardening remain Phase 10.
+- Production deployment is complete; final live multi-device rehearsal remains an operator/Phase 11 task.
+- App Check enforcement, abuse/load tuning, alerting, and automated restore remain future explicit work; Phase 10 implements enforcement-off staging, dependency hardening, encrypted local backup/inspection, and bounded cleanup.
 - There is no custom failed-password limiter beyond Firebase Authentication's platform protections.
-- Predictions and receipts remain after resolution; deletion/anonymization periods remain part of the unresolved general retention decision.
+- Predictions, receipts, and the unselected private configuration are removed within seven days after the trip after a verified encrypted backup; public resolution and deterministic scoring history remain.
 - One current Special Reveal is supported; this is not an archived multi-event CMS.
 - Private rehearsal is a local visual preview, not an authorization test.
 - Anonymous guest identity remains browser-local with no recovery or cross-device claim flow.

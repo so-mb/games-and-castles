@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-Phase 7 is complete, deployed, production-connected, and reconciled. The instructions below remain the operator runbook for a replacement environment or future source repair. Phase 8 implements Birthday Vault independently. Phase 9 adds recently reauthenticated dual-claim prediction scoring and Special Reveal correction/reconciliation in the repository; production rollout remains manual. App Check and a final championship lock remain outside this phase.
+Phase 7 is complete, deployed, production-connected, and reconciled. The instructions below remain the operator runbook for a replacement environment or future source repair. Phase 8 implements Birthday Vault independently. Phase 9 dual-claim prediction scoring and Special Reveal correction/reconciliation are deployed and production-tested. Phase 10 preserves public prediction sources during private-data cleanup; App Check enforcement and a final championship lock remain outside Phase 7.
 
 ## Persisted paths
 

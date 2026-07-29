@@ -11,8 +11,33 @@ export const firebaseEnvironmentKeys = [
 
 type FirebaseEnvironmentKey = (typeof firebaseEnvironmentKeys)[number];
 type FirebaseEnvironment = Partial<
-  Record<FirebaseEnvironmentKey | "VITE_FIREBASE_USE_EMULATORS", string>
+  Record<
+    | FirebaseEnvironmentKey
+    | "VITE_FIREBASE_USE_EMULATORS"
+    | "VITE_FIREBASE_APP_CHECK_ENABLED"
+    | "VITE_FIREBASE_APP_CHECK_SITE_KEY"
+    | "VITE_FIREBASE_APP_CHECK_PROVIDER"
+    | "VITE_FIREBASE_APP_CHECK_DEBUG",
+    string
+  >
 >;
+
+export type AppCheckRuntimeConfig =
+  | { status: "disabled" }
+  | {
+      status: "enabled";
+      provider: "recaptcha-enterprise";
+      siteKey: string;
+      debug: boolean;
+    }
+  | {
+      status: "invalid";
+      reason:
+        | "missing-site-key"
+        | "unsupported-provider"
+        | "production-debug"
+        | "debug-while-disabled";
+    };
 
 export type FirebaseRuntimeConfig =
   | {
@@ -26,6 +51,7 @@ export type FirebaseRuntimeConfig =
         messagingSenderId: string;
       };
       useEmulators: boolean;
+      appCheck: AppCheckRuntimeConfig;
     }
   | {
       status: "unconfigured";
@@ -38,8 +64,41 @@ function clean(value: string | undefined) {
   return trimmed ? trimmed : undefined;
 }
 
+export function readAppCheckRuntimeConfig(
+  environment: FirebaseEnvironment,
+  production: boolean,
+): AppCheckRuntimeConfig {
+  const enabled =
+    clean(environment.VITE_FIREBASE_APP_CHECK_ENABLED)?.toLowerCase() ===
+    "true";
+  const debug =
+    clean(environment.VITE_FIREBASE_APP_CHECK_DEBUG)?.toLowerCase() === "true";
+  const provider =
+    clean(environment.VITE_FIREBASE_APP_CHECK_PROVIDER)?.toLowerCase() ??
+    "enterprise";
+  const siteKey = clean(environment.VITE_FIREBASE_APP_CHECK_SITE_KEY);
+
+  if (!enabled)
+    return debug
+      ? { status: "invalid", reason: "debug-while-disabled" }
+      : { status: "disabled" };
+  if (debug && production)
+    return { status: "invalid", reason: "production-debug" };
+  if (!["enterprise", "recaptcha-enterprise"].includes(provider))
+    return { status: "invalid", reason: "unsupported-provider" };
+  if (!siteKey) return { status: "invalid", reason: "missing-site-key" };
+
+  return {
+    status: "enabled",
+    provider: "recaptcha-enterprise",
+    siteKey,
+    debug,
+  };
+}
+
 export function readFirebaseRuntimeConfig(
   environment: FirebaseEnvironment = import.meta.env,
+  production = import.meta.env.PROD,
 ): FirebaseRuntimeConfig {
   const values = Object.fromEntries(
     firebaseEnvironmentKeys.map((key) => [key, clean(environment[key])]),
@@ -77,5 +136,6 @@ export function readFirebaseRuntimeConfig(
       messagingSenderId: values.VITE_FIREBASE_MESSAGING_SENDER_ID!,
     },
     useEmulators,
+    appCheck: readAppCheckRuntimeConfig(environment, production),
   };
 }

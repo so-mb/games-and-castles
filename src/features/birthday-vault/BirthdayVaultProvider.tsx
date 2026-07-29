@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { useAuth } from "../auth/AuthProvider";
+import type { RecentOrganizerAuthorization } from "../auth/recentAuthorization";
 import { useConnection } from "../live/ConnectionProvider";
 import { useFirebase } from "../live/FirebaseProvider";
 import { useParticipants } from "../participants/ParticipantsProvider";
@@ -72,7 +73,10 @@ interface BirthdayVaultContextValue {
   ) => Promise<void>;
   bulkApprove: () => Promise<number>;
   move: (item: BirthdayModerationItem, direction: -1 | 1) => Promise<void>;
-  publish: (republish: boolean) => Promise<number>;
+  publish: (
+    republish: boolean,
+    authorization: RecentOrganizerAuthorization,
+  ) => Promise<number>;
 }
 
 const BirthdayVaultContext = createContext<BirthdayVaultContextValue | null>(
@@ -395,7 +399,7 @@ export function BirthdayVaultProvider({ children }: { children: ReactNode }) {
         [next[index], next[target]] = [next[target]!, next[index]!];
         await reorderBirthdayMessages({ ...organizer, orderedItems: next });
       },
-      publish: async (republish) => {
+      publish: async (republish, authorization) => {
         const organizer = requireOrganizer();
         if (!publicState) throw new Error("Open the Birthday Vault first.");
         return publishBirthdayVault({
@@ -404,6 +408,7 @@ export function BirthdayVaultProvider({ children }: { children: ReactNode }) {
           items: organizerItems,
           participants: participants.organizerParticipants,
           republish,
+          authorization,
         });
       },
     }),

@@ -29,7 +29,7 @@ See [security-model.md](security-model.md) for trust boundaries and [data-model.
 | User | Description | Primary needs |
 |---|---|---|
 | Guest | A weekend participant authenticated anonymously on one device | Join, see plans and public state, play, submit messages and predictions, understand points |
-| Organizer | A persistently signed-in user with `auth.token.admin === true` | Configure competitions, control results and locks, moderate content, trigger protected operations, recover from mistakes |
+| Organizer | A session-scoped signed-in user with `auth.token.admin === true` | Configure competitions, control results and locks, moderate content, trigger protected operations, recover from mistakes |
 | Presenter | Usually an organizer using a shared display | Run full-screen reveals, brackets, podiums, and leaderboards without exposing controls |
 | Reveal organizer | Organizer with `admin`, `specialRevealAdmin`, and recent password authentication | Publish protected data, resolve predictions, create idempotent ledger entries, write neutral audit records |
 | Local fallback operator | Trusted Admin SDK credential stored outside the repository | Emergency inspection and recovery using the same deterministic domain logic |
@@ -51,7 +51,7 @@ Anonymous guests are not inherently anonymous to the application: each session h
 
 ### Organizer
 
-1. Sign in persistently and enter organizer mode.
+1. Sign in for the browser session and enter organizer mode; inactivity signs Organizer Mode out after 30 minutes with a five-minute warning.
 2. Manage participants and create a competition with a generic format and scoring configuration.
 3. Preview and confirm generated fixtures/groups, then persist one shared order.
 4. Start, record, correct, lock, and archive competitions; derived scores are recalculated on correction.
@@ -201,7 +201,7 @@ Delay behavior must be explicit in the UI: shorten or skip the museum first; ski
 | ID | Requirement |
 |---|---|
 | FR-01 | Render all seven one-page sections with stable anchor navigation and mobile-first layouts. |
-| FR-02 | Authenticate every writer; allow anonymous guest sign-in and persistent organizer sign-in. |
+| FR-02 | Authenticate every writer; allow browser-local anonymous guest sign-in and browser-session organizer sign-in with idle expiry. |
 | FR-03 | Link guest-owned writes to `auth.uid` and use participant IDs for domain references. |
 | FR-04 | Subscribe to published competitions, standings, ledger-derived leaderboard views, participant list, counts, and reveal state in realtime. |
 | FR-05 | Let organizers create and manage generic competitions using exactly the three supported format identifiers. |

@@ -2,7 +2,7 @@
 
 ## Status and boundary
 
-Phase 8 is complete in the repository. Deployment of its frontend and Realtime Database Rules remains a deliberate operator action; the implementation did not modify remote Firebase resources. Phase 9 implements prediction processing and the protected Special Reveal separately.
+Phase 8 is implemented, deployed, and production-tested. Phase 10 strengthens reveal and republish with current-password reauthentication plus a Rules-enforced five-minute `auth_time` window, and defines encrypted backup/private cleanup. Phase 9 implements prediction processing and the protected Special Reveal separately.
 
 The Birthday Vault is a private digital guestbook, not a cryptographic vault. Firebase Authentication identifies owners and organizers, while default-deny Realtime Database Rules enforce access and data shape. Other guests do not download private message content or moderation. The bounded publication operation is Rules-authorized because it contains no hidden outcome or protected payload.
 
@@ -36,7 +36,7 @@ Guest submit, edit, withdraw, and resubmit operations atomically update the owne
 
 Organizers approve or hide the current message revision, maintain an optional private note, and use keyboard-accessible earlier/later ordering. Pending, stale-approved, malformed, and withdrawn messages cannot enter the approved publication set. Hidden and withdrawn messages do not block reveal.
 
-Reveal readiness requires a closed vault, at least one current approved message, no submitted pending/stale messages, valid unique publication IDs, valid content, available named participant snapshots, an online organizer, and a current admin claim/revision. The confirmation phrase `REVEAL` is accidental-action protection, not authentication.
+Reveal readiness requires a closed vault, at least one current approved message, no submitted pending/stale messages, valid unique publication IDs, valid content, available named participant snapshots, an online organizer, and a current admin claim/revision. Reveal and republish additionally require the current Firebase organizer password, a force-refreshed token, and Rules-visible `auth_time` no older than five minutes. The password clears before database access. The confirmation phrase `REVEAL` is accidental-action protection, not authentication.
 
 Reveal and republish use one root-level atomic update to replace the entire published set, advance public state, and append safe audit metadata. Private message text and moderation notes are never copied to audit. Replay, next/previous, autoplay, pause, and close are local presentation state and make no Firebase write.
 
@@ -51,3 +51,5 @@ Reveal and republish use one root-level atomic update to replace the entire publ
 - Malformed private, receipt, moderation, or published records are quarantined; one invalid record does not crash the page, and organizer publication is blocked.
 
 The emulator suite contains 53 focused Phase 8 cases in addition to all existing participant, competition, runtime, ledger, bonus, audit, and default-deny regressions.
+
+See [Privacy and retention](privacy-retention.md) for the confirmed seven-day private-source cleanup window and [Operations](operations-runbook.md) for encrypted backup/cleanup commands.

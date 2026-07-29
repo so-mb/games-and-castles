@@ -313,6 +313,13 @@ Do not fire confetti or reveal animations merely because historical published da
 - Destructive/partial-operation errors point organizers to audit/operation status and block unsafe retry until the current persisted revision confirms whether the request was applied.
 - Never render raw Firebase errors, stack traces, database paths, protected values, or function payloads to guests.
 
+### Phase 10 operational states
+
+- Organizer session expiry uses a focused modal during the final five minutes, with plain remaining-time copy, **Stay signed in**, and **Sign out now**. It must not resemble a reveal or celebration.
+- Operations uses the existing dark organizer surface, compact definition-list rows, text-plus-badge status, and no charts or fake telemetry. Diagnostics are read-only and remain usable at 320 px.
+- The deployed-update notice is a small persistent status card with one explicit reload action. It never reloads automatically or competes with an offline message at the same screen position.
+- App Check `disabled`, `invalid`, `degraded`, `ready`, and `unknown enforcement` states are written out; color is secondary and no token or raw provider error is shown.
+
 ## 10. Accessibility verification checklist
 
 - WCAG AA contrast checked for every token pair and interactive state.

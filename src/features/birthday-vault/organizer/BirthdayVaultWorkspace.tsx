@@ -11,7 +11,6 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
-import { Modal } from "../../../components/ui/Modal";
 import { StatusBadge } from "../../../components/ui/StatusBadge";
 import { useBirthdayVault } from "../BirthdayVaultProvider";
 import { birthdayEmojiSymbol } from "../domain/emoji";
@@ -20,7 +19,10 @@ import type {
   BirthdayModerationItem,
   PublishedBirthdayMessage,
 } from "../domain/types";
+import { useAuth } from "../../auth/AuthProvider";
+import { useConnection } from "../../live/ConnectionProvider";
 import { useParticipants } from "../../participants/ParticipantsProvider";
+import { SensitiveActionDialog } from "../../special-reveal/organizer/SensitiveActionDialog";
 
 const BirthdayVaultPresentation = lazy(() =>
   import("../presentation/BirthdayVaultPresentation").then((module) => ({
@@ -229,6 +231,8 @@ function ModerationCard({
 
 export function BirthdayVaultWorkspace() {
   const vault = useBirthdayVault();
+  const auth = useAuth();
+  const connection = useConnection();
   const participants = useParticipants();
   const [filter, setFilter] = useState<Filter>("all");
   const [preview, setPreview] = useState<PublishedBirthdayMessage[] | null>(
@@ -237,7 +241,6 @@ export function BirthdayVaultWorkspace() {
   const [confirming, setConfirming] = useState<"reveal" | "republish" | null>(
     null,
   );
-  const [confirmation, setConfirmation] = useState("");
   const [bulkConfirm, setBulkConfirm] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -378,10 +381,7 @@ export function BirthdayVaultWorkspace() {
               disabled={
                 pending || !vault.readiness.ready || !vault.canOrganizerMutate
               }
-              onClick={() => {
-                setConfirmation("");
-                setConfirming("reveal");
-              }}
+              onClick={() => setConfirming("reveal")}
               variant="dark"
             >
               Reveal approved messages
@@ -391,10 +391,7 @@ export function BirthdayVaultWorkspace() {
               disabled={
                 pending || !vault.readiness.ready || !vault.canOrganizerMutate
               }
-              onClick={() => {
-                setConfirmation("");
-                setConfirming("republish");
-              }}
+              onClick={() => setConfirming("republish")}
               variant="dark"
             >
               Republish approved set
@@ -553,54 +550,27 @@ export function BirthdayVaultWorkspace() {
         ) : null}
       </section>
 
-      <Modal
-        description={`${vault.counts.approved} current approved messages will become immediately visible to connected guests. This phrase prevents an accidental click; it is not authentication.`}
-        onClose={() => setConfirming(null)}
+      <SensitiveActionDialog
+        confirmationPhrase="REVEAL"
+        consequence={`${vault.counts.approved} current approved messages will become immediately visible to connected guests.`}
+        online={connection === "online"}
+        onCancel={() => setConfirming(null)}
+        onExecute={async (authorization) => {
+          await vault.publish(confirming === "republish", authorization);
+        }}
+        onReauthenticate={auth.reauthenticateOrganizer}
+        onSuccess={() => setConfirming(null)}
         open={confirming !== null}
+        operationLabel="Sensitive Birthday Vault publication"
+        organizerEmail={
+          auth.organizer.status === "authorized" ? auth.organizer.email : ""
+        }
         title={
           confirming === "republish"
             ? "Republish Birthday Vault"
             : "Open Birthday Vault for everyone"
         }
-      >
-        <label className="block text-sm font-bold">
-          Type REVEAL to{" "}
-          {confirming === "republish"
-            ? "replace the published set"
-            : "open the Birthday Vault for everyone"}
-          .
-          <input
-            autoComplete="off"
-            className="mt-2 min-h-12 w-full rounded-xl border border-white/15 bg-white/7 px-4 text-base outline-none focus:border-[var(--color-electric-cyan-400)] focus:ring-3 focus:ring-[var(--color-electric-cyan-400)]/18"
-            onChange={(event) => setConfirmation(event.target.value)}
-            value={confirmation}
-          />
-        </label>
-        <div className="mt-5 flex flex-wrap gap-3">
-          <Button
-            disabled={
-              confirmation !== "REVEAL" || pending || !vault.canOrganizerMutate
-            }
-            onClick={() =>
-              void action(async () => {
-                await vault.publish(confirming === "republish");
-                setConfirming(null);
-                setConfirmation("");
-              })
-            }
-            variant="dark"
-          >
-            Confirm {confirming === "republish" ? "republish" : "reveal"}
-          </Button>
-          <Button
-            className="text-white"
-            onClick={() => setConfirming(null)}
-            variant="quiet"
-          >
-            Cancel
-          </Button>
-        </div>
-      </Modal>
+      />
 
       {preview ? (
         <Suspense

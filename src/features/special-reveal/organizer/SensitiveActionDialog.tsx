@@ -1,43 +1,45 @@
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { Eye, EyeOff, ShieldCheck } from "lucide-react";
 import { Button } from "../../../components/ui/Button";
 import { IconButton } from "../../../components/ui/IconButton";
 import { Modal } from "../../../components/ui/Modal";
 import { friendlyFirebaseError } from "../../../lib/firebase/errors";
-import type { RecentRevealAuthorization } from "../../auth/specialRevealAuthorization";
 
-interface SensitiveActionDialogProps {
+interface SensitiveActionDialogProps<Authorization> {
   open: boolean;
   title: string;
   consequence: string;
   confirmationPhrase: string;
   organizerEmail: string;
   online: boolean;
+  operationLabel?: string;
   onCancel: () => void;
-  onReauthenticate: (password: string) => Promise<RecentRevealAuthorization>;
-  onExecute: (authorization: RecentRevealAuthorization) => Promise<void>;
+  onReauthenticate: (password: string) => Promise<Authorization>;
+  onExecute: (authorization: Authorization) => Promise<void>;
   onSuccess: () => void;
 }
 
-export function SensitiveActionDialog({
+export function SensitiveActionDialog<Authorization>({
   open,
   ...props
-}: SensitiveActionDialogProps) {
+}: SensitiveActionDialogProps<Authorization>) {
   if (!open) return null;
   return <OpenSensitiveActionDialog {...props} />;
 }
 
-function OpenSensitiveActionDialog({
+function OpenSensitiveActionDialog<Authorization>({
   title,
   consequence,
   confirmationPhrase,
   organizerEmail,
   online,
+  operationLabel = "Sensitive organizer operation",
   onCancel,
   onReauthenticate,
   onExecute,
   onSuccess,
-}: Omit<SensitiveActionDialogProps, "open">) {
+}: Omit<SensitiveActionDialogProps<Authorization>, "open">) {
   const [password, setPassword] = useState("");
   const [confirmation, setConfirmation] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -65,13 +67,13 @@ function OpenSensitiveActionDialog({
     setError(null);
     try {
       const authorization = await onReauthenticate(password);
-      setPassword("");
+      flushSync(() => setPassword(""));
       await onExecute(authorization);
       setConfirmation("");
       onSuccess();
       onCancel();
     } catch (cause) {
-      setPassword("");
+      flushSync(() => setPassword(""));
       setError(
         friendlyFirebaseError(
           cause,
@@ -87,7 +89,7 @@ function OpenSensitiveActionDialog({
 
   return (
     <Modal
-      description="Confirm the consequence, then reauthenticate the currently signed-in reveal organizer."
+      description="Confirm the consequence, then reauthenticate the currently signed-in organizer."
       onClose={close}
       open
       title={title}
@@ -96,7 +98,7 @@ function OpenSensitiveActionDialog({
         <div className="rounded-2xl border border-[var(--color-antique-gold-400)]/25 bg-[var(--color-antique-gold-400)]/7 p-4 text-sm leading-6 text-white/70">
           <p className="flex items-center gap-2 font-extrabold text-white">
             <ShieldCheck aria-hidden="true" size={18} />
-            Sensitive reveal operation
+            {operationLabel}
           </p>
           <p className="mt-1">{consequence}</p>
         </div>

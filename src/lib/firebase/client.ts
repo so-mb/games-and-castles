@@ -1,6 +1,7 @@
 import { getApp, getApps, initializeApp, type FirebaseApp } from "firebase/app";
 import {
   browserLocalPersistence,
+  browserSessionPersistence,
   connectAuthEmulator,
   getAuth,
   setPersistence,
@@ -12,6 +13,10 @@ import {
   type Database,
 } from "firebase/database";
 import type { FirebaseRuntimeConfig } from "./config";
+import {
+  initializeAppCheckClients,
+  type AppCheckDiagnostics,
+} from "./appCheck";
 
 const organizerAppName = "games-and-castles-organizer";
 const emulatorConnections = new Set<string>();
@@ -24,6 +29,7 @@ export interface FirebaseClients {
   organizerAuth: Auth;
   organizerDatabase: Database;
   persistenceReady: Promise<void>;
+  appCheckReady: Promise<AppCheckDiagnostics>;
   useEmulators: boolean;
 }
 
@@ -52,6 +58,11 @@ export function createFirebaseClients(
     ? getApp()
     : getOrCreateApp(runtimeConfig.options);
   const organizerApp = getOrCreateApp(runtimeConfig.options, organizerAppName);
+  const appCheckReady = initializeAppCheckClients({
+    config: runtimeConfig.appCheck,
+    guestApp,
+    organizerApp,
+  });
   const guestAuth = getAuth(guestApp);
   const organizerAuth = getAuth(organizerApp);
   const guestDatabase = getDatabase(guestApp);
@@ -71,8 +82,9 @@ export function createFirebaseClients(
     organizerDatabase,
     persistenceReady: Promise.all([
       setPersistence(guestAuth, browserLocalPersistence),
-      setPersistence(organizerAuth, browserLocalPersistence),
+      setPersistence(organizerAuth, browserSessionPersistence),
     ]).then(() => undefined),
+    appCheckReady,
     useEmulators: runtimeConfig.useEmulators,
   };
 }

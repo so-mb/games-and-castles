@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -16,6 +17,14 @@ import {
 } from "firebase/auth";
 import { friendlyFirebaseError } from "../../lib/firebase/errors";
 import { useFirebase } from "../live/FirebaseProvider";
+import {
+  reauthenticateOrganizerAccount,
+  type RecentOrganizerAuthorization,
+} from "./recentAuthorization";
+import {
+  deriveOrganizerIdleState,
+  ORGANIZER_IDLE_TIMEOUT_MS,
+} from "./organizerSession";
 import {
   reauthenticateSpecialRevealOrganizer,
   type RecentRevealAuthorization,
@@ -47,6 +56,14 @@ interface AuthContextValue {
   organizer: OrganizerAuthState;
   signInOrganizer: (email: string, password: string) => Promise<void>;
   signOutOrganizer: () => Promise<void>;
+  organizerSession: {
+    status: "inactive" | "active" | "warning";
+    remainingMs: number;
+  };
+  staySignedIn: () => void;
+  reauthenticateOrganizer: (
+    password: string,
+  ) => Promise<RecentOrganizerAuthorization>;
   reauthenticateSpecialReveal: (
     password: string,
   ) => Promise<RecentRevealAuthorization>;
@@ -66,6 +83,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       ? { status: "checking", uid: null, message: null }
       : { status: "unconfigured", uid: null, message: null },
   );
+  const [organizerSession, setOrganizerSession] = useState<
+    AuthContextValue["organizerSession"]
+  >({ status: "inactive", remainingMs: 0 });
+  const organizerDeadlineRef = useRef(0);
+  const organizerChannelRef = useRef<BroadcastChannel | null>(null);
+
+  const resetOrganizerIdleDeadline = useCallback((broadcast: boolean) => {
+    const deadline = Date.now() + ORGANIZER_IDLE_TIMEOUT_MS;
+    organizerDeadlineRef.current = deadline;
+    setOrganizerSession({
+      status: "active",
+      remainingMs: ORGANIZER_IDLE_TIMEOUT_MS,
+    });
+    if (broadcast)
+      organizerChannelRef.current?.postMessage({ type: "activity", deadline });
+  }, []);
 
   useEffect(() => {
     if (firebase.status !== "ready") return;
@@ -115,6 +148,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [firebase]);
 
   useEffect(() => {
+    if (firebase.status !== "ready" || organizer.status !== "authorized") {
+      organizerDeadlineRef.current = 0;
+      return;
+    }
+
+    organizerDeadlineRef.current = Date.now() + ORGANIZER_IDLE_TIMEOUT_MS;
+    const initialSession = window.setTimeout(
+      () =>
+        setOrganizerSession({
+          status: "active",
+          remainingMs: ORGANIZER_IDLE_TIMEOUT_MS,
+        }),
+      0,
+    );
+    const channel =
+      typeof BroadcastChannel === "undefined"
+        ? null
+        : new BroadcastChannel("games-and-castles-organizer-session");
+    organizerChannelRef.current = channel;
+    let lastActivityMs = 0;
+    let signingOut = false;
+
+    const signOutForExpiry = () => {
+      if (signingOut) return;
+      signingOut = true;
+      channel?.postMessage({ type: "expired" });
+      void signOut(firebase.clients.organizerAuth);
+    };
+    const evaluate = () => {
+      const next = deriveOrganizerIdleState(organizerDeadlineRef.current);
+      if (next.state === "expired") {
+        signOutForExpiry();
+        return;
+      }
+      setOrganizerSession({
+        status: next.state,
+        remainingMs: next.remainingMs,
+      });
+    };
+    const recordActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityMs < 15_000) return;
+      lastActivityMs = now;
+      resetOrganizerIdleDeadline(true);
+    };
+    const receive = (event: MessageEvent<unknown>) => {
+      const message = event.data;
+      if (!message || typeof message !== "object" || !("type" in message))
+        return;
+      if (message.type === "expired") {
+        void signOut(firebase.clients.organizerAuth);
+        return;
+      }
+      if (
+        message.type === "activity" &&
+        "deadline" in message &&
+        typeof message.deadline === "number"
+      ) {
+        organizerDeadlineRef.current = Math.max(
+          organizerDeadlineRef.current,
+          message.deadline,
+        );
+        evaluate();
+      }
+    };
+    const visible = () => {
+      if (document.visibilityState === "visible") evaluate();
+    };
+
+    channel?.addEventListener("message", receive);
+    const events = ["pointerdown", "keydown", "touchstart"] as const;
+    events.forEach((event) => window.addEventListener(event, recordActivity));
+    document.addEventListener("visibilitychange", visible);
+    window.addEventListener("focus", evaluate);
+    const interval = window.setInterval(evaluate, 15_000);
+
+    return () => {
+      window.clearTimeout(initialSession);
+      window.clearInterval(interval);
+      events.forEach((event) =>
+        window.removeEventListener(event, recordActivity),
+      );
+      document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener("focus", evaluate);
+      channel?.removeEventListener("message", receive);
+      channel?.close();
+      organizerChannelRef.current = null;
+    };
+  }, [firebase, organizer.status, resetOrganizerIdleDeadline]);
+
+  useEffect(() => {
     if (firebase.status !== "ready") return;
     let active = true;
 
@@ -123,6 +247,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       (user) => {
         if (!active) return;
         if (!user) {
+          setOrganizerSession({ status: "inactive", remainingMs: 0 });
           setOrganizer({ status: "signed-out", uid: null, message: null });
           return;
         }
@@ -221,8 +346,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOutOrganizer = useCallback(async () => {
     if (firebase.status !== "ready") return;
+    organizerChannelRef.current?.postMessage({ type: "expired" });
     await signOut(firebase.clients.organizerAuth);
   }, [firebase]);
+
+  const staySignedIn = useCallback(() => {
+    if (organizer.status === "authorized") resetOrganizerIdleDeadline(true);
+  }, [organizer.status, resetOrganizerIdleDeadline]);
+
+  const reauthenticateOrganizer = useCallback(
+    async (password: string) => {
+      if (firebase.status !== "ready")
+        throw new Error("Firebase is not configured.");
+      try {
+        const authorization = await reauthenticateOrganizerAccount(
+          firebase.clients.organizerAuth,
+          password,
+          { requireSpecialReveal: false },
+        );
+        const specialRevealAdmin =
+          organizer.status === "authorized" && organizer.specialRevealAdmin;
+        setOrganizer({
+          status: "authorized",
+          uid: authorization.uid,
+          email: authorization.email,
+          specialRevealAdmin,
+          authTimeMs: authorization.authTimeMs,
+          message: null,
+        });
+        resetOrganizerIdleDeadline(true);
+        return authorization;
+      } catch (error) {
+        throw new Error(
+          friendlyFirebaseError(
+            error,
+            error instanceof Error
+              ? error.message
+              : "Organizer reauthentication failed.",
+          ),
+          { cause: error },
+        );
+      }
+    },
+    [firebase, organizer, resetOrganizerIdleDeadline],
+  );
 
   const reauthenticateSpecialReveal = useCallback(
     async (password: string) => {
@@ -263,14 +430,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       organizer,
       signInOrganizer,
       signOutOrganizer,
+      organizerSession,
+      staySignedIn,
+      reauthenticateOrganizer,
       reauthenticateSpecialReveal,
     }),
     [
       guest,
+      organizerSession,
       organizer,
+      reauthenticateOrganizer,
       reauthenticateSpecialReveal,
       signInOrganizer,
       signOutOrganizer,
+      staySignedIn,
     ],
   );
 

@@ -2,7 +2,7 @@
 
 Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and Sunday departure and onward travel. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
 
-> **Status:** Phase 9 repository implementation complete — the protected Special Reveal supports a two-stage opening/resolution lifecycle, one owner-scoped private prediction per participant, recently reauthenticated browser controls, deterministic championship scoring, correction, reconciliation, and neutral presentation. Realtime Database Rules and the frontend remain deliberate production operator actions; this repository change did not modify remote Firebase resources.
+> **Status:** Phase 10 repository implementation complete — production hardening now includes staged optional App Check, session-scoped organizer access with idle expiry, recent-auth Birthday Vault publication, a read-only Operations workspace, deployed-build detection, dependency and artifact scanning, and encrypted local backup/private-cleanup tooling. Phase 9 is deployed and production-tested. Phase 10 remote configuration and deployment remain deliberate operator actions; this implementation did not change Firebase, GitHub, billing, Rules, or production data.
 
 ## Technology
 
@@ -12,7 +12,7 @@ Games & Castles is a private, mobile-first companion for 31 July–2 August 2026
 - Firebase modular Web SDK for Authentication and Realtime Database
 - Firebase Admin SDK for trusted local claim provisioning and emergency reveal recovery only
 - Firebase Emulator Suite, default-deny Realtime Database Security Rules, and Rules integration testing
-- App Check enforcement remains Phase 10 work
+- Optional staged App Check for both guest and organizer clients; enforcement remains off until a separate evidence-based operator decision
 
 ## Feature areas
 
@@ -20,7 +20,7 @@ Games & Castles is a private, mobile-first companion for 31 July–2 August 2026
 - Generic competition configuration plus complete live Merry-Go-Round, All Hands, and Group Format engines
 - Birthday Vault guestbook and presentation
 - Prediction event and protected special reveal
-- Organizer controls, Championship Sync, revisioned manual bonuses, and audit history
+- Organizer controls, Championship Sync, revisioned manual bonuses, audit history, and sanitized Operations diagnostics
 - Protected trip information
 
 ## Prerequisites
@@ -56,6 +56,9 @@ npm run test
 npm run test:run
 npm run test:rules
 npm run emulators
+npm run security:scan
+npm run security:audit
+npm run security:check
 ```
 
 ## Production build
@@ -69,9 +72,9 @@ Generated `dist/` output is ignored and must not be committed.
 
 ## GitHub Pages deployment
 
-The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. The production repository uses **GitHub Actions** as its Pages source and has all six `VITE_FIREBASE_*` public values configured as repository **Actions variables**, not secrets; the workflow maps them only into the build. Production assets use Vite's `/games-and-castles/` base path, the app uses anchor navigation rather than server-side routes, and the deployed site is successfully connected to Firebase.
+The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. The production repository uses **GitHub Actions** as its Pages source and has all six core `VITE_FIREBASE_*` public values configured as repository **Actions variables**, not secrets; the workflow maps them only into the build. Optional App Check variables are also mapped but may remain disabled. Production assets use Vite's `/games-and-castles/` base path, the app uses anchor navigation rather than server-side routes, and the deployed site is successfully connected to Firebase.
 
-Phases 1–7 are deployed and production-connected; the Phase 7 championship sources have been reconciled. Phase 8 and Phase 9 are complete in the repository but require the deliberate production rollout described in [Firebase setup](docs/firebase-setup.md). Phase 9 adds `/specialReveal` private/public lifecycle data, Firebase password reauthentication, the dedicated `specialRevealAdmin` claim, recent-auth Rules enforcement, atomic browser publication/scoring, one deterministic prediction ledger source, organizer correction/reconciliation, and realtime guest presentation. It uses only Authentication and Realtime Database in production and does not require a billing account. App Check enforcement remains Phase 10 work.
+Phases 1–9 are deployed, production-connected, and production-tested; championship sources have been reconciled. Phase 10 is complete in the repository and requires the deliberate rollout described in [Firebase setup](docs/firebase-setup.md) and the [operations runbook](docs/operations-runbook.md). App Check is defense in depth, initializes only when explicitly configured, reports safe degraded status, never exposes tokens, and is not automatically enforced. No billing account, Blaze plan, Cloud Functions, Firestore, Storage, Scheduler, or paid API is introduced.
 
 ## Documentation
 
@@ -83,6 +86,10 @@ Phases 1–7 are deployed and production-connected; the Phase 7 championship sou
 - [Domain and Firebase data model](docs/data-model.md)
 - [Authentication and security model](docs/security-model.md)
 - [Firebase setup and operations](docs/firebase-setup.md)
+- [Security hardening](docs/security-hardening.md)
+- [Operations runbook](docs/operations-runbook.md)
+- [Pre-event checklist](docs/pre-event-checklist.md)
+- [Privacy and retention](docs/privacy-retention.md)
 - [Design system](docs/design-system.md)
 - [Implementation roadmap](docs/implementation-roadmap.md)
 - [Assumptions and decisions](docs/assumptions-and-decisions.md)
@@ -91,9 +98,9 @@ Phases 1–7 are deployed and production-connected; the Phase 7 championship sou
 
 - **Phase 0:** frozen product and architecture documentation.
 - **Phases 1–7:** implemented, deployed, production-connected, and reconciled — static shell, Firebase participant foundation, Competition Studio, all three competition engines, and ledger-derived championship.
-- **Phase 8:** repository implementation complete — private Birthday Vault submission, moderation, publication, and presentation; deployment remains an operator action.
-- **Phase 9:** repository implementation complete — protected opening/resolution, private predictions, recently reauthenticated browser lifecycle controls, deterministic scoring, correction, reconciliation, and presentation; production rollout remains an operator action.
-- **Phases 10–11:** security hardening, accessibility, animation, multi-device rehearsal, and production deployment.
+- **Phases 8–9:** implemented, deployed, and production-tested — private Birthday Vault, protected Special Reveal, prediction scoring, correction, reconciliation, and presentation.
+- **Phase 10:** repository implementation complete — staged App Check, organizer-session hardening, Operations diagnostics, version awareness, supply-chain checks, encrypted backup, and bounded private-data cleanup; remote rollout remains an operator action.
+- **Phase 11:** not started — final accessibility, animation, multi-device rehearsal, and production readiness gate.
 
 See the [implementation roadmap](docs/implementation-roadmap.md) for measurable phase gates.
 

@@ -16,6 +16,9 @@ const organizerState = vi.hoisted(() => ({
     signInOrganizer: vi.fn(),
     signOutOrganizer: vi.fn(),
     reauthenticateSpecialReveal: vi.fn(),
+    reauthenticateOrganizer: vi.fn(),
+    organizerSession: { status: "active", remainingMs: 1_800_000 },
+    staySignedIn: vi.fn(),
   },
   participants: {
     canMutate: true,
@@ -71,6 +74,21 @@ vi.mock("../special-reveal/organizer/SpecialRevealWorkspace", () => ({
   ),
 }));
 
+vi.mock("../operations/OperationsWorkspace", () => ({
+  OperationsWorkspace: ({
+    onOpenWorkspace,
+  }: {
+    onOpenWorkspace: (workspace: "championship") => void;
+  }) => (
+    <section aria-label="Operations content">
+      Operations content
+      <button onClick={() => onOpenWorkspace("championship")} type="button">
+        Open championship from Operations
+      </button>
+    </section>
+  ),
+}));
+
 describe("OrganizerAccess", () => {
   beforeEach(() => {
     organizerState.auth.organizer.status = "authorized";
@@ -113,7 +131,7 @@ describe("OrganizerAccess", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("opens all five authorized organizer workspaces including Special Reveal", async () => {
+  it("opens all six authorized organizer workspaces including Operations", async () => {
     render(<OrganizerAccess />);
 
     const trigger = screen.getByRole("button", {
@@ -137,6 +155,9 @@ describe("OrganizerAccess", () => {
     });
     const specialRevealTab = within(dialog).getByRole("tab", {
       name: "Special Reveal",
+    });
+    const operationsTab = within(dialog).getByRole("tab", {
+      name: "Operations",
     });
 
     expect(studioTab).toHaveAttribute("aria-selected", "true");
@@ -192,6 +213,27 @@ describe("OrganizerAccess", () => {
     ).toBeInTheDocument();
     expect(
       await within(dialog).findByText("Special Reveal content"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(operationsTab);
+    expect(operationsTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      await within(dialog).findByRole("tabpanel", { name: "Operations" }),
+    ).toBeInTheDocument();
+    expect(
+      await within(dialog).findByText("Operations content"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "Open championship from Operations",
+      }),
+    );
+    expect(championshipTab).toHaveAttribute("aria-selected", "true");
+    expect(
+      await within(dialog).findByRole("tabpanel", {
+        name: "Championship Desk",
+      }),
     ).toBeInTheDocument();
   });
 });

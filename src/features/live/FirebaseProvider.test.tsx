@@ -14,6 +14,7 @@ const configured: FirebaseRuntimeConfig = {
     messagingSenderId: "123",
   },
   useEmulators: false,
+  appCheck: { status: "disabled" },
 };
 
 function StateProbe() {
