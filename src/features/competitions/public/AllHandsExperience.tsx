@@ -17,6 +17,7 @@ import type {
   SessionResultEntity,
 } from "../all-hands/types";
 import type { PublishedCompetition } from "../domain/types";
+import { winningAllHandsParticipantIds } from "./winEvents";
 
 function person(participants: Participant[], id: string) {
   return participants.find((participant) => participant.id === id);
@@ -86,6 +87,7 @@ function PublicSessionCard({
   participants: Participant[];
 }) {
   const awards = deriveAllHandsSessionAwards(session, run.configSnapshot);
+  const winnerIds = winningAllHandsParticipantIds(session, run.configSnapshot);
   return (
     <article
       className={`rounded-2xl border p-4 ${
@@ -133,6 +135,7 @@ function PublicSessionCard({
                 initials={initials(name(participants, entity.participantId))}
                 name={name(participants, entity.participantId)}
                 size="sm"
+                winner={winnerIds.includes(entity.participantId)}
               />
             ) : (
               <span className="flex size-9 items-center justify-center rounded-full border border-white/12 text-[var(--color-electric-cyan-400)]">

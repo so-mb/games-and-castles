@@ -788,7 +788,7 @@ describe("Realtime Database security rules", () => {
     await assertSucceeds(
       update(ref(database, "participants/owner"), {
         displayName: "Updated Guest",
-        avatar: { icon: "dice", tone: "gold" },
+        avatar: { icon: "robot", tone: "gold" },
         updatedAt: Date.now(),
         updatedByUid: "owner",
       }),

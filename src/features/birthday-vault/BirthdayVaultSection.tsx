@@ -318,11 +318,11 @@ export function BirthdayVaultSection() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button
-                className="bg-white text-[var(--color-prague-red-700)] hover:bg-white/90"
                 onClick={() => {
                   dismissAnnouncement();
                   setPresentationOpen(true);
                 }}
+                variant="inverse"
               >
                 View reveal
               </Button>

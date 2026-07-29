@@ -9,6 +9,7 @@ interface ParticipantAvatarProps {
   size?: "sm" | "md" | "lg";
   className?: string;
   icon?: ContentIconName;
+  winner?: boolean;
 }
 
 const accents = {
@@ -31,12 +32,13 @@ export function ParticipantAvatar({
   size = "md",
   className,
   icon,
+  winner = false,
 }: ParticipantAvatarProps) {
   return (
     <span
-      aria-label={`${name} avatar`}
+      aria-label={`${name} avatar${winner ? ", winner" : ""}`}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full border font-extrabold tracking-wide",
+        "relative inline-flex shrink-0 items-center justify-center rounded-full border font-extrabold tracking-wide",
         accents[accent],
         sizes[size],
         className,
@@ -48,6 +50,14 @@ export function ParticipantAvatar({
       ) : (
         initials
       )}
+      {winner ? (
+        <span
+          aria-hidden="true"
+          className="absolute -top-2 -right-1 flex size-5 rotate-12 items-center justify-center rounded-full border border-[var(--color-antique-gold-400)]/45 bg-[var(--color-night-900)] text-[var(--color-antique-gold-400)] shadow-md"
+        >
+          <ContentIcon name="crown" size={11} strokeWidth={2.4} />
+        </span>
+      ) : null}
     </span>
   );
 }

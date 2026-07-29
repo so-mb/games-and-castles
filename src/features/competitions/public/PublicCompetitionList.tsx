@@ -21,6 +21,8 @@ import type { PublishedCompetition } from "../domain/types";
 import { MerryGoRoundExperience } from "./MerryGoRoundExperience";
 import { AllHandsExperience } from "./AllHandsExperience";
 import { GroupFormatExperience } from "./GroupFormatExperience";
+import { useWinCelebration } from "./useWinCelebration";
+import { WinnerCelebration } from "./WinnerCelebration";
 
 function initials(name: string) {
   return name
@@ -136,9 +138,24 @@ export function PublicCompetitionList() {
     ...competitions.active,
     ...competitions.completed,
   ];
+  const winEvent = useWinCelebration(
+    competitions.runs,
+    firebase.status === "ready" && competitions.publicState === "ready",
+  );
+  const winCompetition = winEvent
+    ? runningCompetitions.find(
+        (competition) => competition.id === winEvent.runId,
+      )
+    : null;
 
   return (
     <section aria-labelledby="scheduled-games-title" className="mt-12">
+      <WinnerCelebration
+        competitionTitle={winCompetition?.title ?? "Weekend competition"}
+        event={winEvent}
+        ownParticipantId={participants.ownParticipant?.id ?? null}
+        participants={participants.championshipParticipants}
+      />
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-bold tracking-[0.16em] text-[var(--color-electric-cyan-400)] uppercase">

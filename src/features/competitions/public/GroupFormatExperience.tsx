@@ -49,10 +49,12 @@ function Player({
   participantId,
   participants,
   compact = false,
+  winner = false,
 }: {
   participantId: string | null;
   participants: Participant[];
   compact?: boolean;
+  winner?: boolean;
 }) {
   const participant = participantResolver(participants)(participantId);
   if (!participant)
@@ -65,6 +67,7 @@ function Player({
         initials={initials(participant.displayName)}
         name={participant.displayName}
         size="sm"
+        winner={winner}
       />
       <span className={`truncate font-bold ${compact ? "text-xs" : "text-sm"}`}>
         {participant.displayName}
@@ -142,6 +145,7 @@ function ReadOnlyMatchCard({
                 <Player
                   participantId={participantId}
                   participants={participants}
+                  winner={match.result?.winnerId === participantId}
                 />
               ) : (
                 <span className="text-sm font-bold text-white/35">

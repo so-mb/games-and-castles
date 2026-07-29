@@ -74,6 +74,10 @@ a {
   -webkit-tap-highlight-color: transparent;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
 button:disabled {
   cursor: not-allowed;
 }
@@ -107,6 +111,10 @@ button:disabled {
   background: rgb(255 255 255 / 18%);
 }
 
+.participant-avatar-celebrate {
+  animation: participant-avatar-pop 560ms cubic-bezier(0.2, 0.9, 0.25, 1) both;
+}
+
 @keyframes modal-backdrop-in {
   from {
     opacity: 0;
@@ -117,6 +125,18 @@ button:disabled {
   from {
     opacity: 0;
     transform: translateY(0.75rem) scale(0.985);
+  }
+}
+
+@keyframes participant-avatar-pop {
+  0% {
+    transform: scale(0.82) rotate(-5deg);
+  }
+  58% {
+    transform: scale(1.1) rotate(3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0);
   }
 }
 

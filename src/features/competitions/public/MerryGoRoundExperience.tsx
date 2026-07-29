@@ -54,9 +54,11 @@ function participantResolver(participants: Participant[]) {
 function PlayerName({
   participantId,
   participants,
+  winner = false,
 }: {
   participantId: string | null;
   participants: Participant[];
+  winner?: boolean;
 }) {
   const participant = participantResolver(participants)(participantId);
   if (!participant)
@@ -69,6 +71,7 @@ function PlayerName({
         initials={initials(participant.displayName)}
         name={participant.displayName}
         size="sm"
+        winner={winner}
       />
       <span className="truncate font-bold">{participant.displayName}</span>
     </span>
@@ -111,6 +114,7 @@ function MatchCard({
               <PlayerName
                 participantId={match.participantAId}
                 participants={participants}
+                winner={match.result?.winnerId === match.participantAId}
               />
             )}
             {match.seedA ? (
@@ -131,6 +135,7 @@ function MatchCard({
               <PlayerName
                 participantId={match.participantBId}
                 participants={participants}
+                winner={match.result?.winnerId === match.participantBId}
               />
             )}
             {match.seedB ? (

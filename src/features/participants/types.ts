@@ -7,6 +7,16 @@ export const participantIcons = [
   "controller",
   "crown",
   "sparkles",
+  "shield",
+  "swords",
+  "robot",
+  "ghost",
+  "rocket",
+  "gem",
+  "compass",
+  "puzzle",
+  "cat",
+  "key",
 ] as const satisfies readonly ContentIcon[];
 
 export const participantTones = ["cyan", "gold", "red", "neutral"] as const;

@@ -65,15 +65,45 @@ describe("ParticipantForm", () => {
     fireEvent.change(screen.getByLabelText("Display name"), {
       target: { value: "Ada" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "dice avatar" }));
+    expect(screen.getAllByRole("button", { name: /avatar$/ })).toHaveLength(16);
+    fireEvent.click(screen.getByRole("button", { name: "robot avatar" }));
     fireEvent.click(screen.getByRole("button", { name: "Antique gold" }));
     fireEvent.click(screen.getByRole("button", { name: "Join roster" }));
     await waitFor(() =>
       expect(onSubmit).toHaveBeenCalledWith({
         displayName: "Ada",
-        avatar: { icon: "dice", tone: "gold" },
+        avatar: { icon: "robot", tone: "gold" },
       }),
     );
+  });
+
+  it("updates the selected icon and colour choices to the chosen tone", () => {
+    render(
+      <ParticipantForm
+        initialValue={{
+          displayName: "Ivie",
+          avatar: { icon: "puzzle", tone: "cyan" },
+        }}
+        onSubmit={vi.fn()}
+        participants={[]}
+        submitLabel="Save profile"
+      />,
+    );
+    const selectedIcon = screen.getByRole("button", {
+      name: "puzzle avatar",
+    });
+    const cyan = screen.getByRole("button", { name: "Electric cyan" });
+    const red = screen.getByRole("button", { name: "Prague red" });
+
+    expect(selectedIcon).toHaveClass("text-[var(--color-electric-cyan-400)]");
+    expect(cyan).toHaveClass("text-[var(--color-electric-cyan-400)]");
+    expect(red).toHaveClass("text-[#ffb3b7]");
+
+    fireEvent.click(red);
+
+    expect(selectedIcon).toHaveClass("text-[#ffb3b7]");
+    expect(red).toHaveAttribute("aria-pressed", "true");
+    expect(cyan).toHaveAttribute("aria-pressed", "false");
   });
 
   it("prevents a second submission while the first is pending", () => {

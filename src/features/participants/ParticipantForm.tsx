@@ -12,6 +12,7 @@ import {
   participantTones,
   type Participant,
   type ParticipantInput,
+  type ParticipantTone,
 } from "./types";
 
 interface ParticipantFormProps {
@@ -34,6 +35,28 @@ const toneLabels = {
   gold: "Antique gold",
   red: "Prague red",
   neutral: "Slate",
+};
+
+const selectedIconToneStyles: Record<ParticipantTone, string> = {
+  cyan: "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/14 text-[var(--color-electric-cyan-400)]",
+  gold: "border-[var(--color-antique-gold-400)] bg-[var(--color-antique-gold-400)]/14 text-[var(--color-antique-gold-400)]",
+  red: "border-[#ff9ca1] bg-[#ff9ca1]/14 text-[#ffb3b7]",
+  neutral: "border-[#b8c2d4] bg-[#b8c2d4]/12 text-[#d8deea]",
+};
+
+const toneOptionStyles: Record<ParticipantTone, string> = {
+  cyan: "border-[var(--color-electric-cyan-400)]/30 bg-[var(--color-electric-cyan-400)]/7 text-[var(--color-electric-cyan-400)] hover:bg-[var(--color-electric-cyan-400)]/12 aria-pressed:bg-[var(--color-electric-cyan-400)]/16",
+  gold: "border-[var(--color-antique-gold-400)]/30 bg-[var(--color-antique-gold-400)]/7 text-[var(--color-antique-gold-400)] hover:bg-[var(--color-antique-gold-400)]/12 aria-pressed:bg-[var(--color-antique-gold-400)]/16",
+  red: "border-[#ff9ca1]/30 bg-[#ff9ca1]/7 text-[#ffb3b7] hover:bg-[#ff9ca1]/12 aria-pressed:bg-[#ff9ca1]/16",
+  neutral:
+    "border-[#b8c2d4]/25 bg-[#b8c2d4]/6 text-[#d8deea] hover:bg-[#b8c2d4]/10 aria-pressed:bg-[#b8c2d4]/14",
+};
+
+const toneSwatchStyles: Record<ParticipantTone, string> = {
+  cyan: "bg-[var(--color-electric-cyan-400)]",
+  gold: "bg-[var(--color-antique-gold-400)]",
+  red: "bg-[#ff9ca1]",
+  neutral: "bg-[#b8c2d4]",
 };
 
 export function ParticipantForm({
@@ -121,7 +144,7 @@ export function ParticipantForm({
 
       <fieldset>
         <legend className="text-sm font-bold">Choose an icon</legend>
-        <div className="mt-3 grid grid-cols-6 gap-2">
+        <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6 lg:grid-cols-8">
           {participantIcons.map((icon) => (
             <button
               aria-label={`${icon} avatar`}
@@ -129,7 +152,7 @@ export function ParticipantForm({
               className={cn(
                 "flex min-h-11 items-center justify-center rounded-xl border transition focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
                 value.avatar.icon === icon
-                  ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/14 text-[var(--color-electric-cyan-400)]"
+                  ? selectedIconToneStyles[value.avatar.tone]
                   : "border-white/12 bg-white/5 text-white/60 hover:bg-white/9",
               )}
               disabled={disabled || submitting}
@@ -155,10 +178,11 @@ export function ParticipantForm({
             <button
               aria-pressed={value.avatar.tone === tone}
               className={cn(
-                "min-h-11 rounded-xl border px-3 text-xs font-bold transition focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
+                "flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-bold transition focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--focus-ring)]",
+                toneOptionStyles[tone],
                 value.avatar.tone === tone
-                  ? "border-white/60 bg-white/12 text-white"
-                  : "border-white/12 bg-white/4 text-white/55 hover:bg-white/8",
+                  ? "border-current shadow-[inset_0_0_0_1px_currentColor]"
+                  : "opacity-70 hover:opacity-100",
               )}
               disabled={disabled || submitting}
               key={tone}
@@ -170,7 +194,14 @@ export function ParticipantForm({
               }
               type="button"
             >
-              {toneLabels[tone]}
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "size-2.5 shrink-0 rounded-full shadow-[0_0_0_2px_rgb(255_255_255_/_8%)]",
+                  toneSwatchStyles[tone],
+                )}
+              />
+              <span>{toneLabels[tone]}</span>
             </button>
           ))}
         </div>

@@ -98,7 +98,7 @@ interface Phase2Participant {
   ownerUid: UserId | null;
   displayName: string; // normalized, 2–24 characters
   avatar: {
-    icon: 'castle' | 'dice' | 'trophy' | 'controller' | 'crown' | 'sparkles';
+    icon: 'castle' | 'dice' | 'trophy' | 'controller' | 'crown' | 'sparkles' | 'shield' | 'swords' | 'robot' | 'ghost' | 'rocket' | 'gem' | 'compass' | 'puzzle' | 'cat' | 'key';
     tone: 'cyan' | 'gold' | 'red' | 'neutral';
   };
   status: 'active' | 'inactive';

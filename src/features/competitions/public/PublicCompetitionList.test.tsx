@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createCompetitionRun } from "../engine/activation";
+import { recordMatchResult } from "../engine/lifecycle";
 import {
   createAllHandsRun,
   createAllHandsSession,
@@ -28,7 +29,11 @@ const hookState = vi.hoisted(() => ({
     publicMalformedCount: 0,
     runtimeMalformedCount: 0,
   },
-  participants: { activeParticipants: [] as Participant[] },
+  participants: {
+    activeParticipants: [] as Participant[],
+    championshipParticipants: [] as Participant[],
+    ownParticipant: null as Participant | null,
+  },
 }));
 
 vi.mock("../../live/FirebaseProvider", () => ({
@@ -95,6 +100,8 @@ describe("scheduled competition card", () => {
     hookState.competitions.publicMalformedCount = 0;
     hookState.competitions.runtimeMalformedCount = 0;
     hookState.participants.activeParticipants = [];
+    hookState.participants.championshipParticipants = [];
+    hookState.participants.ownParticipant = null;
   });
   it("renders a real configuration as scheduled without generated play state", () => {
     const values = {
@@ -180,6 +187,54 @@ describe("scheduled competition card", () => {
       screen.getByText(/championship table rebuilds from/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /record result/i })).toBeNull();
+  });
+
+  it("celebrates a new result for the winning private participant", () => {
+    const values = {
+      ...createCompetitionFormValues(),
+      title: "Castle Cup",
+      gameName: "Controller Duel",
+      participantIds: participants.map((participant) => participant.id),
+    };
+    const draft = createDraftRecord(values, {
+      id: "castle-cup",
+      uid: "admin",
+      now: 100,
+    });
+    const scheduled = publishDraftRecord(draft, "admin", 200, 100);
+    const run = createCompetitionRun(scheduled, "admin", 300, () => 0);
+    const match = Object.values(run.matches).find(
+      (candidate) => !candidate.isBye,
+    )!;
+    const winner = participants.find(
+      (participant) => participant.id === match.participantAId,
+    )!;
+    hookState.firebase = { status: "ready" };
+    hookState.competitions.active = [
+      {
+        ...scheduled,
+        status: "active" as const,
+        revision: scheduled.revision + 1,
+      },
+    ];
+    hookState.competitions.runs = [run];
+    hookState.participants.activeParticipants = participants;
+    hookState.participants.championshipParticipants = participants;
+    hookState.participants.ownParticipant = winner;
+    const view = render(<PublicCompetitionList />);
+
+    hookState.competitions.runs = [
+      recordMatchResult(run, match.id, {
+        expectedMatchRevision: match.revision,
+        roundWinnerIds: [winner.id, winner.id],
+        organizerUid: "admin",
+        now: 400,
+      }),
+    ];
+    view.rerender(<PublicCompetitionList />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("You won!");
+    expect(screen.getByRole("status")).toHaveTextContent("Castle Cup");
   });
 
   it("renders an active Group Format with public live, group, bracket, and points views", () => {

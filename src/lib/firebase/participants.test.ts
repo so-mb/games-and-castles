@@ -57,6 +57,15 @@ describe("participant data helpers", () => {
     ).toBeNull();
   });
 
+  it("parses an expanded themed avatar", () => {
+    expect(
+      parseParticipant({
+        ...participant,
+        avatar: { icon: "rocket", tone: "red" },
+      })?.avatar,
+    ).toEqual({ icon: "rocket", tone: "red" });
+  });
+
   it("parses a valid user profile", () => {
     expect(
       parseUserProfile({

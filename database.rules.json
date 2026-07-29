@@ -21,7 +21,7 @@
         "avatar": {
           ".validate": "newData.hasChildren(['icon', 'tone'])",
           "icon": {
-            ".validate": "newData.isString() && newData.val().matches(/^(castle|dice|trophy|controller|crown|sparkles)$/)"
+            ".validate": "newData.isString() && newData.val().matches(/^(castle|dice|trophy|controller|crown|sparkles|shield|swords|robot|ghost|rocket|gem|compass|puzzle|cat|key)$/)"
           },
           "tone": {
             ".validate": "newData.isString() && newData.val().matches(/^(cyan|gold|red|neutral)$/)"
@@ -1347,7 +1347,7 @@
               ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 24"
             },
             "avatarIcon": {
-              ".validate": "newData.isString() && newData.val().matches(/^(castle|dice|trophy|controller|crown|sparkles)$/)"
+              ".validate": "newData.isString() && newData.val().matches(/^(castle|dice|trophy|controller|crown|sparkles|shield|swords|robot|ghost|rocket|gem|compass|puzzle|cat|key)$/)"
             },
             "avatarTone": {
               ".validate": "newData.isString() && newData.val().matches(/^(cyan|gold|red|neutral)$/)"

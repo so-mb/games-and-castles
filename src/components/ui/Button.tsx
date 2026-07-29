@@ -2,7 +2,7 @@ import { ArrowRight } from "lucide-react";
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "../../lib/cn";
 
-type ButtonVariant = "primary" | "secondary" | "quiet" | "dark";
+type ButtonVariant = "primary" | "secondary" | "quiet" | "dark" | "inverse";
 
 interface SharedButtonProps {
   children: ReactNode;
@@ -28,6 +28,8 @@ const variants: Record<ButtonVariant, string> = {
     "border border-[var(--color-ink-900)]/20 bg-transparent text-[var(--color-ink-900)] hover:bg-[var(--color-ink-900)]/5",
   quiet: "bg-transparent text-current hover:bg-current/8",
   dark: "bg-[var(--color-electric-cyan-400)] text-[var(--color-night-950)] hover:bg-[#6be4df] active:translate-y-px",
+  inverse:
+    "bg-white text-[var(--color-prague-red-700)] hover:bg-white/90 active:translate-y-px",
 };
 
 const baseClass =
