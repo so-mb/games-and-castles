@@ -71,6 +71,7 @@ This document records decisions without describing, naming, or inferring protect
 | CR-56 | Phase 10 diagnostics are sanitized, read-only, and include deployed-build awareness. | Operations exposes safe status/count/build metadata only; `version.json` contains commit/ref/time only. No token, UID, email, private payload, exact address, or enforcement claim is copied. |
 | CR-57 | Private post-event data cleanup requires a recent authenticated encrypted backup and preserves public results/history. | Local tools validate credential/project, use scrypt plus AES-256-GCM, write no plaintext, default cleanup to dry-run, require `PURGE PRIVATE DATA`, apply one bounded update, append safe audit metadata, and converge to a no-op on retry. |
 | CR-58 | Private event-source cleanup runs within seven days after the trip; encrypted backups are retained 30 days after cleanup by default, and safe audit metadata is reviewed after 90 days. | This resolves former OD-19 while preserving published history and a short correction/recovery window. Exceptions require an organizer-recorded hold; Auth-user/participant deletion remains a separate referential review. |
+| CR-59 | Phase 11 UI polish is implemented through shared primitives and compact organizer grouping. | Button icon/label layout and modal focus stability are fixed centrally. Organizer workspaces use one internally scrollable tab rail rather than a crowded multi-row control block; remaining physical-device rehearsal is still required. |
 
 ## 3. Required terminology
 
@@ -120,7 +121,7 @@ These items require confirmation; recommendations indicate the least-risk starti
 | OD-21 | Recheck the planned Prague transport route and opening/access conditions close to travel. | Preserve the approved itinerary in the app, but perform a current authoritative check before deployment/travel and update only with organizer approval. | Phase 11 rehearsal |
 | OD-22 | Confirm cinema booking display details and whether any booking reference may be shown. | Show only the approved venue/time/screening description; keep booking references out of public data. | Phase 1/11 copy freeze |
 
-Phases 1–9 are deployed, production-connected, and production-tested. Phase 10 is complete in the repository; remote rollout remains an explicit operator action. CR-45 resolves former OD-12, CR-46/CR-47 resolve former OD-13, CR-48–CR-52 resolve former OD-14–OD-16, and CR-53–CR-58 resolve the Phase 10 staging/session/retention decisions formerly represented by OD-18/OD-19. App Check enforcement is intentionally not a Phase 10 completion requirement and remains a future explicit go/no-go decision. OD-06 blocks only future draw support.
+Phases 1–9 are deployed, production-connected, and production-tested. Phase 10 and the Phase 11 UI/UX polish slice are complete in the repository; remote rollout and the broader Phase 11 rehearsal gate remain explicit operator actions. CR-45 resolves former OD-12, CR-46/CR-47 resolve former OD-13, CR-48–CR-52 resolve former OD-14–OD-16, and CR-53–CR-58 resolve the Phase 10 staging/session/retention decisions formerly represented by OD-18/OD-19. App Check enforcement is intentionally not a Phase 10 completion requirement and remains a future explicit go/no-go decision. OD-06 blocks only future draw support.
 
 ## 6. Technical architecture decisions
 
@@ -250,7 +251,7 @@ Phases 1–9 are deployed, production-connected, and production-tested. Phase 10
 
 **Reason:** These controls materially reduce unattended-device, stale-build, credential, supply-chain, accidental-publication, and post-event-retention risk while respecting GitHub Pages' inspectable browser boundary and the strict no-payment/no-Blaze requirement.
 
-**Consequences:** Enterprise attestation is used only if the Firebase Console offers it within the zero-cost boundary; otherwise it stays disabled. `robots.txt`/`noindex` reduce discovery but are not privacy controls. CSP is deferred until Firebase/reCAPTCHA origins can be tested without blocking legitimate devices. Automated restore is deliberately absent because overwriting live data needs separate authorization and rehearsal. Phase 11 remains unstarted.
+**Consequences:** Enterprise attestation is used only if the Firebase Console offers it within the zero-cost boundary; otherwise it stays disabled. `robots.txt`/`noindex` reduce discovery but are not privacy controls. CSP is deferred until Firebase/reCAPTCHA origins can be tested without blocking legitimate devices. Automated restore is deliberately absent because overwriting live data needs separate authorization and rehearsal. Phase 11 UI/UX polish is now implemented separately; its physical-device and production rehearsal work remains open.
 
 ## 7. Assumptions currently used by the specification
 

@@ -83,6 +83,43 @@ button:disabled {
   color: inherit;
 }
 
+.modal-backdrop {
+  animation: modal-backdrop-in var(--motion-standard) ease-out both;
+}
+
+.modal-panel {
+  animation: modal-panel-in var(--motion-standard)
+    cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.organizer-tab-scroll {
+  overscroll-behavior-x: contain;
+  scrollbar-color: rgb(255 255 255 / 18%) transparent;
+  scrollbar-width: thin;
+}
+
+.organizer-tab-scroll::-webkit-scrollbar {
+  height: 0.35rem;
+}
+
+.organizer-tab-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgb(255 255 255 / 18%);
+}
+
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.75rem) scale(0.985);
+  }
+}
+
 .skip-link {
   position: fixed;
   z-index: 100;

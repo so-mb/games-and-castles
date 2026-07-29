@@ -2,7 +2,7 @@
 
 Games & Castles is a private, mobile-first companion for 31 July–2 August 2026: Friday game night in Germany, Saturday's Prague Quest, and Sunday departure and onward travel. It combines a live multi-game championship, flexible and scheduled trip plans, birthday messages, and an administrator-controlled prediction and reveal experience in a premium travel-journal and arcade-tournament interface.
 
-> **Status:** Phase 10 repository implementation complete — production hardening now includes staged optional App Check, session-scoped organizer access with idle expiry, recent-auth Birthday Vault publication, a read-only Operations workspace, deployed-build detection, dependency and artifact scanning, and encrypted local backup/private-cleanup tooling. Phase 9 is deployed and production-tested. Phase 10 remote configuration and deployment remain deliberate operator actions; this implementation did not change Firebase, GitHub, billing, Rules, or production data.
+> **Status:** Phase 11 UI/UX polish complete in the repository — shared buttons now keep icons and labels aligned, modal inputs retain focus through controlled rerenders, organizer workspaces use a compact scrollable rail, and modal motion/spacing is more consistent. Phase 9 is deployed and production-tested; Phase 10 and Phase 11 repository changes still require deliberate rollout and final physical-device rehearsal.
 
 ## Technology
 
@@ -74,7 +74,7 @@ Generated `dist/` output is ignored and must not be committed.
 
 The [Pages workflow](.github/workflows/deploy-pages.yml) builds and deploys `dist/` on pushes to `master` and through manual workflow dispatch. The production repository uses **GitHub Actions** as its Pages source and has all six core `VITE_FIREBASE_*` public values configured as repository **Actions variables**, not secrets; the workflow maps them only into the build. Optional App Check variables are also mapped but may remain disabled. Production assets use Vite's `/games-and-castles/` base path, the app uses anchor navigation rather than server-side routes, and the deployed site is successfully connected to Firebase.
 
-Phases 1–9 are deployed, production-connected, and production-tested; championship sources have been reconciled. Phase 10 is complete in the repository and requires the deliberate rollout described in [Firebase setup](docs/firebase-setup.md) and the [operations runbook](docs/operations-runbook.md). App Check is defense in depth, initializes only when explicitly configured, reports safe degraded status, never exposes tokens, and is not automatically enforced. No billing account, Blaze plan, Cloud Functions, Firestore, Storage, Scheduler, or paid API is introduced.
+Phases 1–9 are deployed, production-connected, and production-tested; championship sources have been reconciled. Phase 10 security hardening and the Phase 11 UI/UX polish pass are complete in the repository and require the deliberate rollout described in [Firebase setup](docs/firebase-setup.md) and the [operations runbook](docs/operations-runbook.md). App Check is defense in depth, initializes only when explicitly configured, reports safe degraded status, never exposes tokens, and is not automatically enforced. No billing account, Blaze plan, Cloud Functions, Firestore, Storage, Scheduler, or paid API is introduced.
 
 ## Documentation
 
@@ -100,7 +100,7 @@ Phases 1–9 are deployed, production-connected, and production-tested; champion
 - **Phases 1–7:** implemented, deployed, production-connected, and reconciled — static shell, Firebase participant foundation, Competition Studio, all three competition engines, and ledger-derived championship.
 - **Phases 8–9:** implemented, deployed, and production-tested — private Birthday Vault, protected Special Reveal, prediction scoring, correction, reconciliation, and presentation.
 - **Phase 10:** repository implementation complete — staged App Check, organizer-session hardening, Operations diagnostics, version awareness, supply-chain checks, encrypted backup, and bounded private-data cleanup; remote rollout remains an operator action.
-- **Phase 11:** not started — final accessibility, animation, multi-device rehearsal, and production readiness gate.
+- **Phase 11:** UI/UX polish implemented — shared control alignment, stable modal focus, organizer-workspace grouping, and restrained motion are complete; physical-device rehearsal and the final production readiness gate remain open.
 
 See the [implementation roadmap](docs/implementation-roadmap.md) for measurable phase gates.
 

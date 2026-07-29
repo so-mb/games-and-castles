@@ -27,7 +27,6 @@ export function App() {
         <HeroSection />
         <WeekendOverviewSection />
         <ChampionshipSection />
-        <ItinerarySection />
         <Suspense
           fallback={
             <section
@@ -41,6 +40,7 @@ export function App() {
           <BirthdayVaultSection />
         </Suspense>
         <SpecialRevealSection />
+        <ItinerarySection />
         <TripInformationSection />
       </main>
       <ConnectionStatus />

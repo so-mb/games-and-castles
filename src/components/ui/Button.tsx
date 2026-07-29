@@ -31,7 +31,7 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 const baseClass =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-md)] px-5 py-2.5 text-sm font-bold transition duration-[var(--motion-fast)] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-45";
+  "inline-flex min-h-11 flex-row items-center justify-center gap-2 rounded-[var(--radius-md)] px-5 py-2.5 text-center text-sm leading-5 font-bold transition-[color,background-color,border-color,box-shadow,transform] duration-[var(--motion-fast)] ease-out focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--focus-ring)] disabled:cursor-not-allowed disabled:opacity-45 [&>svg]:shrink-0";
 
 export function Button({
   children,
@@ -42,9 +42,14 @@ export function Button({
 }: ButtonProps | ButtonLinkProps) {
   const content = (
     <>
-      <span>{children}</span>
+      {children}
       {showArrow ? (
-        <ArrowRight aria-hidden="true" size={17} strokeWidth={2} />
+        <ArrowRight
+          aria-hidden="true"
+          className="shrink-0"
+          size={17}
+          strokeWidth={2}
+        />
       ) : null}
     </>
   );

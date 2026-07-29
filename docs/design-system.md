@@ -320,6 +320,13 @@ Do not fire confetti or reveal animations merely because historical published da
 - The deployed-update notice is a small persistent status card with one explicit reload action. It never reloads automatically or competes with an offline message at the same screen position.
 - App Check `disabled`, `invalid`, `degraded`, `ready`, and `unknown enforcement` states are written out; color is secondary and no token or raw provider error is shown.
 
+### Phase 11 interaction polish
+
+- Shared buttons render icons, labels, and optional arrows as direct horizontal flex items. Icons do not shrink, labels use a consistent line height, and state transitions are limited to color, surface, border, shadow, and transform.
+- Modal focus initializes once per opening. Controlled input updates and changing callback identities must not restart the focus trap or move focus away from the active field.
+- Organizer session actions are grouped separately from workspace navigation. Workspaces remain in one compact tab rail with internal horizontal scrolling at narrow widths instead of wrapping into a dense button wall.
+- Modal entrance motion is short and non-blocking. The existing `prefers-reduced-motion` override reduces it with every other nonessential transition.
+
 ## 10. Accessibility verification checklist
 
 - WCAG AA contrast checked for every token pair and interactive state.

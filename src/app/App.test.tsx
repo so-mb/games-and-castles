@@ -30,6 +30,24 @@ describe("Games & Castles static shell", () => {
     );
 
     const navigation = screen.getByRole("navigation", { name: "Primary" });
+    expect(
+      within(navigation)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Weekend", "Games", "Birthday", "Reveal", "Prague", "Info"]);
+    expect(
+      Array.from(document.querySelector("main")?.children ?? []).map(
+        (section) => section.id,
+      ),
+    ).toEqual([
+      "top",
+      "weekend",
+      "championship",
+      "birthday",
+      "reveal",
+      "itinerary",
+      "trip-info",
+    ]);
     navigationItems.forEach((item) => {
       const link = within(navigation).getByRole("link", {
         name: item.shortLabel,

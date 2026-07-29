@@ -445,11 +445,13 @@ Cross-cutting rules:
 
 **Implemented tests/review:** App Check disabled/enabled/degraded/invalid configurations; organizer idle state; shared recent authentication; Birthday publication ordering; Operations access; version comparison; Rules recent/stale publication and full regression matrix; AES-256-GCM/scrypt round-trip/wrong-pass/corruption; cleanup scope/idempotence; dependency/action/security scans; production artifact inspection. CSP, enforcement, remote restore, and load/alert tuning remain future explicit work.
 
-**Phase boundary:** Phase 10 enables no App Check enforcement, billing/Blaze, Functions, Firestore, Storage, Scheduler, paid API, analytics, protected accommodation storage, remote restore, automated Rules deployment, or production mutation. Phase 11 is not started.
+**Phase boundary:** Phase 10 enables no App Check enforcement, billing/Blaze, Functions, Firestore, Storage, Scheduler, paid API, analytics, protected accommodation storage, remote restore, automated Rules deployment, or production mutation. Phase 11 has begun as a separate UI/UX polish and validation phase.
 
 ---
 
 ### Phase 11 — Animation polish, accessibility, multi-device QA, rehearsal, and production deployment
+
+**Status:** UI/UX polish slice complete in the repository. Shared control alignment, stable modal focus, organizer-workspace grouping, restrained modal motion, automated regressions, and responsive browser review are complete. Physical-device, multi-client, poor-network, full-weekend rehearsal, accessibility-tool audit, and production rollout remain open release-gate work.
 
 **Goal:** Make the complete system delightful and dependable under real weekend conditions, then release through a rehearsed process.
 
@@ -465,6 +467,8 @@ Cross-cutting rules:
 - Organizer operating guide, data backup, rollback plan, final GitHub Pages and production Firebase deployment.
 
 **Dependencies:** All feature/security phases; organizer availability for rehearsal; production secrets/data provisioned out of band.
+
+**Implemented UI/UX review:** The shared button primitive keeps icons, labels, and optional arrows in one horizontal flex row with consistent line height and transitions. Modal focus trapping now initializes only when the dialog opens, so controlled field updates do not steal focus; a regression test covers organizer-style typing. The organizer console separates session controls from a single internally scrollable workspace rail to avoid multi-row crowding on narrow screens. Modal entrance motion remains short, non-blocking, and covered by the global reduced-motion rule. Browser review confirms retained input focus and no page-level overflow at 320 px.
 
 **Acceptance criteria**
 

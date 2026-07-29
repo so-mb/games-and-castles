@@ -17,9 +17,9 @@ export const tripMetadata: TripMetadata = {
 export const navigationItems: NavigationItem[] = [
   { id: "weekend", label: "Weekend", shortLabel: "Weekend", icon: "map" },
   { id: "championship", label: "Games", shortLabel: "Games", icon: "trophy" },
-  { id: "itinerary", label: "Prague", shortLabel: "Prague", icon: "castle" },
   { id: "birthday", label: "Birthday", shortLabel: "Birthday", icon: "cake" },
   { id: "reveal", label: "Reveal", shortLabel: "Reveal", icon: "sparkles" },
+  { id: "itinerary", label: "Prague", shortLabel: "Prague", icon: "castle" },
   { id: "trip-info", label: "Info", shortLabel: "Info", icon: "luggage" },
 ];
 

@@ -28,6 +28,11 @@ export function Modal({
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -48,7 +53,7 @@ export function Modal({
       if (dialogs.at(-1) !== dialog) return;
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (event.key !== "Tab" || !dialog) return;
@@ -73,13 +78,13 @@ export function Modal({
       document.body.style.overflow = previousOverflow;
       returnFocusRef.current?.focus();
     };
-  }, [onClose, open]);
+  }, [open]);
 
   if (!open) return null;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-end justify-center bg-[var(--color-night-950)]/78 p-0 backdrop-blur-[2px] sm:items-center sm:p-5"
+      className="modal-backdrop fixed inset-0 z-[100] flex items-end justify-center bg-[var(--color-night-950)]/78 p-0 backdrop-blur-[2px] sm:items-center sm:p-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}
@@ -89,7 +94,7 @@ export function Modal({
         aria-labelledby={titleId}
         aria-modal="true"
         className={cn(
-          "max-h-[92dvh] w-full overflow-y-auto rounded-t-[var(--radius-xl)] border border-white/10 bg-[var(--color-night-900)] p-5 text-white shadow-2xl sm:rounded-[var(--radius-xl)] sm:p-7",
+          "modal-panel max-h-[92dvh] w-full overflow-y-auto rounded-t-[var(--radius-xl)] border border-white/10 bg-[var(--color-night-900)] p-5 text-white shadow-2xl sm:rounded-[var(--radius-xl)] sm:p-7",
           size === "wide" ? "max-w-6xl" : "max-w-2xl",
         )}
         ref={dialogRef}

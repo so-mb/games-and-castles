@@ -15,6 +15,7 @@ import { Button } from "../../components/ui/Button";
 import { Modal } from "../../components/ui/Modal";
 import { ParticipantAvatar } from "../../components/ui/ParticipantAvatar";
 import { StatusBadge } from "../../components/ui/StatusBadge";
+import { cn } from "../../lib/cn";
 import { useAuth } from "../auth/AuthProvider";
 import { useFirebase } from "../live/FirebaseProvider";
 import { ParticipantForm } from "../participants/ParticipantForm";
@@ -58,6 +59,15 @@ function initials(name: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase();
+}
+
+function workspaceTabClass(active: boolean) {
+  return cn(
+    "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-xl border px-3.5 text-sm leading-5 font-bold transition-[color,background-color,border-color,box-shadow] duration-[var(--motion-fast)] ease-out focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] [&>svg]:shrink-0",
+    active
+      ? "border-[var(--color-electric-cyan-400)]/70 bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)] shadow-[inset_0_0_0_1px_rgb(54_214_208_/_8%)]"
+      : "border-transparent text-white/58 hover:border-white/10 hover:bg-white/6 hover:text-white/82",
+  );
 }
 
 export function OrganizerAccess() {
@@ -187,109 +197,124 @@ export function OrganizerAccess() {
           </form>
         ) : (
           <div>
-            <div className="mb-7 flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
-              <div
-                aria-label="Organizer workspaces"
-                className="flex flex-wrap gap-2"
-                role="tablist"
-              >
-                <button
-                  aria-controls="organizer-panel-operations"
-                  aria-selected={activeTool === "operations"}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "operations" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
-                  id="organizer-tab-operations"
-                  onClick={() => {
-                    setEditor(null);
-                    setActiveTool("operations");
-                  }}
-                  role="tab"
-                  type="button"
+            <div className="mb-8 space-y-4 border-b border-white/10 pb-6">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold text-white">
+                    Organizer workspaces
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-white/48">
+                    Choose a tool without leaving the console.
+                  </p>
+                </div>
+                <Button
+                  className="shrink-0 px-3 sm:px-4"
+                  onClick={() => void auth.signOutOrganizer()}
+                  variant="quiet"
                 >
-                  <Activity aria-hidden="true" size={17} />
-                  Operations
-                </button>
-                {specialRevealAccess ? (
+                  <LogOut aria-hidden="true" size={17} />
+                  Sign out
+                </Button>
+              </div>
+              <div className="organizer-tab-scroll -mx-1 overflow-x-auto px-1 pb-2">
+                <div
+                  aria-label="Organizer workspaces"
+                  className="flex w-max min-w-full gap-1.5 rounded-2xl border border-white/8 bg-black/12 p-1.5"
+                  role="tablist"
+                >
                   <button
-                    aria-controls="organizer-panel-special-reveal"
-                    aria-selected={activeTool === "special-reveal"}
-                    className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "special-reveal" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
-                    id="organizer-tab-special-reveal"
+                    aria-controls="organizer-panel-operations"
+                    aria-selected={activeTool === "operations"}
+                    className={workspaceTabClass(activeTool === "operations")}
+                    id="organizer-tab-operations"
                     onClick={() => {
                       setEditor(null);
-                      setActiveTool("special-reveal");
+                      setActiveTool("operations");
                     }}
                     role="tab"
                     type="button"
                   >
-                    <LockKeyhole aria-hidden="true" size={17} />
-                    Special Reveal
+                    <Activity aria-hidden="true" size={17} />
+                    Operations
                   </button>
-                ) : null}
-                <button
-                  aria-controls="organizer-panel-birthday"
-                  aria-selected={activeTool === "birthday"}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "birthday" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
-                  id="organizer-tab-birthday"
-                  onClick={() => {
-                    setEditor(null);
-                    setActiveTool("birthday");
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  <CakeSlice aria-hidden="true" size={17} />
-                  Birthday Vault
-                </button>
-                <button
-                  aria-controls="organizer-panel-championship"
-                  aria-selected={activeTool === "championship"}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "championship" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
-                  id="organizer-tab-championship"
-                  onClick={() => {
-                    setEditor(null);
-                    setActiveTool("championship");
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  <Award aria-hidden="true" size={17} />
-                  Championship Desk
-                </button>
-                <button
-                  aria-controls="organizer-panel-competitions"
-                  aria-selected={activeTool === "competitions"}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "competitions" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
-                  id="organizer-tab-competitions"
-                  onClick={() => {
-                    setEditor(null);
-                    setActiveTool("competitions");
-                  }}
-                  role="tab"
-                  type="button"
-                >
-                  <Trophy aria-hidden="true" size={17} />
-                  Competition Studio
-                </button>
-                <button
-                  aria-controls="organizer-panel-participants"
-                  aria-selected={activeTool === "participants"}
-                  className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-[var(--color-electric-cyan-400)] ${activeTool === "participants" ? "border-[var(--color-electric-cyan-400)] bg-[var(--color-electric-cyan-400)]/12 text-[var(--color-electric-cyan-400)]" : "border-white/10 text-white/55"}`}
-                  id="organizer-tab-participants"
-                  onClick={() => setActiveTool("participants")}
-                  role="tab"
-                  type="button"
-                >
-                  <UsersRound aria-hidden="true" size={17} />
-                  Participant Control
-                </button>
+                  {specialRevealAccess ? (
+                    <button
+                      aria-controls="organizer-panel-special-reveal"
+                      aria-selected={activeTool === "special-reveal"}
+                      className={workspaceTabClass(
+                        activeTool === "special-reveal",
+                      )}
+                      id="organizer-tab-special-reveal"
+                      onClick={() => {
+                        setEditor(null);
+                        setActiveTool("special-reveal");
+                      }}
+                      role="tab"
+                      type="button"
+                    >
+                      <LockKeyhole aria-hidden="true" size={17} />
+                      Special Reveal
+                    </button>
+                  ) : null}
+                  <button
+                    aria-controls="organizer-panel-birthday"
+                    aria-selected={activeTool === "birthday"}
+                    className={workspaceTabClass(activeTool === "birthday")}
+                    id="organizer-tab-birthday"
+                    onClick={() => {
+                      setEditor(null);
+                      setActiveTool("birthday");
+                    }}
+                    role="tab"
+                    type="button"
+                  >
+                    <CakeSlice aria-hidden="true" size={17} />
+                    Birthday Vault
+                  </button>
+                  <button
+                    aria-controls="organizer-panel-championship"
+                    aria-selected={activeTool === "championship"}
+                    className={workspaceTabClass(activeTool === "championship")}
+                    id="organizer-tab-championship"
+                    onClick={() => {
+                      setEditor(null);
+                      setActiveTool("championship");
+                    }}
+                    role="tab"
+                    type="button"
+                  >
+                    <Award aria-hidden="true" size={17} />
+                    Championship Desk
+                  </button>
+                  <button
+                    aria-controls="organizer-panel-competitions"
+                    aria-selected={activeTool === "competitions"}
+                    className={workspaceTabClass(activeTool === "competitions")}
+                    id="organizer-tab-competitions"
+                    onClick={() => {
+                      setEditor(null);
+                      setActiveTool("competitions");
+                    }}
+                    role="tab"
+                    type="button"
+                  >
+                    <Trophy aria-hidden="true" size={17} />
+                    Competition Studio
+                  </button>
+                  <button
+                    aria-controls="organizer-panel-participants"
+                    aria-selected={activeTool === "participants"}
+                    className={workspaceTabClass(activeTool === "participants")}
+                    id="organizer-tab-participants"
+                    onClick={() => setActiveTool("participants")}
+                    role="tab"
+                    type="button"
+                  >
+                    <UsersRound aria-hidden="true" size={17} />
+                    Participant Control
+                  </button>
+                </div>
               </div>
-              <Button
-                onClick={() => void auth.signOutOrganizer()}
-                variant="quiet"
-              >
-                <LogOut aria-hidden="true" size={17} />
-                Sign out
-              </Button>
             </div>
 
             {activeTool === "operations" ? (
