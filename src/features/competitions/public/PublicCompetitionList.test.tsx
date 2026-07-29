@@ -185,12 +185,71 @@ describe("scheduled competition card", () => {
     expect(
       screen.getByRole("heading", { name: "Prague Circuit" }),
     ).toBeInTheDocument();
+    const accordion = screen.getByRole("button", {
+      name: "Expand Prague Circuit",
+    });
+    expect(accordion).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText("Round-robin standings")).not.toBeInTheDocument();
+
+    fireEvent.click(accordion);
+    expect(
+      screen.getByRole("button", { name: "Collapse Prague Circuit" }),
+    ).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Live competition")).toBeInTheDocument();
     expect(screen.getByText("Round-robin standings")).toBeInTheDocument();
     expect(
       screen.getByText(/championship table rebuilds from/i),
     ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /record result/i })).toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse Prague Circuit" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Expand Prague Circuit" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("keeps only one competition dashboard expanded at a time", () => {
+    const buildCompetition = (id: string, title: string) => {
+      const values = {
+        ...createCompetitionFormValues(),
+        title,
+        gameName: "Controller Duel",
+        participantIds: participants.map((participant) => participant.id),
+      };
+      const draft = createDraftRecord(values, { id, uid: "admin", now: 100 });
+      const scheduled = publishDraftRecord(draft, "admin", 200, 100);
+      return {
+        competition: {
+          ...scheduled,
+          status: "active" as const,
+          revision: scheduled.revision + 1,
+          updatedAt: 300,
+        },
+        run: createCompetitionRun(scheduled, "admin", 300, () => 0),
+      };
+    };
+    const first = buildCompetition("first-cup", "First Cup");
+    const second = buildCompetition("second-cup", "Second Cup");
+    hookState.firebase = { status: "ready" };
+    hookState.participants.activeParticipants = participants;
+    hookState.competitions.active = [first.competition, second.competition];
+    hookState.competitions.runs = [first.run, second.run];
+
+    render(<PublicCompetitionList />);
+    fireEvent.click(screen.getByRole("button", { name: "Expand First Cup" }));
+    expect(
+      screen.getByRole("button", { name: "Collapse First Cup" }),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand Second Cup" }));
+    expect(
+      screen.getByRole("button", { name: "Expand First Cup" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.getByRole("button", { name: "Collapse Second Cup" }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 
   it("identifies the knockout champion as the Grand Winner even when another participant led the round robin", () => {
@@ -258,6 +317,9 @@ describe("scheduled competition card", () => {
 
     render(<PublicCompetitionList />);
 
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand Prague Circuit Final" }),
+    );
     const result = screen.getByRole("region", { name: "Grand Winner" });
     expect(
       within(result).getByText(grandWinner.displayName),
@@ -356,6 +418,7 @@ describe("scheduled competition card", () => {
     expect(
       screen.getByRole("heading", { name: "Group Crown" }),
     ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expand Group Crown" }));
     expect(screen.getByRole("tab", { name: "Groups" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Draw" })).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Fixtures" })).toBeInTheDocument();
@@ -456,6 +519,9 @@ describe("scheduled competition card", () => {
     expect(
       screen.getByRole("heading", { name: "Shared Castle Table" }),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand Shared Castle Table" }),
+    );
     expect(screen.getByText("All Hands · realtime table")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Session history" }),
@@ -467,7 +533,9 @@ describe("scheduled competition card", () => {
     expect(
       screen.getByRole("heading", { name: "Projected points" }),
     ).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /start|record|correct result/i }),
+    ).not.toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/global leaderboard/i);
   });
 
@@ -527,6 +595,9 @@ describe("scheduled competition card", () => {
 
     render(<PublicCompetitionList />);
 
+    fireEvent.click(
+      screen.getByRole("button", { name: "Expand Odd Castle Cup" }),
+    );
     expect(screen.getAllByText(/BYE · Guest/i)).toHaveLength(5);
     expect(document.body.textContent).not.toContain(
       "vs Unavailable participant",

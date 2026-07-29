@@ -1,4 +1,5 @@
 import { AlertTriangle, CalendarClock, WifiOff } from "lucide-react";
+import { useState } from "react";
 import { EmptyState } from "../../../components/feedback/EmptyState";
 import { ContentIcon } from "../../../components/ui/ContentIcon";
 import { ParticipantAvatar } from "../../../components/ui/ParticipantAvatar";
@@ -20,6 +21,7 @@ import { resolveParticipants } from "../domain/transforms";
 import type { PublishedCompetition } from "../domain/types";
 import { MerryGoRoundExperience } from "./MerryGoRoundExperience";
 import { AllHandsExperience } from "./AllHandsExperience";
+import { CompetitionAccordion } from "./CompetitionAccordion";
 import { GroupFormatExperience } from "./GroupFormatExperience";
 import { useWinCelebration } from "./useWinCelebration";
 import { WinnerCelebration } from "./WinnerCelebration";
@@ -134,6 +136,9 @@ export function PublicCompetitionList() {
   const connection = useConnection();
   const competitions = useCompetitions();
   const participants = useParticipants();
+  const [expandedCompetitionId, setExpandedCompetitionId] = useState<
+    string | null
+  >(null);
   const runningCompetitions = [
     ...competitions.active,
     ...competitions.completed,
@@ -171,8 +176,8 @@ export function PublicCompetitionList() {
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
             Follow Merry-Go-Round matches, All Hands sessions, and Group Format
-            live. Friday remains flexible, competition cards never assign a fixed
-            start time.
+            live. Friday remains flexible, competition cards never assign a
+            fixed start time.
           </p>
         </div>
         {firebase.status === "ready" ? (
@@ -240,30 +245,63 @@ export function PublicCompetitionList() {
                 return run &&
                   run.format === "round-robin-knockout" &&
                   competition.format === "round-robin-knockout" ? (
-                  <MerryGoRoundExperience
+                  <CompetitionAccordion
                     competition={competition}
+                    expanded={expandedCompetitionId === competition.id}
                     key={competition.id}
+                    onToggle={() =>
+                      setExpandedCompetitionId((current) =>
+                        current === competition.id ? null : competition.id,
+                      )
+                    }
                     participants={participants.activeParticipants}
-                    run={run}
-                  />
+                  >
+                    <MerryGoRoundExperience
+                      competition={competition}
+                      participants={participants.activeParticipants}
+                      run={run}
+                    />
+                  </CompetitionAccordion>
                 ) : run &&
                   run.format === "all-hands" &&
                   competition.format === "all-hands" ? (
-                  <AllHandsExperience
+                  <CompetitionAccordion
                     competition={competition}
+                    expanded={expandedCompetitionId === competition.id}
                     key={competition.id}
+                    onToggle={() =>
+                      setExpandedCompetitionId((current) =>
+                        current === competition.id ? null : competition.id,
+                      )
+                    }
                     participants={participants.activeParticipants}
-                    run={run}
-                  />
+                  >
+                    <AllHandsExperience
+                      competition={competition}
+                      participants={participants.activeParticipants}
+                      run={run}
+                    />
+                  </CompetitionAccordion>
                 ) : run &&
                   run.format === "group-knockout" &&
                   competition.format === "group-knockout" ? (
-                  <GroupFormatExperience
+                  <CompetitionAccordion
                     competition={competition}
+                    expanded={expandedCompetitionId === competition.id}
                     key={competition.id}
+                    onToggle={() =>
+                      setExpandedCompetitionId((current) =>
+                        current === competition.id ? null : competition.id,
+                      )
+                    }
                     participants={participants.activeParticipants}
-                    run={run}
-                  />
+                  >
+                    <GroupFormatExperience
+                      competition={competition}
+                      participants={participants.activeParticipants}
+                      run={run}
+                    />
+                  </CompetitionAccordion>
                 ) : (
                   <Surface
                     as="article"

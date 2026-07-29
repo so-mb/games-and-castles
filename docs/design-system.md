@@ -141,6 +141,8 @@ Dark cards rely primarily on contrast and borders, not multiple heavy glows. Sha
 
 Clickable cards have a clear action label or chevron, visible hover/focus, and a minimum touch target. Static cards must not mimic buttons.
 
+Active and completed competition dashboards use one accordion per game. The compact summary keeps the format, title, game name, status, participant count, avatar stack, and chevron visible. All dashboards begin collapsed, only one is open at a time, and the height transition is removed under reduced motion. Scheduled competition cards remain compact and do not imitate the accordion.
+
 ### 4.2 Buttons
 
 - **Primary:** filled red on light surfaces or filled cyan/dark-ink on dark surfaces; one dominant action per region.

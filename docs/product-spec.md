@@ -85,6 +85,7 @@ Three day cards summarize the rhythm of the complete trip. Friday and Saturday a
 ### 4.3 Live Championship
 
 - Competition list with format label, status, participant count, and progress.
+- Active and completed games use compact accordion summaries; all begin collapsed and opening one game closes the previously open game.
 - Active competition and current/next match or session status.
 - Format-appropriate standings and a knockout bracket where relevant.
 - Overall top-three podium, full leaderboard, ties, recent points activity, per-participant point breakdown, and competition-specific breakdown.
