@@ -121,12 +121,12 @@ export function OrganizerAccess() {
         aria-label={
           authorized ? "Open Organizer Mode — signed in" : "Open Organizer Mode"
         }
-        className="shrink-0 border border-white/12 px-3 text-white hover:bg-white/8 sm:px-4"
+        className="size-11 shrink-0 border border-white/12 !p-0 text-white hover:bg-white/8 md:h-auto md:w-auto md:!px-4 md:!py-2.5"
         onClick={() => setOpen(true)}
         variant="quiet"
       >
         <Settings2 aria-hidden="true" size={17} />
-        {triggerLabel}
+        <span className="sr-only md:not-sr-only">{triggerLabel}</span>
       </Button>
       <Modal
         description="Organizer tools use a separate sign-in and never replace the anonymous guest identity stored in this browser."

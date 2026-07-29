@@ -24,6 +24,7 @@ describe("Games & Castles static shell", () => {
     expect(logoLink.querySelector("img")?.getAttribute("src")).toMatch(
       /\/favicon\.svg$/,
     );
+    expect(logoLink).toHaveClass("flex", "size-11");
     expect(
       screen.getByRole("heading", { level: 1, name: /games & castles/i }),
     ).toBeInTheDocument();
@@ -59,6 +60,10 @@ describe("Games & Castles static shell", () => {
         name: item.shortLabel,
       });
       expect(link).toHaveAttribute("href", `#${item.id}`);
+      expect(within(link).getByText(item.shortLabel)).toHaveClass(
+        "sr-only",
+        "md:not-sr-only",
+      );
       expect(document.getElementById(item.id)).toBeInTheDocument();
     });
     expect(

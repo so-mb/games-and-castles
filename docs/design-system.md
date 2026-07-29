@@ -123,7 +123,7 @@ Dark cards rely primarily on contrast and borders, not multiple heavy glows. Sha
 - The page alternates editorial light and championship dark in large, intentional bands rather than checkerboarding every card.
 - Transitions can use a shallow paper edge, ruled divider, map-line curve, or color fade. They must not create false click targets.
 - The hero may layer a dark gradient over Prague imagery; itinerary begins on cream; championship returns to dark; private/reveal sections use dark neutral vault surfaces; trip information ends in editorial light.
-- Anchor targets include scroll margin for sticky navigation. The sticky navigation shows text or accessible labels for section icons and collapses to a compact horizontally scrollable control on mobile.
+- Anchor targets include scroll margin for sticky navigation. At mobile widths, the sticky navigation keeps the G&C mark and Organizer/Studio control at the edges and presents the six section destinations as an icon-only rail with accessible names and a visible active indicator. Labels return at the desktop breakpoint.
 - Use CSS Grid/Flexbox reflow, not fixed-position desktop canvases. Avoid horizontal page overflow.
 
 ## 4. Component patterns

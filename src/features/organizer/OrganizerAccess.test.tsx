@@ -138,6 +138,10 @@ describe("OrganizerAccess", () => {
       name: "Open Organizer Mode — signed in",
     });
     expect(trigger).toHaveTextContent("Studio");
+    expect(within(trigger).getByText("Studio")).toHaveClass(
+      "sr-only",
+      "md:not-sr-only",
+    );
     fireEvent.click(trigger);
 
     const dialog = screen.getByRole("dialog", { name: "Organizer console" });

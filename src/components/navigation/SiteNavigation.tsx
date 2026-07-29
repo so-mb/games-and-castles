@@ -20,16 +20,16 @@ export function SiteNavigation() {
 
   return (
     <header className="site-navigation sticky top-0 z-50 border-b border-white/8 bg-[rgba(9,14,24,0.94)] text-[var(--color-paper-50)] shadow-lg shadow-black/10 backdrop-blur-md">
-      <Container className="flex min-h-15 items-center gap-3 !px-0 sm:!px-6 lg:min-h-16">
+      <Container className="flex min-h-14 items-center gap-0 !px-1 sm:min-h-15 sm:gap-3 sm:!px-6 lg:min-h-16">
         <a
           aria-label="Games & Castles — back to top"
-          className="hidden min-h-11 shrink-0 items-center gap-2 rounded-lg px-2 font-bold tracking-tight focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-electric-cyan-400)] sm:flex"
+          className="flex size-11 shrink-0 items-center justify-center gap-2 rounded-lg font-bold tracking-tight focus-visible:outline-3 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--color-electric-cyan-400)] sm:w-auto sm:px-2 sm:focus-visible:outline-offset-2"
           href="#top"
         >
           <img
             alt=""
             aria-hidden="true"
-            className="size-8"
+            className="size-8 shrink-0"
             src={`${import.meta.env.BASE_URL}favicon.svg`}
           />
           <span className="hidden lg:inline">Games &amp; Castles</span>
@@ -39,22 +39,24 @@ export function SiteNavigation() {
           aria-label="Primary"
           className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <ul className="mx-auto flex w-max min-w-full items-center justify-center px-1 sm:justify-end sm:px-0">
+          <ul className="grid w-full grid-cols-6 items-center md:mx-auto md:flex md:w-max md:min-w-full md:justify-end">
             {navigationItems.map((item) => {
               const isActive = activeSection === item.id;
 
               return (
-                <li key={item.id}>
+                <li className="min-w-0" key={item.id}>
                   <a
                     aria-current={isActive ? "location" : undefined}
                     className={cn(
-                      "nav-link relative flex min-h-12 min-w-12 flex-col items-center justify-center gap-0.5 rounded-lg px-1 text-[0.68rem] font-bold text-white/58 transition hover:bg-white/5 hover:text-white focus-visible:outline-3 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--color-electric-cyan-400)] sm:min-h-11 sm:min-w-0 sm:flex-row sm:gap-2 sm:px-3 sm:text-sm",
+                      "nav-link relative flex min-h-11 w-full items-center justify-center rounded-lg px-0 font-bold text-white/58 transition hover:bg-white/5 hover:text-white focus-visible:outline-3 focus-visible:outline-offset-[-3px] focus-visible:outline-[var(--color-electric-cyan-400)] md:w-auto md:gap-2 md:px-3 md:text-sm",
                       isActive && "text-[var(--color-electric-cyan-400)]",
                     )}
                     href={`#${item.id}`}
                   >
-                    <ContentIcon name={item.icon} size={16} strokeWidth={2} />
-                    <span>{item.shortLabel}</span>
+                    <ContentIcon name={item.icon} size={18} strokeWidth={2} />
+                    <span className="sr-only md:not-sr-only">
+                      {item.shortLabel}
+                    </span>
                     <span
                       aria-hidden="true"
                       className={cn(
@@ -73,7 +75,7 @@ export function SiteNavigation() {
           fallback={
             <span
               aria-hidden="true"
-              className="min-h-11 w-24 shrink-0 rounded-xl border border-white/8 bg-white/4"
+              className="size-11 shrink-0 rounded-xl border border-white/8 bg-white/4 md:w-24"
             />
           }
         >
