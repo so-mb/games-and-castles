@@ -27,6 +27,7 @@
     "admin:set-claim": "node scripts/set-admin-claim.mjs",
     "backup:create": "node scripts/backup-database.mjs",
     "backup:inspect": "node scripts/inspect-backup.mjs",
+    "backup:restore-dev": "node scripts/restore-dev-backup.mjs",
     "privacy:cleanup": "node scripts/cleanup-private-data.mjs",
     "ops:reset-project": "node scripts/reset-project.mjs"
   },

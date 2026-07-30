@@ -60,7 +60,25 @@ npm run backup:inspect -- \
   --input .backup/dev/YOUR_PROJECT_ID-YYYY-MM-DD.gac-backup
 ```
 
-The default output is envelope metadata and record counts. A wrong passphrase, modified tag/ciphertext, malformed envelope, old file, or wrong project fails closed. There is intentionally no automated restore command in Phase 10: restoring would overwrite live state and requires a separately reviewed, target-specific recovery plan.
+The default output is envelope metadata and record counts. A wrong passphrase, modified tag/ciphertext, malformed envelope, old file, or wrong project fails closed. Production restore remains intentionally unsupported: restoring production would overwrite live state and requires a separately reviewed, target-specific recovery plan.
+
+## Development restore rehearsal
+
+`backup:restore-dev` is a narrow recovery rehearsal locked to `games-and-castles-dev`. It refuses CI and every other project, defaults to dry-run, verifies a matching encrypted backup less than 24 hours old, and requires the target database to be empty or already identical to the backup. Every persistent Auth account must already exist with the same UID, provider, email status, disabled state, and custom claims; the command never creates or alters those accounts. Unexpected target accounts or divergent database state fail closed.
+
+Apply from a private local terminal only after closing all Games & Castles tabs connected to development:
+
+```sh
+GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/dev-admin.json \
+npm run backup:restore-dev -- \
+  --project games-and-castles-dev \
+  --confirm-project games-and-castles-dev \
+  --database-url https://games-and-castles-dev-default-rtdb.europe-west1.firebasedatabase.app \
+  --backup .backup/dev/games-and-castles-dev-YYYY-MM-DD.gac-backup \
+  --apply
+```
+
+The passphrase is requested without echo. After the sanitized plan, type `RESTORE games-and-castles-dev`. The command restores the Realtime Database root and recreates missing anonymous Auth records with their backed-up UIDs, disabled state, and custom claims. It is retry-safe when the target is empty, partially restored, or already identical. Firebase creation/sign-in timestamps and deleted browser refresh tokens cannot be restored, so this rehearsal restores data ownership references but not old anonymous browser sessions. Database Rules, providers, App Check, GitHub, Firebase settings, and production are untouched.
 
 ## Pre-participant project reset
 
