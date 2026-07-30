@@ -17,6 +17,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:rules": "firebase emulators:exec --project demo-games-and-castles --only database \"vitest run --config vitest.rules.config.ts\"",
+    "test:ops:reset-emulator": "firebase emulators:exec --project demo-games-and-castles --only auth,database \"vitest run --config vitest.ops.config.ts\"",
     "security:scan": "node scripts/security-scan.mjs",
     "security:audit": "npm audit --omit=dev && npm run security:scan",
     "security:check": "npm run security:audit",
@@ -26,7 +27,8 @@
     "admin:set-claim": "node scripts/set-admin-claim.mjs",
     "backup:create": "node scripts/backup-database.mjs",
     "backup:inspect": "node scripts/inspect-backup.mjs",
-    "privacy:cleanup": "node scripts/cleanup-private-data.mjs"
+    "privacy:cleanup": "node scripts/cleanup-private-data.mjs",
+    "ops:reset-project": "node scripts/reset-project.mjs"
   },
   "dependencies": {
     "framer-motion": "12.42.2",

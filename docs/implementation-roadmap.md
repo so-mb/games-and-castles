@@ -438,7 +438,7 @@ Cross-cutting rules:
 3. Organizer persistence is session-scoped; inactivity warning/expiry, explicit organizer-only sign-out, and recent-auth Birthday/Special Reveal actions are tested.
 4. Operations, build metadata/version polling, indexing/referrer controls, dependency/action review, security scan, and CSP deferral rationale are documented/tested.
 5. Admin scripts verify credentials, file permissions, credential project, explicit target confirmation, and demo/remote separation.
-6. Backup encryption/inspection detects wrong passphrases/corruption without plaintext output; cleanup defaults to dry-run, requires a recent verified backup plus typed phrase, preserves public history, uses one update, and is idempotent.
+6. Backup encryption/inspection detects wrong passphrases/corruption without plaintext output; cleanup defaults to dry-run, requires a recent verified backup plus typed phrase, preserves public history, uses one update, and is idempotent. The separate pre-participant reset also refuses CI, preserves persistent Auth accounts/claims, and is emulator-rehearsed before any production use.
 7. Exact address, Firebase privileged credentials, App Check debug token, PIN/secret values, and protected reveal content remain absent from repository, build, diagnostics, and public examples.
 
 **Main technical risks:** Future App Check enforcement blocking legitimate weekend devices; browser background/timer differences; privileged credential overreach; false confidence in indexing metadata or Firebase client-config secrecy; encrypted-backup custody; operator misuse of destructive cleanup.

@@ -19,7 +19,9 @@ The trusted cleanup tool removes:
 
 It preserves public/published Birthday Vault messages, public Special Reveal opening/state/resolution, competition runs/history, championship competition/prediction sources, manual bonus history/projection, participant records, and safe audit metadata. It does not delete Firebase Auth users or attempt guest identity recovery. Any later participant/Auth deletion request requires a separate identity/reference review.
 
-Anonymous Auth users are not deleted automatically. A post-event operator may inspect aggregate anonymous-account counts in Firebase Console, but deletion remains a separate manual decision because participant ownership uses `ownerUid`. Deleting those accounts can remove the owners' ability to edit their participant record without removing the public participant history. Persistent Email/Password organizers must never be included in a bulk anonymous cleanup, and owner references must not be silently cleared.
+Anonymous Auth users are not deleted by post-event private cleanup. A post-event operator may inspect aggregate anonymous-account counts in Firebase Console, but deletion remains a separate manual decision because participant ownership uses `ownerUid`. Deleting those accounts can remove the owners' ability to edit their participant record without removing the public participant history. Persistent Email/Password organizers must never be included in a bulk anonymous cleanup, and owner references must not be silently cleared.
+
+The one explicit exception is the trusted pre-participant project reset documented in the [operations runbook](operations-runbook.md). Before any real participant joins, and only after a recent verified encrypted backup plus exact project and typed confirmation, it may delete the entire rehearsal database and anonymous Auth population. It preserves every persistent Auth account; it is not a post-event retention tool and must not be used once real guest ownership exists.
 
 ## Backup retention
 

@@ -7,6 +7,7 @@ import {
   argument,
   hasFlag,
   validateAdminEnvironment,
+  validateDatabaseUrl,
 } from "./lib/admin-safety.mjs";
 import { encryptBackup } from "./lib/backup-crypto.mjs";
 import { promptSecret } from "./lib/secret-prompt.mjs";
@@ -14,7 +15,7 @@ import { promptSecret } from "./lib/secret-prompt.mjs";
 function usage(message) {
   if (message) console.error(message);
   console.error(
-    "Usage: npm run backup:create -- --project PROJECT_ID --output PATH.gac-backup [--dry-run] [--emulator] [--confirm-project PROJECT_ID]",
+    "Usage: npm run backup:create -- --project PROJECT_ID --output PATH.gac-backup [--dry-run] [--emulator] [--confirm-project PROJECT_ID] [--database-url URL]",
   );
   process.exit(1);
 }
@@ -70,14 +71,19 @@ await validateAdminEnvironment({
   emulator,
   confirmedProjectId: argument("confirm-project"),
 });
+const databaseUrl = validateDatabaseUrl({
+  projectId,
+  databaseUrl: argument("database-url"),
+  emulator,
+});
 if (emulator) {
   process.env.FIREBASE_DATABASE_EMULATOR_HOST = "127.0.0.1:9000";
   process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
 }
 const app = initializeApp(
   emulator
-    ? { projectId, databaseURL: `http://127.0.0.1:9000?ns=${projectId}` }
-    : { credential: applicationDefault(), projectId },
+    ? { projectId, databaseURL: databaseUrl }
+    : { credential: applicationDefault(), projectId, databaseURL: databaseUrl },
 );
 const [databaseSnapshot, users] = await Promise.all([
   getDatabase(app).ref().get(),

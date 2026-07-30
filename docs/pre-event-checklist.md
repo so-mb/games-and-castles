@@ -30,6 +30,7 @@
 - [ ] Exact accommodation address, private contact/booking data, credentials, and protected reveal data are absent from source, tracked files, `dist`, diagnostics, docs examples, and logs.
 - [ ] An encrypted mode-`600` backup has been created, inspected with the correct passphrase, and stored outside the repository.
 - [ ] Backup project ID/date/counts are recorded without copying private payloads.
+- [ ] If a synthetic-data reset is required, its dry-run account list has been reviewed and the reset is completed before any real participant joins; never use it as post-event cleanup.
 - [ ] The [privacy and retention plan](privacy-retention.md) and cleanup owner/date are agreed.
 - [ ] Offline access to this runbook and the recovery contact path is available to organizers.
 

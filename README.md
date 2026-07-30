@@ -55,11 +55,14 @@ npm run typecheck
 npm run test
 npm run test:run
 npm run test:rules
+npm run test:ops:reset-emulator
 npm run emulators
 npm run security:scan
 npm run security:audit
 npm run security:check
 ```
+
+Trusted local backup, cleanup, and pre-participant project-reset commands are documented in the [operations runbook](docs/operations-runbook.md). The reset command defaults to dry-run, refuses CI, and must never be added to a deployment workflow.
 
 ## Production build
 

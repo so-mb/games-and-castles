@@ -266,7 +266,7 @@ Use separate Firebase projects for development and production, with different da
 
 GitHub Actions receives only public Firebase web configuration through repository variables. Vite build variables may contain public project configuration but never service-account JSON, organizer passwords, exact addresses, or prepublication content. Production deploy review includes searching the built output and source maps for forbidden sensitive terms/data.
 
-Trusted local Admin SDK tools use `GOOGLE_APPLICATION_CREDENTIALS` pointing to a mode-`600` file outside the repository. They parse its `project_id`, reject a target mismatch, require an exact repeated remote project ID, and separate `demo-*` emulator use from remote use. They never run in CI or Pages deployment. There is no app-specific reveal credential in source, Firebase, environment variables, GitHub configuration, or Rules.
+Trusted local Admin SDK tools use `GOOGLE_APPLICATION_CREDENTIALS` pointing to a mode-`600` file outside the repository. They parse its `project_id`, reject a target mismatch, require an exact repeated remote project ID, and separate `demo-*` emulator use from remote use. The pre-participant full-reset command additionally requires exact repeated IDs in emulator mode, refuses detected CI environments, defaults to dry-run, authenticates a matching backup less than 24 hours old before apply, and deletes only the Database root plus canonical anonymous Auth users. It never edits organizers, persistent accounts, claims, Rules, providers, App Check, GitHub, or project settings. Trusted tools never run in CI or Pages deployment. There is no app-specific reveal credential in source, Firebase, environment variables, GitHub configuration, or Rules.
 
 ## 12. Security Rules emulator testing
 
@@ -308,6 +308,6 @@ The expanded Phase 2–10 Rules matrix preserves all participant, configuration,
 - Tracked files and built assets are scanned for high-confidence credentials and ignored local forbidden terms.
 - App Check stays disabled or enforcement-off during staging; future enforcement follows legitimate-device monitoring and a separate rollback decision.
 - Dependencies are audited; official Actions use verified SHA pins and Dependabot review.
-- Encrypted backup/inspection and dry-run-first private cleanup are rehearsed before the weekend; automated live restore remains deliberately absent.
+- Encrypted backup/inspection, dry-run-first private cleanup, and the pre-participant full-reset path are rehearsed against synthetic emulators before the weekend; automated live restore remains deliberately absent.
 - Organizer accounts use strong provider security; typed confirmation phrases are never treated as authentication.
 - The local Admin SDK fallback credential remains outside the repository and is used only by a trusted operator.

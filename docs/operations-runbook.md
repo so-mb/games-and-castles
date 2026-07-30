@@ -44,6 +44,7 @@ Preview without writing a file:
 npm run backup:create -- \
   --project YOUR_PROJECT_ID \
   --confirm-project YOUR_PROJECT_ID \
+  --database-url YOUR_DATABASE_URL \
   --output ../games-and-castles-2026.gac-backup \
   --dry-run
 ```
@@ -58,6 +59,53 @@ npm run backup:inspect -- --input ../games-and-castles-2026.gac-backup
 
 The default output is envelope metadata and record counts. A wrong passphrase, modified tag/ciphertext, malformed envelope, old file, or wrong project fails closed. There is intentionally no automated restore command in Phase 10: restoring would overwrite live state and requires a separately reviewed, target-specific recovery plan.
 
+## Pre-participant project reset
+
+Use this only before real participants join, when synthetic rehearsal data and anonymous emulator/production guest accounts must be removed. It is intentionally broader than post-event private cleanup.
+
+Preview is the default. Both project arguments are required and must match exactly, including in emulator mode:
+
+```sh
+npm run ops:reset-project -- \
+  --project YOUR_PROJECT_ID \
+  --confirm-project YOUR_PROJECT_ID \
+  --database-url YOUR_DATABASE_URL
+```
+
+The dry-run report shows only sanitized Realtime Database branch/direct-record counts and Auth category counts. It lists non-anonymous, non-organizer Auth accounts by email/UID/provider so the operator can review them; those accounts are never deleted automatically.
+
+Apply only after creating and authenticating a matching encrypted backup less than 24 hours old:
+
+```sh
+npm run ops:reset-project -- \
+  --project YOUR_PROJECT_ID \
+  --confirm-project YOUR_PROJECT_ID \
+  --database-url YOUR_DATABASE_URL \
+  --backup /path/to/recent-backup.gac-backup \
+  --apply
+```
+
+The passphrase is requested without echo. After backup authentication and the sanitized preview, the operator must type `RESET YOUR_PROJECT_ID`. Apply mode removes the complete Realtime Database root and every anonymous Firebase Auth user. It preserves all Email/Password organizers and their complete custom-claim objects, and it leaves every other persistent Auth account unchanged. Repeating the command is safe: an empty database and zero anonymous accounts remain empty.
+
+The command refuses every detected CI environment. It does not read or modify Database Rules, Auth-provider configuration, App Check, GitHub, billing, or any Firebase project setting, and it is never part of a workflow. It uses the same mode-`600` credential/project verification as the other trusted Admin SDK tools.
+
+For a synthetic emulator rehearsal, start `npm run emulators` in one terminal. Then connect the reset command to those Auth and Database emulators using only a `demo-*` project ID:
+
+```sh
+npm run ops:reset-project -- \
+  --project demo-games-and-castles \
+  --confirm-project demo-games-and-castles \
+  --emulator
+```
+
+The manual integration suite starts both emulators, exercises deletion/preservation/idempotence against synthetic data, and shuts them down:
+
+```sh
+npm run test:ops:reset-emulator
+```
+
+This suite is local-only and is deliberately absent from GitHub Actions.
+
 ## Post-event private cleanup
 
 Preview is the default and performs no write:
@@ -65,7 +113,8 @@ Preview is the default and performs no write:
 ```sh
 npm run privacy:cleanup -- \
   --project YOUR_PROJECT_ID \
-  --confirm-project YOUR_PROJECT_ID
+  --confirm-project YOUR_PROJECT_ID \
+  --database-url YOUR_DATABASE_URL
 ```
 
 Apply only after creating and verifying a backup less than 24 hours old:
@@ -74,6 +123,7 @@ Apply only after creating and verifying a backup less than 24 hours old:
 npm run privacy:cleanup -- \
   --project YOUR_PROJECT_ID \
   --confirm-project YOUR_PROJECT_ID \
+  --database-url YOUR_DATABASE_URL \
   --apply \
   --backup ../games-and-castles-2026.gac-backup
 ```
