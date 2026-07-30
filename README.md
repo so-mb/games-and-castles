@@ -35,6 +35,8 @@ Games & Castles is a private, mobile-first companion for 31 July–2 August 2026
 npm install
 ```
 
+Installation also enables the tracked pre-commit hook. Before each commit, Prettier updates only supported staged files and ESLint checks/fixes only staged JavaScript and TypeScript files; lint-staged preserves partially staged work. CI repeats repository-wide `format:check` and lint checks independently.
+
 Copy `.env.example` to `.env.local` and add the public Firebase web-app configuration to enable live features. The app still builds and serves the complete static trip page when configuration is absent. See [Firebase setup](docs/firebase-setup.md) for console, emulator, repository-variable, and organizer-provisioning guidance.
 
 ## Development
@@ -51,6 +53,7 @@ Available quality commands:
 npm run lint
 npm run format
 npm run format:check
+npm run precommit
 npm run typecheck
 npm run test
 npm run test:run
