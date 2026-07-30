@@ -3,6 +3,7 @@ import {
   assertTrustedLocalExecution,
   requireExactProjectConfirmation,
   validateAdminEnvironment,
+  validateBackupOutputPath,
   validateDatabaseUrl,
 } from "./admin-safety.mjs";
 
@@ -76,5 +77,53 @@ describe("trusted Admin SDK target safety", () => {
         emulator: false,
       }),
     ).toThrow("--database-url");
+  });
+
+  it("keeps repository-local backups in the matching ignored environment directory", () => {
+    const repositoryPath = "/workspace/games-and-castles";
+    expect(
+      validateBackupOutputPath({
+        output: ".backup/dev/dev-snapshot.gac-backup",
+        projectId: "games-and-castles-dev",
+        repositoryPath,
+      }),
+    ).toBe("/workspace/games-and-castles/.backup/dev/dev-snapshot.gac-backup");
+    expect(
+      validateBackupOutputPath({
+        output: ".backup/prod/prod-snapshot.gac-backup",
+        projectId: "games-and-castles-prod",
+        repositoryPath,
+      }),
+    ).toBe(
+      "/workspace/games-and-castles/.backup/prod/prod-snapshot.gac-backup",
+    );
+  });
+
+  it("rejects repository-local backups outside the matching environment directory", () => {
+    const repositoryPath = "/workspace/games-and-castles";
+    expect(() =>
+      validateBackupOutputPath({
+        output: "dev-snapshot.gac-backup",
+        projectId: "games-and-castles-dev",
+        repositoryPath,
+      }),
+    ).toThrow(".backup/dev/");
+    expect(() =>
+      validateBackupOutputPath({
+        output: ".backup/prod/dev-snapshot.gac-backup",
+        projectId: "games-and-castles-dev",
+        repositoryPath,
+      }),
+    ).toThrow(".backup/dev/");
+  });
+
+  it("continues to allow encrypted backup files outside the repository", () => {
+    expect(
+      validateBackupOutputPath({
+        output: "/secure/backups/project.gac-backup",
+        projectId: "games-and-castles-dev",
+        repositoryPath: "/workspace/games-and-castles",
+      }),
+    ).toBe("/secure/backups/project.gac-backup");
   });
 });

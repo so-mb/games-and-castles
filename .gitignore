@@ -8,5 +8,6 @@ coverage/
 .env.*
 !.env.example
 .config/firebase/
+.backup/
 *.gacbackup
 *.gac-backup

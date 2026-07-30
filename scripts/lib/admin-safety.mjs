@@ -1,5 +1,5 @@
 import { readFile, realpath, stat } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 export function argument(name) {
   const index = process.argv.indexOf(`--${name}`);
@@ -84,6 +84,37 @@ export function validateDatabaseUrl({ projectId, databaseUrl, emulator }) {
 function within(parent, child) {
   const path = relative(parent, child);
   return path === "" || (!path.startsWith("..") && !isAbsolute(path));
+}
+
+export function validateBackupOutputPath({
+  output,
+  projectId,
+  repositoryPath = process.cwd(),
+}) {
+  if (!output?.endsWith(".gac-backup"))
+    throw new Error("Backup output must end in .gac-backup.");
+
+  const repository = resolve(repositoryPath);
+  const outputPath = resolve(repository, output);
+  if (!within(repository, outputPath)) return outputPath;
+
+  const environment = projectId?.endsWith("-dev")
+    ? "dev"
+    : projectId?.endsWith("-prod")
+      ? "prod"
+      : null;
+  if (!environment)
+    throw new Error(
+      "Repository-local backups require a project ID ending in -dev or -prod.",
+    );
+
+  const expectedDirectory = resolve(repository, ".backup", environment);
+  if (dirname(outputPath) !== expectedDirectory)
+    throw new Error(
+      `Store this project backup directly in .backup/${environment}/.`,
+    );
+
+  return outputPath;
 }
 
 export async function validateAdminEnvironment({

@@ -1,5 +1,5 @@
-import { open } from "node:fs/promises";
-import { isAbsolute, relative, resolve } from "node:path";
+import { mkdir, open } from "node:fs/promises";
+import { dirname } from "node:path";
 import {
   applicationDefault,
   deleteApp,
@@ -11,6 +11,7 @@ import {
   argument,
   hasFlag,
   validateAdminEnvironment,
+  validateBackupOutputPath,
   validateDatabaseUrl,
 } from "./lib/admin-safety.mjs";
 import { encryptBackup } from "./lib/backup-crypto.mjs";
@@ -60,15 +61,7 @@ const output = argument("output");
 const dryRun = hasFlag("dry-run");
 const emulator = hasFlag("emulator");
 if (!projectId || !output) usage("Provide --project and --output.");
-if (!output.endsWith(".gac-backup"))
-  usage("Backup output must end in .gac-backup.");
-const outputPath = resolve(output);
-const relativeOutput = relative(process.cwd(), outputPath);
-if (
-  relativeOutput === "" ||
-  (!relativeOutput.startsWith("..") && !isAbsolute(relativeOutput))
-)
-  usage("Backup output must be outside the repository.");
+const outputPath = validateBackupOutputPath({ output, projectId });
 
 await validateAdminEnvironment({
   projectId,
@@ -118,6 +111,7 @@ try {
     if (passphrase !== confirmation)
       throw new Error("Passphrases do not match.");
     const encrypted = await encryptBackup(payload, passphrase);
+    await mkdir(dirname(outputPath), { recursive: true, mode: 0o700 });
     const handle = await open(outputPath, "wx", 0o600);
     try {
       await handle.writeFile(encrypted, "utf8");

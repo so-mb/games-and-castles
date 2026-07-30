@@ -25,9 +25,9 @@ The one explicit exception is the trusted pre-participant project reset document
 
 ## Backup retention
 
-Before cleanup, create and authenticate an encrypted backup outside the repository. Keep the backup only for the correction/recovery period: 30 days after cleanup by default, then remove it from all operator devices/copies. A legal, safety, or active incident hold may extend this period only when recorded by the organizer. Passphrases are shared out of band and never saved beside the file.
+Before cleanup, create and authenticate an encrypted backup in the repository-local, Git-ignored `.backup/dev/` or `.backup/prod/` directory matching the target project. An absolute location outside the repository remains acceptable when operationally necessary. Keep the backup only for the correction/recovery period: 30 days after cleanup by default, then remove it from all operator devices/copies. A legal, safety, or active incident hold may extend this period only when recorded by the organizer. Passphrases are shared out of band and never saved beside the file.
 
-The backup contains encrypted RTDB data and Auth metadata, so encryption does not make it non-sensitive. Limit filesystem/cloud access, use mode `600`, avoid consumer sync folders unless their access is explicitly reviewed, and never commit or attach `.gac-backup` files to issues/tasks.
+The backup contains encrypted RTDB data and Auth metadata, so encryption does not make it non-sensitive. Git ignore is not an access-control boundary: limit filesystem/cloud access, keep `.backup/` directories owner-only and files mode `600`, avoid consumer sync folders unless their access is explicitly reviewed, and never force-add, commit, or attach `.gac-backup` files to issues/tasks.
 
 ## Public and audit retention
 

@@ -45,16 +45,19 @@ npm run backup:create -- \
   --project YOUR_PROJECT_ID \
   --confirm-project YOUR_PROJECT_ID \
   --database-url YOUR_DATABASE_URL \
-  --output ../games-and-castles-2026.gac-backup \
+  --output .backup/dev/YOUR_PROJECT_ID-YYYY-MM-DD.gac-backup \
   --dry-run
 ```
 
-Create an encrypted file by removing `--dry-run`. The command refuses an output path inside the repository, prompts twice without echo, requires at least 12 characters, encrypts the in-memory RTDB snapshot plus sanitized Auth metadata using scrypt and AES-256-GCM, and creates a new mode-`600` file. It never writes plaintext. Auth exports exclude password hashes and access/refresh tokens.
+Use `.backup/dev/` for the development project and `.backup/prod/` for production. The entire `.backup/` tree is ignored by Git, while the environment split reduces the chance of selecting a backup for the wrong project. The command accepts repository-local output only in the matching environment directory, creates that directory with owner-only permissions when needed, and continues to support an absolute location outside the repository.
+
+Create an encrypted file by removing `--dry-run`. The command prompts twice without echo, requires at least 12 characters, encrypts the in-memory RTDB snapshot plus sanitized Auth metadata using scrypt and AES-256-GCM, and creates a new mode-`600` file. It never writes plaintext. Auth exports exclude password hashes and access/refresh tokens.
 
 Inspect and authenticate a backup without writing plaintext:
 
 ```sh
-npm run backup:inspect -- --input ../games-and-castles-2026.gac-backup
+npm run backup:inspect -- \
+  --input .backup/dev/YOUR_PROJECT_ID-YYYY-MM-DD.gac-backup
 ```
 
 The default output is envelope metadata and record counts. A wrong passphrase, modified tag/ciphertext, malformed envelope, old file, or wrong project fails closed. There is intentionally no automated restore command in Phase 10: restoring would overwrite live state and requires a separately reviewed, target-specific recovery plan.
@@ -81,7 +84,7 @@ npm run ops:reset-project -- \
   --project YOUR_PROJECT_ID \
   --confirm-project YOUR_PROJECT_ID \
   --database-url YOUR_DATABASE_URL \
-  --backup /path/to/recent-backup.gac-backup \
+  --backup .backup/dev/YOUR_PROJECT_ID-YYYY-MM-DD.gac-backup \
   --apply
 ```
 
@@ -125,7 +128,7 @@ npm run privacy:cleanup -- \
   --confirm-project YOUR_PROJECT_ID \
   --database-url YOUR_DATABASE_URL \
   --apply \
-  --backup ../games-and-castles-2026.gac-backup
+  --backup .backup/dev/YOUR_PROJECT_ID-YYYY-MM-DD.gac-backup
 ```
 
 The tool decrypts the supplied backup in memory, verifies its project, displays path counts, and requires the exact typed phrase `PURGE PRIVATE DATA`. One root update removes only the documented private Birthday Vault and Special Reveal branches and appends safe audit metadata. It preserves published birthday messages, public reveal state/resolution, competition history, championship sources/leaderboard derivations, participants, and audit. Re-running after a successful purge is a no-op with no extra audit entry.
