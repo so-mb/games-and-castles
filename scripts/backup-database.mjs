@@ -1,6 +1,10 @@
 import { open } from "node:fs/promises";
 import { isAbsolute, relative, resolve } from "node:path";
-import { applicationDefault, initializeApp } from "firebase-admin/app";
+import {
+  applicationDefault,
+  deleteApp,
+  initializeApp,
+} from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getDatabase } from "firebase-admin/database";
 import {
@@ -85,38 +89,43 @@ const app = initializeApp(
     ? { projectId, databaseURL: databaseUrl }
     : { credential: applicationDefault(), projectId, databaseURL: databaseUrl },
 );
-const [databaseSnapshot, users] = await Promise.all([
-  getDatabase(app).ref().get(),
-  authMetadata(getAuth(app)),
-]);
-const data = databaseSnapshot.val() ?? {};
-const payload = {
-  metadata: {
-    projectId,
-    createdAt: new Date().toISOString(),
-    databaseCounts: counts(data),
-    authUserCount: users.length,
-    schemaVersion: 1,
-  },
-  database: data,
-  authUsers: users,
-};
-
-console.log(`Target project: ${projectId}`);
-console.log(`Database top-level branches: ${Object.keys(data).length}`);
-console.log(`Auth user metadata records: ${users.length}`);
-if (dryRun) {
-  console.log("Dry run complete; no backup file was written.");
-  process.exit(0);
-}
-const passphrase = await promptSecret("Backup passphrase: ");
-const confirmation = await promptSecret("Repeat passphrase: ");
-if (passphrase !== confirmation) throw new Error("Passphrases do not match.");
-const encrypted = await encryptBackup(payload, passphrase);
-const handle = await open(outputPath, "wx", 0o600);
 try {
-  await handle.writeFile(encrypted, "utf8");
+  const [databaseSnapshot, users] = await Promise.all([
+    getDatabase(app).ref().get(),
+    authMetadata(getAuth(app)),
+  ]);
+  const data = databaseSnapshot.val() ?? {};
+  const payload = {
+    metadata: {
+      projectId,
+      createdAt: new Date().toISOString(),
+      databaseCounts: counts(data),
+      authUserCount: users.length,
+      schemaVersion: 1,
+    },
+    database: data,
+    authUsers: users,
+  };
+
+  console.log(`Target project: ${projectId}`);
+  console.log(`Database top-level branches: ${Object.keys(data).length}`);
+  console.log(`Auth user metadata records: ${users.length}`);
+  if (dryRun) {
+    console.log("Dry run complete; no backup file was written.");
+  } else {
+    const passphrase = await promptSecret("Backup passphrase: ");
+    const confirmation = await promptSecret("Repeat passphrase: ");
+    if (passphrase !== confirmation)
+      throw new Error("Passphrases do not match.");
+    const encrypted = await encryptBackup(payload, passphrase);
+    const handle = await open(outputPath, "wx", 0o600);
+    try {
+      await handle.writeFile(encrypted, "utf8");
+    } finally {
+      await handle.close();
+    }
+    console.log(`Encrypted backup written with mode 600: ${outputPath}`);
+  }
 } finally {
-  await handle.close();
+  await deleteApp(app);
 }
-console.log(`Encrypted backup written with mode 600: ${outputPath}`);

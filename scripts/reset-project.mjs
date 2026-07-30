@@ -1,6 +1,10 @@
 import { createInterface } from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import { applicationDefault, initializeApp } from "firebase-admin/app";
+import {
+  applicationDefault,
+  deleteApp,
+  initializeApp,
+} from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { getDatabase } from "firebase-admin/database";
 import {
@@ -86,37 +90,42 @@ const app = initializeApp(
     ? { projectId, databaseURL: databaseUrl }
     : { credential: applicationDefault(), projectId, databaseURL: databaseUrl },
 );
-const database = getDatabase(app);
-const auth = getAuth(app);
-const [snapshot, users] = await Promise.all([
-  database.ref().get(),
-  listAllAuthUsers(auth),
-]);
-const preview = buildProjectResetPreview(snapshot.val() ?? {}, users);
-printPreview(projectId, apply, preview);
-
-if (!apply) {
-  console.log("Dry run complete; no data or Auth accounts were changed.");
-  process.exit(0);
-}
-
-const prompt = createInterface({ input: stdin, output: stdout });
 try {
-  const phrase = resetConfirmationPhrase(projectId);
-  const answer = await prompt.question(`Type ${phrase} to continue: `);
-  if (answer !== phrase) {
-    console.log("Cancelled; no data or Auth accounts were changed.");
-    process.exit(0);
+  const database = getDatabase(app);
+  const auth = getAuth(app);
+  const [snapshot, users] = await Promise.all([
+    database.ref().get(),
+    listAllAuthUsers(auth),
+  ]);
+  const preview = buildProjectResetPreview(snapshot.val() ?? {}, users);
+  printPreview(projectId, apply, preview);
+
+  if (!apply) {
+    console.log("Dry run complete; no data or Auth accounts were changed.");
+  } else {
+    const prompt = createInterface({ input: stdin, output: stdout });
+    let confirmed = false;
+    try {
+      const phrase = resetConfirmationPhrase(projectId);
+      const answer = await prompt.question(`Type ${phrase} to continue: `);
+      confirmed = answer === phrase;
+    } finally {
+      prompt.close();
+    }
+
+    if (!confirmed) {
+      console.log("Cancelled; no data or Auth accounts were changed.");
+    } else {
+      const result = await resetProjectData({ database, auth });
+      console.log("Realtime Database root cleared.");
+      console.log(
+        `Anonymous Auth accounts deleted: ${result.anonymousUsersDeleted}.`,
+      );
+      console.log(
+        "Email/Password organizers, their custom claims, and all other persistent Auth accounts were preserved.",
+      );
+    }
   }
 } finally {
-  prompt.close();
+  await deleteApp(app);
 }
-
-const result = await resetProjectData({ database, auth });
-console.log("Realtime Database root cleared.");
-console.log(
-  `Anonymous Auth accounts deleted: ${result.anonymousUsersDeleted}.`,
-);
-console.log(
-  "Email/Password organizers, their custom claims, and all other persistent Auth accounts were preserved.",
-);
